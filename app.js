@@ -1,12 +1,16 @@
-// ====== GLOBAL STATE (with validation) ======
+// =========================
+// GLOBAL STATE (with checks)
+// =========================
+
+// Load from localStorage
 let storedUsers = JSON.parse(localStorage.getItem("cc_users")) || [];
 let storedCurrentUser = JSON.parse(localStorage.getItem("cc_currentUser")) || null;
 let posts = JSON.parse(localStorage.getItem("cc_posts")) || [];
 
-// ensure arrays / objects are valid
+// Ensure users array is valid
 let registeredUsers = Array.isArray(storedUsers) ? storedUsers : [];
 
-// only treat currentUser as valid if it exists in registeredUsers
+// Only accept currentUser if it exists in registeredUsers
 let currentUser = null;
 if (storedCurrentUser && registeredUsers.length > 0) {
   const match = registeredUsers.find(
@@ -17,7 +21,10 @@ if (storedCurrentUser && registeredUsers.length > 0) {
   }
 }
 
-// ====== DOM REFERENCES ======
+// =========================
+// DOM REFERENCES
+// =========================
+
 const feedContainer = document.getElementById("feedContainer");
 const emptyFeedMsg = document.getElementById("emptyFeedMsg");
 const adminList = document.getElementById("adminList");
@@ -30,12 +37,13 @@ const creditsFilter = document.getElementById("creditsFilter");
 const feedFiltersBox = document.getElementById("feedFilters");
 const sections = document.querySelectorAll(".section");
 const protectedNavButtons = document.querySelectorAll(".protected-nav");
+
 const heroLoginBtn = document.getElementById("heroLoginBtn");
 const heroExploreBtn = document.getElementById("heroExploreBtn");
 const welcomeLine = document.getElementById("welcomeLine");
 const welcomeName = document.getElementById("welcomeName");
 
-// chat elements
+// Chat
 const chatModal = document.getElementById("chatModal");
 const chatMessagesBox = document.getElementById("chatMessages");
 const chatPostTitle = document.getElementById("chatPostTitle");
@@ -43,7 +51,16 @@ const chatForm = document.getElementById("chatForm");
 const chatInput = document.getElementById("chatInput");
 let currentChatPostId = null;
 
-// ====== HELPERS ======
+// Login/Register modal
+const tabRegister = document.getElementById("tabRegister");
+const tabLogin = document.getElementById("tabLogin");
+const registerForm = document.getElementById("registerForm");
+const loginForm = document.getElementById("loginForm");
+
+// =========================
+// UTILS
+// =========================
+
 function saveState() {
   localStorage.setItem("cc_currentUser", JSON.stringify(currentUser));
   localStorage.setItem("cc_posts", JSON.stringify(posts));
@@ -64,11 +81,11 @@ function showSection(name) {
   const target = document.getElementById(`section-${name}`);
   if (target) {
     target.classList.remove("hidden");
-    localStorage.setItem("cc_lastSection", name);
+    localStorage.setItem("cc_lastSection", name); // remember last page
   }
 }
 
-// only "Bajaish" is allowed to actually be admin
+// Only Bajaish can truly be admin
 function normalizeRole(name, requestedRole) {
   if (name.trim().toLowerCase() === "bajaish" && requestedRole === "admin") {
     return "admin";
@@ -81,14 +98,14 @@ function updateAuthUI() {
   const logoutBtn = document.getElementById("logoutBtn");
 
   if (currentUser) {
-    // navbar buttons
+    // navbar
     loginBtn.classList.add("hidden");
     logoutBtn.classList.remove("hidden");
     userBadge.classList.remove("hidden");
     badgeName.textContent = currentUser.name;
     badgeRole.textContent = currentUser.role;
 
-    // hero area
+    // hero: hide login, show welcome line
     if (heroLoginBtn) heroLoginBtn.classList.add("hidden");
     if (welcomeLine && welcomeName) {
       welcomeName.textContent = currentUser.name;
@@ -103,13 +120,13 @@ function updateAuthUI() {
 
     if (feedFiltersBox) feedFiltersBox.classList.remove("hidden");
   } else {
-    // navbar buttons
+    // navbar
     loginBtn.classList.remove("hidden");
     logoutBtn.classList.add("hidden");
     userBadge.classList.add("hidden");
     badgeRole.textContent = "";
 
-    // hero area
+    // hero
     if (heroLoginBtn) heroLoginBtn.classList.remove("hidden");
     if (welcomeLine) welcomeLine.classList.add("hidden");
 
@@ -120,7 +137,6 @@ function updateAuthUI() {
 }
 
 function getFilteredPosts() {
-  // everyone who logs in sees all posts; only admin can edit
   let arr = posts.filter(p => p.status !== "removed");
 
   const cf = creditsFilter ? creditsFilter.value : "all";
@@ -275,7 +291,10 @@ function renderAdmin() {
   `;
 }
 
-// ====== NAV ======
+// =========================
+// NAVIGATION
+// =========================
+
 document.querySelectorAll(".nav-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     const target = btn.dataset.section;
@@ -293,13 +312,12 @@ document.querySelectorAll(".nav-btn").forEach(btn => {
   });
 });
 
-// hero buttons
+// Hero buttons
 if (heroLoginBtn) {
   heroLoginBtn.addEventListener("click", () => {
     document.getElementById("loginModal").classList.remove("hidden");
   });
 }
-
 if (heroExploreBtn) {
   heroExploreBtn.addEventListener("click", () => {
     if (!requireLogin()) return;
@@ -308,30 +326,27 @@ if (heroExploreBtn) {
   });
 }
 
-// filters
+// Filters
 if (priceFilter) priceFilter.addEventListener("change", renderFeed);
 if (creditsFilter) creditsFilter.addEventListener("change", renderFeed);
 
-// goto calculator from upload
+// Calculator link from upload
 document.getElementById("gotoCalcLink").addEventListener("click", () => {
   if (!requireLogin()) return;
   showSection("calculator");
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
-// ====== LOGIN MODAL CONTROLS ======
+// =========================
+// LOGIN MODAL & TABS
+// =========================
+
 document.getElementById("loginBtn").addEventListener("click", () => {
   document.getElementById("loginModal").classList.remove("hidden");
 });
 document.getElementById("closeLogin").addEventListener("click", () => {
   document.getElementById("loginModal").classList.add("hidden");
 });
-
-// tabs: register vs login
-const tabRegister = document.getElementById("tabRegister");
-const tabLogin = document.getElementById("tabLogin");
-const registerForm = document.getElementById("registerForm");
-const loginForm = document.getElementById("loginForm");
 
 if (tabRegister && tabLogin && registerForm && loginForm) {
   tabRegister.addEventListener("click", () => {
@@ -353,8 +368,11 @@ if (tabRegister && tabLogin && registerForm && loginForm) {
   });
 }
 
-// ====== REGISTER (with Gmail, no auto-login) ======
-registerForm.addEventListener("submit", async e => {
+// =========================
+// REGISTER (no auto-login)
+// =========================
+
+registerForm.addEventListener("submit", e => {
   e.preventDefault();
   const name = document.getElementById("regName").value.trim();
   const email = document.getElementById("regEmail").value.trim();
@@ -388,25 +406,17 @@ registerForm.addEventListener("submit", async e => {
     role
   };
   registeredUsers.push(newUser);
-
-  // optional backend call (not used for auth logic)
-  try {
-    await fetch("https://carbon-credit-exchange-backend.onrender.com/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, role })
-    });
-  } catch (err) {
-    // ignore
-  }
-
   saveState();
+
   alert("Registration successful. Please login with your username.");
-  tabLogin.click();
+  tabLogin.click(); // switch to login tab
 });
 
-// ====== LOGIN (must already be registered) ======
-loginForm.addEventListener("submit", async e => {
+// =========================
+// LOGIN (must be registered)
+// =========================
+
+loginForm.addEventListener("submit", e => {
   e.preventDefault();
 
   const nameInput = document.getElementById("loginName");
@@ -437,17 +447,6 @@ loginForm.addEventListener("submit", async e => {
   const role =
     loginRole === "admin" && name.toLowerCase() === "bajaish" ? "admin" : "user";
 
-  // optional backend call
-  try {
-    await fetch("https://carbon-credit-exchange-backend.onrender.com/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, role })
-    });
-  } catch (err) {
-    // ignore
-  }
-
   currentUser = {
     id: user.id,
     name: user.name,
@@ -462,7 +461,10 @@ loginForm.addEventListener("submit", async e => {
   renderFeed();
 });
 
-// ====== LOGOUT ======
+// =========================
+// LOGOUT
+// =========================
+
 document.getElementById("logoutBtn").addEventListener("click", () => {
   currentUser = null;
   localStorage.removeItem("cc_currentUser");
@@ -471,7 +473,10 @@ document.getElementById("logoutBtn").addEventListener("click", () => {
   showSection("landing");
 });
 
-// ====== UPLOAD POST ======
+// =========================
+// UPLOAD POST
+// =========================
+
 document.getElementById("uploadForm").addEventListener("submit", e => {
   e.preventDefault();
   if (!requireLogin()) return;
@@ -514,7 +519,10 @@ document.getElementById("uploadForm").addEventListener("submit", e => {
   reader.readAsDataURL(file);
 });
 
-// ====== FEED ACTIONS ======
+// =========================
+// FEED ACTIONS
+// =========================
+
 feedContainer.addEventListener("click", e => {
   const likeId = e.target.dataset.like;
   const commentBtnId = e.target.dataset.commentBtn;
@@ -549,7 +557,10 @@ feedContainer.addEventListener("click", e => {
   }
 });
 
-// ====== ADMIN ACTIONS ======
+// =========================
+// ADMIN POST TOGGLE
+// =========================
+
 adminList.addEventListener("click", e => {
   const id = e.target.dataset.toggle;
   if (!id) return;
@@ -561,12 +572,16 @@ adminList.addEventListener("click", e => {
   renderAdmin();
 });
 
-// ====== CHAT LOGIC ======
+// =========================
+// CHAT LOGIC
+// =========================
+
 function openChatForPost(postId) {
   const post = posts.find(p => String(p.id) === String(postId));
   if (!post) return;
   if (!post.chatMessages) post.chatMessages = [];
 
+  // mark other-person messages as seen
   post.chatMessages.forEach(m => {
     if (m.from !== currentUser.name) {
       m.seen = true;
@@ -651,6 +666,7 @@ chatForm.addEventListener("submit", e => {
   renderChatMessages(post);
 });
 
+// delete message (for everyone)
 chatMessagesBox.addEventListener("click", e => {
   const msgId = e.target.dataset.delmsg;
   if (!msgId || !currentChatPostId) return;
@@ -663,7 +679,10 @@ chatMessagesBox.addEventListener("click", e => {
   renderChatMessages(post);
 });
 
-// ====== CALCULATOR ======
+// =========================
+// CALCULATOR
+// =========================
+
 document.querySelectorAll('input[name="calcMethod"]').forEach(r => {
   r.addEventListener("change", () => {
     const v = document.querySelector('input[name="calcMethod"]:checked').value;
@@ -706,7 +725,10 @@ document.getElementById("calcLandBtn").addEventListener("click", () => {
   showResult(annual, total);
 });
 
-// ====== INITIAL SECTION (remember last page) ======
+// =========================
+// INITIAL SETUP
+// =========================
+
 updateAuthUI();
 
 let lastSection = localStorage.getItem("cc_lastSection") || "landing";
