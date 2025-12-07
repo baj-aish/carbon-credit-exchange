@@ -12,6 +12,16 @@ const badgeName = document.getElementById("badgeName");
 const badgeRole = document.getElementById("badgeRole");
 const priceFilter = document.getElementById("priceFilter");
 const creditsFilter = document.getElementById("creditsFilter");
+const feedFiltersBox = document.getElementById("feedFilters");
+const sections = document.querySelectorAll(".section");
+
+// chat elements
+const chatModal = document.getElementById("chatModal");
+const chatMessagesBox = document.getElementById("chatMessages");
+const chatPostTitle = document.getElementById("chatPostTitle");
+const chatForm = document.getElementById("chatForm");
+const chatInput = document.getElementById("chatInput");
+let currentChatPostId = null;
 
 // ---------- helpers ----------
 function saveState() {
@@ -28,6 +38,12 @@ function requireLogin() {
   return true;
 }
 
+function showSection(name) {
+  sections.forEach(sec => sec.classList.add("hidden"));
+  const target = document.getElementById(`section-${name}`);
+  if (target) target.classList.remove("hidden");
+}
+
 function updateAuthUI() {
   const loginBtn = document.getElementById("loginBtn");
   const logoutBtn = document.getElementById("logoutBtn");
@@ -39,19 +55,20 @@ function updateAuthUI() {
     badgeRole.textContent = currentUser.role;
     if (currentUser.role === "admin") adminTab.classList.remove("hidden");
     else adminTab.classList.add("hidden");
+    if (feedFiltersBox) feedFiltersBox.classList.remove("hidden");
   } else {
     loginBtn.classList.remove("hidden");
     logoutBtn.classList.add("hidden");
     userBadge.classList.add("hidden");
     adminTab.classList.add("hidden");
+    if (feedFiltersBox) feedFiltersBox.classList.add("hidden");
   }
 }
 
 function getFilteredPosts() {
   let arr = posts.filter(p => p.status !== "removed");
 
-  // credits range filter
-  const cf = creditsFilter.value;
+  const cf = creditsFilter ? creditsFilter.value : "all";
   if (cf !== "all") {
     arr = arr.filter(p => {
       const c = Number(p.credits || 0);
@@ -65,8 +82,7 @@ function getFilteredPosts() {
     });
   }
 
-  // price sort
-  const pf = priceFilter.value;
+  const pf = priceFilter ? priceFilter.value : "none";
   if (pf === "low-high") {
     arr = [...arr].sort((a, b) => (a.price || 0) - (b.price || 0));
   } else if (pf === "high-low") {
@@ -87,7 +103,7 @@ function renderFeed() {
 
   feedContainer.innerHTML = visiblePosts
     .map(p => {
-      const commentsHtml = p.comments.length
+      const commentsHtml = p.comments && p.comments.length
         ? p.comments
             .map(c => `<p class="text-xs"><b>${c.by}:</b> ${c.text}</p>`)
             .join("")
@@ -109,6 +125,9 @@ function renderFeed() {
             <div class="flex items-center justify-between text-xs">
               <button data-like="${p.id}" class="px-2 py-1 rounded-full border text-[11px]">
                 ❤️ Like (${p.likes})
+              </button>
+              <button data-chat="${p.id}" class="px-2 py-1 rounded-full border text-[11px]">
+                💬 Chat
               </button>
             </div>
             <div class="border-t pt-1">
@@ -166,20 +185,37 @@ function renderAdmin() {
 document.querySelectorAll(".nav-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     const target = btn.dataset.section;
-    document.querySelectorAll(".section").forEach(sec => sec.classList.add("hidden"));
-    document.getElementById(`section-${target}`).classList.remove("hidden");
+    if (!target) return;
+    showSection(target);
     if (target === "admin") renderAdmin();
+    if (target === "feed") renderFeed();
   });
 });
 
+// hero buttons
+const heroLoginBtn = document.getElementById("heroLoginBtn");
+const heroExploreBtn = document.getElementById("heroExploreBtn");
+
+if (heroLoginBtn) {
+  heroLoginBtn.addEventListener("click", () => {
+    document.getElementById("loginModal").classList.remove("hidden");
+  });
+}
+
+if (heroExploreBtn) {
+  heroExploreBtn.addEventListener("click", () => {
+    showSection("feed");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+}
+
 // ---------- filters ----------
-priceFilter.addEventListener("change", renderFeed);
-creditsFilter.addEventListener("change", renderFeed);
+if (priceFilter) priceFilter.addEventListener("change", renderFeed);
+if (creditsFilter) creditsFilter.addEventListener("change", renderFeed);
 
 // ---------- jump from upload to calculator ----------
 document.getElementById("gotoCalcLink").addEventListener("click", () => {
-  document.querySelectorAll(".section").forEach(sec => sec.classList.add("hidden"));
-  document.getElementById("section-calculator").classList.remove("hidden");
+  showSection("calculator");
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
@@ -214,20 +250,22 @@ document.getElementById("loginForm").addEventListener("submit", async e => {
     const data = await res.json(); // {id, name, role}
     currentUser = { name: data.name, role: data.role };
   } catch (err) {
-    // fallback: local login if server down
-    alert("Backend not running, using local login only.");
+    alert("Backend not reachable, using local login only.");
     currentUser = { name, role };
   }
 
   saveState();
   updateAuthUI();
   document.getElementById("loginModal").classList.add("hidden");
+  showSection("feed");
+  renderFeed();
 });
 
 document.getElementById("logoutBtn").addEventListener("click", () => {
   currentUser = null;
   saveState();
   updateAuthUI();
+  showSection("landing");
 });
 
 // ---------- upload post ----------
@@ -243,7 +281,6 @@ document.getElementById("uploadForm").addEventListener("submit", e => {
   const file = fileInput.files[0];
   if (!file) return;
 
-  // 50 KB limit
   const maxSizeBytes = 50 * 1024;
   if (file.size > maxSizeBytes) {
     alert("Image too large! Please upload an image up to 50 KB only.");
@@ -260,6 +297,7 @@ document.getElementById("uploadForm").addEventListener("submit", e => {
       user: currentUser.name,
       likes: 0,
       comments: [],
+      chatMessages: [],
       status: "active",
       price,
       credits
@@ -273,10 +311,11 @@ document.getElementById("uploadForm").addEventListener("submit", e => {
   reader.readAsDataURL(file);
 });
 
-// ---------- feed actions (like + comment) ----------
+// ---------- feed actions (like + comment + chat) ----------
 feedContainer.addEventListener("click", e => {
   const likeId = e.target.dataset.like;
   const commentBtnId = e.target.dataset.commentBtn;
+  const chatId = e.target.dataset.chat;
 
   if (likeId) {
     if (!requireLogin()) return;
@@ -300,6 +339,11 @@ feedContainer.addEventListener("click", e => {
     saveState();
     renderFeed();
   }
+
+  if (chatId) {
+    if (!requireLogin()) return;
+    openChatForPost(chatId);
+  }
 });
 
 // ---------- admin actions ----------
@@ -312,6 +356,108 @@ adminList.addEventListener("click", e => {
   saveState();
   renderFeed();
   renderAdmin();
+});
+
+// ---------- Chat logic ----------
+function openChatForPost(postId) {
+  const post = posts.find(p => String(p.id) === String(postId));
+  if (!post) return;
+  if (!post.chatMessages) post.chatMessages = [];
+
+  // mark all messages as seen when someone opens chat
+  post.chatMessages.forEach(m => {
+    if (m.from !== currentUser.name) {
+      m.seen = true;
+    }
+  });
+  saveState();
+
+  currentChatPostId = post.id;
+  chatPostTitle.textContent = `Chat about: ${post.title}`;
+  renderChatMessages(post);
+  chatModal.classList.remove("hidden");
+}
+
+function renderChatMessages(post) {
+  if (!post.chatMessages || !post.chatMessages.length) {
+    chatMessagesBox.innerHTML =
+      '<p class="text-[11px] text-slate-500 text-center mt-6">No messages yet. Start the conversation.</p>';
+    return;
+  }
+
+  chatMessagesBox.innerHTML = post.chatMessages
+    .map(msg => {
+      const mine = msg.from === currentUser.name;
+      const time = new Date(msg.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return `
+      <div class="flex ${mine ? "justify-end" : "justify-start"}">
+        <div class="max-w-[75%] px-2 py-1 rounded-lg text-[11px] ${
+          mine ? "bg-emerald-500 text-white" : "bg-white border"
+        }">
+          <div class="font-semibold mb-0.5">${mine ? "You" : msg.from}</div>
+          <div>${msg.text}</div>
+          <div class="flex justify-between items-center mt-0.5 text-[9px] opacity-80">
+            <span>${time}</span>
+            ${mine ? `<span>${msg.seen ? "Seen" : "Sent"}</span>` : ""}
+          </div>
+          ${
+            mine
+              ? `<button data-delmsg="${msg.id}" class="mt-0.5 text-[9px] underline">
+                   Delete for everyone
+                 </button>`
+              : ""
+          }
+        </div>
+      </div>`;
+    })
+    .join("");
+
+  // scroll to bottom
+  chatMessagesBox.scrollTop = chatMessagesBox.scrollHeight;
+}
+
+document.getElementById("closeChat").addEventListener("click", () => {
+  chatModal.classList.add("hidden");
+  currentChatPostId = null;
+});
+
+chatForm.addEventListener("submit", e => {
+  e.preventDefault();
+  if (!requireLogin()) return;
+  if (!currentChatPostId) return;
+
+  const text = chatInput.value.trim();
+  if (!text) return;
+
+  const post = posts.find(p => String(p.id) === String(currentChatPostId));
+  if (!post) return;
+  if (!post.chatMessages) post.chatMessages = [];
+
+  const message = {
+    id: Date.now(),
+    from: currentUser.name,
+    text,
+    time: Date.now(),
+    seen: false
+  };
+
+  post.chatMessages.push(message);
+  saveState();
+  chatInput.value = "";
+  renderChatMessages(post);
+});
+
+// delete message (for everyone)
+chatMessagesBox.addEventListener("click", e => {
+  const msgId = e.target.dataset.delmsg;
+  if (!msgId || !currentChatPostId) return;
+
+  const post = posts.find(p => String(p.id) === String(currentChatPostId));
+  if (!post || !post.chatMessages) return;
+
+  post.chatMessages = post.chatMessages.filter(m => String(m.id) !== String(msgId));
+  saveState();
+  renderChatMessages(post);
 });
 
 // ---------- calculator logic ----------
@@ -361,5 +507,7 @@ document.getElementById("calcLandBtn").addEventListener("click", () => {
 
 // ---------- initial ----------
 updateAuthUI();
+showSection("landing");
 renderFeed();
+
 
