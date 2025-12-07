@@ -2,30 +2,38 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Carbon Credit Platform</title>
+  <title>Carbon Credit Hub</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-100 min-h-screen">
   <!-- Navbar -->
-  <header class="bg-white/90 backdrop-blur shadow sticky top-0 z-10">
+  <header class="bg-slate-900/95 backdrop-blur shadow sticky top-0 z-20">
     <div class="max-w-6xl mx-auto flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-2">
-        <div class="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-white text-sm font-bold">
-          C
+        <!-- Simple custom logo -->
+        <div class="w-8 h-8 rounded-xl bg-emerald-400 flex items-center justify-center">
+          <span class="text-slate-900 font-extrabold text-lg">C</span>
         </div>
-        <div class="font-bold text-lg sm:text-xl">Carbon Credit Hub</div>
+        <div class="flex flex-col leading-tight">
+          <span class="font-semibold text-white text-sm sm:text-base">Carbon Credit Hub</span>
+          <span class="text-[11px] text-emerald-200 hidden sm:block">Plant. Measure. Trade Responsibly.</span>
+        </div>
       </div>
+
       <nav class="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm">
-        <button data-section="feed" class="nav-btn font-medium text-blue-600">Feed</button>
-        <button data-section="upload" class="nav-btn">Upload</button>
-        <button data-section="calculator" class="nav-btn">Calculator</button>
-        <button data-section="admin" class="nav-btn hidden" id="adminTab">Admin</button>
-        <button id="loginBtn" class="px-3 py-1 rounded-full bg-blue-600 text-white text-xs sm:text-sm">
+        <button data-section="landing" class="nav-btn text-emerald-300 font-medium">Home</button>
+        <button data-section="feed" class="nav-btn text-slate-200">Marketplace</button>
+        <button data-section="upload" class="nav-btn text-slate-200">Post Listing</button>
+        <button data-section="calculator" class="nav-btn text-slate-200">Calculator</button>
+        <button data-section="admin" class="nav-btn text-slate-200 hidden" id="adminTab">Admin</button>
+        <button id="loginBtn"
+                class="px-3 py-1 rounded-full bg-emerald-400 text-slate-900 text-xs sm:text-sm font-semibold">
           Login / Register
         </button>
-        <button id="logoutBtn" class="hidden px-3 py-1 rounded-full bg-red-500 text-white text-xs sm:text-sm">
+        <button id="logoutBtn"
+                class="hidden px-3 py-1 rounded-full bg-red-500 text-white text-xs sm:text-sm">
           Logout
         </button>
       </nav>
@@ -42,21 +50,97 @@
         <span id="badgeRole" class="ml-2 text-xs px-2 py-0.5 rounded-full bg-slate-900 text-white"></span>
       </div>
       <span class="hidden sm:inline text-[11px] text-slate-500">
-        Your account is stored securely on the backend (up to 50 users).
+        Backend demo stores up to 50 users (name + role).
       </span>
     </div>
 
-    <!-- Feed Section -->
-    <section id="section-feed" class="section">
+    <!-- Landing / Home Section -->
+    <section id="section-landing" class="section">
+      <div
+        class="bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 rounded-3xl shadow-xl p-5 sm:p-8 text-slate-50 flex flex-col gap-6 sm:gap-8">
+        <div class="max-w-3xl">
+          <p class="text-xs sm:text-sm uppercase tracking-[0.2em] text-emerald-300 mb-2">
+            Carbon Credit Exchange Platform
+          </p>
+          <h1 class="text-2xl sm:text-3xl md:text-4xl font-extrabold leading-snug mb-3">
+            Track your plantations. <br class="hidden sm:block" />
+            <span class="text-emerald-300">Calculate carbon credits.</span> Share impact.
+          </h1>
+          <p class="text-sm sm:text-base text-emerald-100 max-w-xl">
+            A simple web platform to upload plantation listings, calculate carbon credits using tree or land area
+            formulas, and explore community projects – built as a Computer Science mini-project.
+          </p>
+          <div class="flex flex-wrap gap-3 mt-4">
+            <button id="heroLoginBtn"
+                    class="px-4 py-2 rounded-full bg-emerald-400 text-slate-900 text-sm font-semibold">
+              Login / Sign Up
+            </button>
+            <button id="heroExploreBtn"
+                    class="px-4 py-2 rounded-full border border-emerald-300 text-emerald-200 text-sm">
+              Carbon Credit Marketplace
+            </button>
+          </div>
+        </div>
+
+        <div class="grid sm:grid-cols-3 gap-3 text-xs sm:text-sm">
+          <div class="bg-slate-900/60 rounded-2xl p-3 border border-white/5">
+            <p class="font-semibold mb-1 text-emerald-200">Calculator</p>
+            <p class="text-slate-200">
+              Built-in tree-based and land-based calculator with auto–CO₂ absorption values and unit conversion.
+            </p>
+          </div>
+          <div class="bg-slate-900/60 rounded-2xl p-3 border border-white/5">
+            <p class="font-semibold mb-1 text-emerald-200">Marketplace</p>
+            <p class="text-slate-200">
+              Upload plantation images with credits & pricing, then sort/filter listings after login.
+            </p>
+          </div>
+          <div class="bg-slate-900/60 rounded-2xl p-3 border border-white/5">
+            <p class="font-semibold mb-1 text-emerald-200">Social Interaction</p>
+            <p class="text-slate-200">
+              Like, comment and chat on listings. Messages can be deleted and show basic “Seen” status.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid sm:grid-cols-3 gap-3 mt-4">
+        <div class="bg-white rounded-2xl shadow p-3">
+          <p class="text-xs text-slate-500 mb-1">Module 1</p>
+          <p class="font-semibold text-sm mb-1">User & Admin Management</p>
+          <p class="text-xs text-slate-600">
+            Minimal login & role selection (user / admin) used to unlock posting and moderation features.
+          </p>
+        </div>
+        <div class="bg-white rounded-2xl shadow p-3">
+          <p class="text-xs text-slate-500 mb-1">Module 2</p>
+          <p class="font-semibold text-sm mb-1">Carbon Credit Posting</p>
+          <p class="text-xs text-slate-600">
+            Users can upload images (≤ 50 KB), set carbon credits offered, pricing, and describe their plantation.
+          </p>
+        </div>
+        <div class="bg-white rounded-2xl shadow p-3">
+          <p class="text-xs text-slate-500 mb-1">Module 3</p>
+          <p class="font-semibold text-sm mb-1">Calculator & Interaction</p>
+          <p class="text-xs text-slate-600">
+            Credit calculator + likes, comments and per-listing chat for user interaction.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Feed Section / Marketplace -->
+    <section id="section-feed" class="section hidden">
       <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <h2 class="text-xl sm:text-2xl font-semibold">Marketplace Feed</h2>
+        <h2 class="text-xl sm:text-2xl font-semibold">Carbon Credit Marketplace</h2>
         <p class="text-[11px] sm:text-xs text-slate-500">
-          Browse plantation posts with carbon credits & pricing.
+          Browse plantation listings with carbon credits & pricing. Login to enable filters & chat.
         </p>
       </div>
 
-      <!-- Filters -->
-      <div class="bg-white rounded-2xl shadow px-3 py-3 mb-3 flex flex-wrap gap-3 items-center text-xs sm:text-sm">
+      <!-- Filters – only shown after login -->
+      <div id="feedFilters"
+           class="hidden bg-white rounded-2xl shadow px-3 py-3 mb-3 flex flex-wrap gap-3 items-center text-xs sm:text-sm">
         <div class="flex flex-col">
           <span class="font-medium mb-1">Sort by price</span>
           <select id="priceFilter" class="border rounded-lg px-2 py-1 text-xs sm:text-sm">
@@ -78,7 +162,7 @@
           </select>
         </div>
         <p class="text-[11px] text-slate-500">
-          Tip: Carbon credits = metric tons of CO₂ reduced.
+          Filters are active only after login.
         </p>
       </div>
 
@@ -246,6 +330,31 @@
     </section>
   </main>
 
+  <!-- Chat Modal -->
+  <div id="chatModal"
+       class="hidden fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-30">
+    <div class="bg-white rounded-2xl shadow-lg max-w-md w-full p-4 sm:p-5 flex flex-col">
+      <div class="flex items-center justify-between mb-2">
+        <h3 id="chatPostTitle" class="text-sm font-semibold">Chat</h3>
+        <button id="closeChat" class="text-xs text-slate-500">Close</button>
+      </div>
+      <div id="chatMessages"
+           class="flex-1 min-h-[160px] max-h-64 overflow-y-auto border rounded-lg p-2 mb-2 text-xs space-y-1 bg-slate-50">
+      </div>
+      <form id="chatForm" class="flex gap-1">
+        <input id="chatInput"
+               class="flex-1 border rounded-lg px-2 py-1 text-xs"
+               placeholder="Type a message..." />
+        <button class="px-3 py-1 rounded-lg bg-emerald-600 text-white text-xs">
+          Send
+        </button>
+      </form>
+      <p class="mt-1 text-[10px] text-slate-500">
+        Messages are stored locally for demo purposes. “Seen” appears below your message once the other user opens the chat.
+      </p>
+    </div>
+  </div>
+
   <!-- Login Modal -->
   <div id="loginModal"
        class="hidden fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-20">
@@ -283,3 +392,5 @@
   <script src="app.js" defer></script>
 </body>
 </html>
+
+
