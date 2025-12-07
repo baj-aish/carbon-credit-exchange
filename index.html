@@ -24,10 +24,17 @@
 
       <nav class="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm">
         <button data-section="landing" class="nav-btn text-emerald-300 font-medium">Home</button>
-        <button data-section="feed" class="nav-btn text-slate-200">Marketplace</button>
-        <button data-section="upload" class="nav-btn text-slate-200">Post Listing</button>
-        <button data-section="calculator" class="nav-btn text-slate-200">Calculator</button>
-        <button data-section="admin" class="nav-btn text-slate-200 hidden" id="adminTab">Admin</button>
+
+        <!-- Protected nav items: hidden until login -->
+        <button data-section="feed"
+                class="nav-btn protected-nav hidden text-slate-200">Marketplace</button>
+        <button data-section="upload"
+                class="nav-btn protected-nav hidden text-slate-200">Post Listing</button>
+        <button data-section="calculator"
+                class="nav-btn protected-nav hidden text-slate-200">Calculator</button>
+        <button data-section="admin"
+                class="nav-btn protected-nav hidden text-slate-200" id="adminTab">Admin</button>
+
         <button id="loginBtn"
                 class="px-3 py-1 rounded-full bg-emerald-400 text-slate-900 text-xs sm:text-sm font-semibold">
           Login / Register
@@ -67,7 +74,7 @@
             <span class="text-emerald-300">Calculate carbon credits.</span> Share impact.
           </h1>
           <p class="text-sm sm:text-base text-emerald-100 max-w-xl">
-            A simple web platform to upload plantation listings, calculate carbon credits using tree or land area
+            A simple web platform to upload plantation listings, calculate carbon credits with tree or land area
             formulas, and explore community projects – built as a Computer Science mini-project.
           </p>
           <div class="flex flex-wrap gap-3 mt-4">
@@ -86,7 +93,7 @@
           <div class="bg-slate-900/60 rounded-2xl p-3 border border-white/5">
             <p class="font-semibold mb-1 text-emerald-200">Calculator</p>
             <p class="text-slate-200">
-              Built-in tree-based and land-based calculator with auto–CO₂ absorption values and unit conversion.
+              Built-in tree-based and land-based calculator with CO₂ absorption values and unit conversion.
             </p>
           </div>
           <div class="bg-slate-900/60 rounded-2xl p-3 border border-white/5">
@@ -103,30 +110,6 @@
           </div>
         </div>
       </div>
-
-      <div class="grid sm:grid-cols-3 gap-3 mt-4">
-        <div class="bg-white rounded-2xl shadow p-3">
-          <p class="text-xs text-slate-500 mb-1">Module 1</p>
-          <p class="font-semibold text-sm mb-1">User & Admin Management</p>
-          <p class="text-xs text-slate-600">
-            Minimal login & role selection (user / admin) used to unlock posting and moderation features.
-          </p>
-        </div>
-        <div class="bg-white rounded-2xl shadow p-3">
-          <p class="text-xs text-slate-500 mb-1">Module 2</p>
-          <p class="font-semibold text-sm mb-1">Carbon Credit Posting</p>
-          <p class="text-xs text-slate-600">
-            Users can upload images (≤ 50 KB), set carbon credits offered, pricing, and describe their plantation.
-          </p>
-        </div>
-        <div class="bg-white rounded-2xl shadow p-3">
-          <p class="text-xs text-slate-500 mb-1">Module 3</p>
-          <p class="font-semibold text-sm mb-1">Calculator & Interaction</p>
-          <p class="text-xs text-slate-600">
-            Credit calculator + likes, comments and per-listing chat for user interaction.
-          </p>
-        </div>
-      </div>
     </section>
 
     <!-- Feed Section / Marketplace -->
@@ -134,7 +117,7 @@
       <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h2 class="text-xl sm:text-2xl font-semibold">Carbon Credit Marketplace</h2>
         <p class="text-[11px] sm:text-xs text-slate-500">
-          Browse plantation listings with carbon credits & pricing. Login to enable filters & chat.
+          Browse plantation listings with carbon credits & pricing. Filters & chat need login.
         </p>
       </div>
 
@@ -162,7 +145,7 @@
           </select>
         </div>
         <p class="text-[11px] text-slate-500">
-          Filters are active only after login.
+          Filters become active after login.
         </p>
       </div>
 
@@ -324,7 +307,7 @@
     <section id="section-admin" class="section hidden">
       <h2 class="text-xl sm:text-2xl font-semibold mb-3">Admin Panel</h2>
       <p class="text-xs text-slate-500 mb-2">
-        Login as role <b>admin</b> to manage posts (remove/restore).
+        Only username <b>Bajaish</b> can access admin controls.
       </p>
       <div id="adminList" class="space-y-3"></div>
     </section>
@@ -355,36 +338,60 @@
     </div>
   </div>
 
-  <!-- Login Modal -->
+  <!-- Login / Register Modal -->
   <div id="loginModal"
        class="hidden fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-20">
-    <div class="bg-white rounded-2xl shadow-lg max-w-sm w-full p-4 sm:p-5">
-      <h3 class="text-lg font-semibold mb-3">Login / Register</h3>
-      <form id="loginForm" class="space-y-3 text-sm">
+    <div class="bg-white rounded-2xl shadow-lg max-w-sm w-full p-4 sm:p-5 text-sm">
+      <div class="flex justify-between mb-3">
+        <h3 class="text-lg font-semibold">Account</h3>
+        <button id="closeLogin" class="text-xs text-slate-500">Close</button>
+      </div>
+
+      <!-- Tabs -->
+      <div class="flex mb-3 border rounded-full overflow-hidden text-xs">
+        <button id="tabRegister" class="flex-1 py-1.5 bg-slate-900 text-white font-medium">
+          Register
+        </button>
+        <button id="tabLogin" class="flex-1 py-1.5 bg-slate-100 text-slate-700">
+          Login
+        </button>
+      </div>
+
+      <!-- Register form -->
+      <form id="registerForm" class="space-y-3">
         <div>
-          <label class="block font-medium mb-1">Your Name</label>
-          <input required id="loginName" class="w-full border rounded-lg px-3 py-2" />
+          <label class="block font-medium mb-1">Full Name</label>
+          <input required id="regName" class="w-full border rounded-lg px-3 py-2" />
+        </div>
+        <div>
+          <label class="block font-medium mb-1">Gmail ID</label>
+          <input required id="regEmail" type="email" class="w-full border rounded-lg px-3 py-2"
+                 placeholder="example@gmail.com" />
         </div>
         <div>
           <label class="block font-medium mb-1">Role</label>
-          <select id="loginRole" class="w-full border rounded-lg px-3 py-2">
+          <select id="regRole" class="w-full border rounded-lg px-3 py-2">
             <option value="user">User</option>
-            <option value="admin">Admin (for demo)</option>
+            <option value="admin">Admin (only Bajaish actually gets admin)</option>
           </select>
         </div>
-        <div class="flex gap-2 pt-2">
-          <button type="submit"
-                  class="flex-1 rounded-lg bg-blue-600 text-white py-2 font-medium">
-            Continue
-          </button>
-          <button type="button" id="closeLogin"
-                  class="px-3 py-2 text-slate-600 text-xs">
-            Cancel
-          </button>
+        <button class="w-full rounded-lg bg-blue-600 text-white py-2 font-medium">
+          Register & Continue
+        </button>
+      </form>
+
+      <!-- Login form -->
+      <form id="loginForm" class="space-y-3 hidden mt-1">
+        <div>
+          <label class="block font-medium mb-1">Username</label>
+          <input required id="loginName" class="w-full border rounded-lg px-3 py-2" />
         </div>
-        <p class="mt-2 text-[11px] text-slate-500">
-          Backend stores up to 50 users (name + role) for demo purposes.
+        <p class="text-[11px] text-slate-500">
+          For demo, login is based only on your name. Use <b>Bajaish</b> to access admin panel.
         </p>
+        <button class="w-full rounded-lg bg-emerald-600 text-white py-2 font-medium mt-1">
+          Login
+        </button>
       </form>
     </div>
   </div>
@@ -392,5 +399,7 @@
   <script src="app.js" defer></script>
 </body>
 </html>
+
+
 
 
