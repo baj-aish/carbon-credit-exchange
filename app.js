@@ -1,10 +1,9 @@
-// ====== GLOBAL STATE ======
 // ====== GLOBAL STATE (with validation) ======
 let storedUsers = JSON.parse(localStorage.getItem("cc_users")) || [];
 let storedCurrentUser = JSON.parse(localStorage.getItem("cc_currentUser")) || null;
 let posts = JSON.parse(localStorage.getItem("cc_posts")) || [];
 
-// if no users array, start empty
+// ensure arrays / objects are valid
 let registeredUsers = Array.isArray(storedUsers) ? storedUsers : [];
 
 // only treat currentUser as valid if it exists in registeredUsers
@@ -18,6 +17,7 @@ if (storedCurrentUser && registeredUsers.length > 0) {
   }
 }
 
+// ====== DOM REFERENCES ======
 const feedContainer = document.getElementById("feedContainer");
 const emptyFeedMsg = document.getElementById("emptyFeedMsg");
 const adminList = document.getElementById("adminList");
@@ -30,6 +30,10 @@ const creditsFilter = document.getElementById("creditsFilter");
 const feedFiltersBox = document.getElementById("feedFilters");
 const sections = document.querySelectorAll(".section");
 const protectedNavButtons = document.querySelectorAll(".protected-nav");
+const heroLoginBtn = document.getElementById("heroLoginBtn");
+const heroExploreBtn = document.getElementById("heroExploreBtn");
+const welcomeLine = document.getElementById("welcomeLine");
+const welcomeName = document.getElementById("welcomeName");
 
 // chat elements
 const chatModal = document.getElementById("chatModal");
@@ -58,7 +62,10 @@ function requireLogin() {
 function showSection(name) {
   sections.forEach(sec => sec.classList.add("hidden"));
   const target = document.getElementById(`section-${name}`);
-  if (target) target.classList.remove("hidden");
+  if (target) {
+    target.classList.remove("hidden");
+    localStorage.setItem("cc_lastSection", name);
+  }
 }
 
 // only "Bajaish" is allowed to actually be admin
@@ -74,12 +81,21 @@ function updateAuthUI() {
   const logoutBtn = document.getElementById("logoutBtn");
 
   if (currentUser) {
+    // navbar buttons
     loginBtn.classList.add("hidden");
     logoutBtn.classList.remove("hidden");
     userBadge.classList.remove("hidden");
     badgeName.textContent = currentUser.name;
     badgeRole.textContent = currentUser.role;
 
+    // hero area
+    if (heroLoginBtn) heroLoginBtn.classList.add("hidden");
+    if (welcomeLine && welcomeName) {
+      welcomeName.textContent = currentUser.name;
+      welcomeLine.classList.remove("hidden");
+    }
+
+    // protected nav
     protectedNavButtons.forEach(btn => btn.classList.remove("hidden"));
 
     if (currentUser.role === "admin") adminTab.classList.remove("hidden");
@@ -87,9 +103,16 @@ function updateAuthUI() {
 
     if (feedFiltersBox) feedFiltersBox.classList.remove("hidden");
   } else {
+    // navbar buttons
     loginBtn.classList.remove("hidden");
     logoutBtn.classList.add("hidden");
     userBadge.classList.add("hidden");
+    badgeRole.textContent = "";
+
+    // hero area
+    if (heroLoginBtn) heroLoginBtn.classList.remove("hidden");
+    if (welcomeLine) welcomeLine.classList.add("hidden");
+
     adminTab.classList.add("hidden");
     if (feedFiltersBox) feedFiltersBox.classList.add("hidden");
     protectedNavButtons.forEach(btn => btn.classList.add("hidden"));
@@ -271,9 +294,6 @@ document.querySelectorAll(".nav-btn").forEach(btn => {
 });
 
 // hero buttons
-const heroLoginBtn = document.getElementById("heroLoginBtn");
-const heroExploreBtn = document.getElementById("heroExploreBtn");
-
 if (heroLoginBtn) {
   heroLoginBtn.addEventListener("click", () => {
     document.getElementById("loginModal").classList.remove("hidden");
@@ -369,7 +389,7 @@ registerForm.addEventListener("submit", async e => {
   };
   registeredUsers.push(newUser);
 
-  // optional backend call
+  // optional backend call (not used for auth logic)
   try {
     await fetch("https://carbon-credit-exchange-backend.onrender.com/api/login", {
       method: "POST",
@@ -382,7 +402,6 @@ registerForm.addEventListener("submit", async e => {
 
   saveState();
   alert("Registration successful. Please login with your username.");
-  // switch to Login tab
   tabLogin.click();
 });
 
@@ -401,30 +420,24 @@ loginForm.addEventListener("submit", async e => {
     return;
   }
 
-  // 🔒 Check if this user exists in registeredUsers
   const user = registeredUsers.find(
     u => u.name.toLowerCase() === name.toLowerCase()
   );
 
   if (!user) {
     alert("No user with such username found, try registering first.");
-    return; // ⛔ STOP: do NOT log in
+    return;
   }
 
-  // 🔒 Admin login: only if name is exactly "Bajaish"
-  if (loginRole === "admin") {
-    if (name.toLowerCase() !== "bajaish") {
-      alert("Only authorised access allowed, try logging in using as user.");
-      return; // ⛔ STOP: do NOT log in as admin
-    }
+  if (loginRole === "admin" && name.toLowerCase() !== "bajaish") {
+    alert("Only authorised access allowed, try logging in using as user.");
+    return;
   }
 
-  // final role
-  const role = loginRole === "admin" && name.toLowerCase() === "bajaish"
-    ? "admin"
-    : "user";
+  const role =
+    loginRole === "admin" && name.toLowerCase() === "bajaish" ? "admin" : "user";
 
-  // optional backend call (does NOT create new user logic)
+  // optional backend call
   try {
     await fetch("https://carbon-credit-exchange-backend.onrender.com/api/login", {
       method: "POST",
@@ -432,10 +445,9 @@ loginForm.addEventListener("submit", async e => {
       body: JSON.stringify({ name, role })
     });
   } catch (err) {
-    // ignore backend failure for demo
+    // ignore
   }
 
-  // ✅ only now set currentUser (for an already registered user)
   currentUser = {
     id: user.id,
     name: user.name,
@@ -450,6 +462,14 @@ loginForm.addEventListener("submit", async e => {
   renderFeed();
 });
 
+// ====== LOGOUT ======
+document.getElementById("logoutBtn").addEventListener("click", () => {
+  currentUser = null;
+  localStorage.removeItem("cc_currentUser");
+  localStorage.setItem("cc_lastSection", "landing");
+  updateAuthUI();
+  showSection("landing");
+});
 
 // ====== UPLOAD POST ======
 document.getElementById("uploadForm").addEventListener("submit", e => {
@@ -529,7 +549,7 @@ feedContainer.addEventListener("click", e => {
   }
 });
 
-// ====== ADMIN ACTIONS (edit posts only by admin) ======
+// ====== ADMIN ACTIONS ======
 adminList.addEventListener("click", e => {
   const id = e.target.dataset.toggle;
   if (!id) return;
@@ -547,7 +567,6 @@ function openChatForPost(postId) {
   if (!post) return;
   if (!post.chatMessages) post.chatMessages = [];
 
-  // mark messages as seen when opened by other user
   post.chatMessages.forEach(m => {
     if (m.from !== currentUser.name) {
       m.seen = true;
@@ -687,10 +706,20 @@ document.getElementById("calcLandBtn").addEventListener("click", () => {
   showResult(annual, total);
 });
 
-// ====== INITIAL ======
+// ====== INITIAL SECTION (remember last page) ======
 updateAuthUI();
-showSection("landing");
-renderFeed();
+
+let lastSection = localStorage.getItem("cc_lastSection") || "landing";
+const protectedSections = ["feed", "upload", "calculator", "admin"];
+
+if (!currentUser && protectedSections.includes(lastSection)) {
+  lastSection = "landing";
+}
+
+showSection(lastSection);
+if (lastSection === "feed") renderFeed();
+
+
 
 
 
