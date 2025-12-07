@@ -381,23 +381,38 @@
           Register & Continue
         </button>
       </form>
+      
+    <!-- Login form -->
+<form id="loginForm" class="space-y-3 hidden mt-1">
+  <div>
+    <label class="block font-medium mb-1">Username</label>
+    <input required id="loginName" class="w-full border rounded-lg px-3 py-2" />
+  </div>
 
-      <!-- Login form -->
-      <form id="loginForm" class="space-y-3 hidden mt-1">
-        <div>
-          <label class="block font-medium mb-1">Username</label>
-          <input required id="loginName" class="w-full border rounded-lg px-3 py-2" />
-        </div>
-        <button class="w-full rounded-lg bg-emerald-600 text-white py-2 font-medium mt-1">
-          Login
-        </button>
-      </form>
+  <div>
+    <label class="block font-medium mb-1">Login as</label>
+    <select id="loginRole" class="w-full border rounded-lg px-3 py-2">
+      <option value="user">User</option>
+      <option value="admin">Admin</option>
+    </select>
+  </div>
+
+  <p class="text-[11px] text-slate-500">
+    For demo, login is based on username. Only authorised accounts can use admin mode.
+  </p>
+
+  <button class="w-full rounded-lg bg-emerald-600 text-white py-2 font-medium mt-1">
+    Login
+  </button>
+</form>
+
     </div>
   </div>
 
   <script src="app.js" defer></script>
 </body>
 </html>
+
 
 
 
