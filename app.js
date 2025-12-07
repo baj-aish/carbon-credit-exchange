@@ -258,21 +258,31 @@ const tabLogin = document.getElementById("tabLogin");
 const registerForm = document.getElementById("registerForm");
 const loginForm = document.getElementById("loginForm");
 
-tabRegister.addEventListener("click", () => {
-  tabRegister.classList.add("bg-slate-900", "text-white", "font-medium");
-  tabLogin.classList.remove("bg-slate-900", "text-white", "font-medium");
-  tabLogin.classList.add("bg-slate-100", "text-slate-700");
-  registerForm.classList.remove("hidden");
-  loginForm.classList.add("hidden");
-});
+// guard so that if any element is missing, code doesn't crash
+if (tabRegister && tabLogin && registerForm && loginForm) {
+  tabRegister.addEventListener("click", () => {
+    tabRegister.classList.add("bg-slate-900", "text-white", "font-medium");
+    tabRegister.classList.remove("bg-slate-100", "text-slate-700");
 
-tabLogin.addEventListener("click", () => {
-  tabLogin.classList.add("bg-slate-900", "text-white", "font-medium");
-  tabRegister.classList.remove("bg-slate-900", "text-white", "font-medium");
-  tabRegister.classList.add("bg-slate-100", "text-slate-700");
-  registerForm.classList.add("hidden");
-  loginForm.classList.remove("hidden");
-});
+    tabLogin.classList.remove("bg-slate-900", "text-white", "font-medium");
+    tabLogin.classList.add("bg-slate-100", "text-slate-700");
+
+    registerForm.classList.remove("hidden");
+    loginForm.classList.add("hidden");
+  });
+
+  tabLogin.addEventListener("click", () => {
+    tabLogin.classList.add("bg-slate-900", "text-white", "font-medium");
+    tabLogin.classList.remove("bg-slate-100", "text-slate-700");
+
+    tabRegister.classList.remove("bg-slate-900", "text-white", "font-medium");
+    tabRegister.classList.add("bg-slate-100", "text-slate-700");
+
+    registerForm.classList.add("hidden");
+    loginForm.classList.remove("hidden");
+  });
+}
+
 
 // --- Register (with Gmail) ---
 registerForm.addEventListener("submit", async e => {
@@ -582,6 +592,7 @@ document.getElementById("calcLandBtn").addEventListener("click", () => {
 updateAuthUI();
 showSection("landing");
 renderFeed();
+
 
 
 
