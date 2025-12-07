@@ -1,7 +1,8 @@
-// Frontend-only state (posts in localStorage), users in simple backend
+// Frontend-only state (posts in localStorage), users tracked locally + simple backend
 
 let currentUser = JSON.parse(localStorage.getItem("cc_currentUser")) || null;
 let posts = JSON.parse(localStorage.getItem("cc_posts")) || [];
+let userLogins = JSON.parse(localStorage.getItem("cc_userLogins")) || [];
 
 const feedContainer = document.getElementById("feedContainer");
 const emptyFeedMsg = document.getElementById("emptyFeedMsg");
@@ -28,6 +29,7 @@ let currentChatPostId = null;
 function saveState() {
   localStorage.setItem("cc_currentUser", JSON.stringify(currentUser));
   localStorage.setItem("cc_posts", JSON.stringify(posts));
+  localStorage.setItem("cc_userLogins", JSON.stringify(userLogins));
 }
 
 function requireLogin() {
@@ -45,10 +47,10 @@ function showSection(name) {
   if (target) target.classList.remove("hidden");
 }
 
+// only Bajaish can actually be admin
 function normalizeRole(name, chosenRole) {
-  // Only user "Bajaish" can actually be admin
-  if (name.trim().toLowerCase() === "bajaish") {
-    return chosenRole === "admin" ? "admin" : "user";
+  if (name.trim().toLowerCase() === "bajaish" && chosenRole === "admin") {
+    return "admin";
   }
   return "user";
 }
@@ -168,33 +170,68 @@ function renderAdmin() {
     adminList.innerHTML = `<p class="text-sm text-slate-500">You are not admin.</p>`;
     return;
   }
-  if (!posts.length) {
-    adminList.innerHTML = `<p class="text-sm text-slate-500">No posts yet.</p>`;
-    return;
+
+  let usersHtml = "";
+  if (!userLogins.length) {
+    usersHtml = `<p class="text-xs text-slate-500">No login records yet.</p>`;
+  } else {
+    usersHtml = userLogins
+      .map(u => {
+        const time = u.time ? new Date(u.time).toLocaleString() : "N/A";
+        const profile = u.email || "Not provided";
+        return `
+        <div class="flex justify-between items-center text-[11px] border-b last:border-b-0 py-1">
+          <div>
+            <p class="font-semibold">${u.name}</p>
+            <p class="text-[10px] text-slate-500">Profile: ${profile}</p>
+          </div>
+          <div class="text-right">
+            <p>ID: <span class="font-mono">${u.id}</span></p>
+            <p>Role: <span class="font-semibold">${u.role}</span></p>
+            <p class="text-[10px] text-slate-500">${time}</p>
+          </div>
+        </div>`;
+      })
+      .join("");
   }
-  adminList.innerHTML = posts
-    .map(p => `
-    <div class="bg-white rounded-xl shadow p-3 flex items-center justify-between text-sm">
-      <div>
-        <p class="font-semibold">${p.title}</p>
-        <p class="text-xs text-slate-500">
-          By ${p.user} • Likes: ${p.likes} • Comments: ${p.comments.length}
-        </p>
-        <p class="text-[11px] mt-1">
-          Credits: ${p.credits || 0} • Price: ₹${p.price || 0}
-        </p>
-        <p class="text-[11px] mt-1">Status:
-          <span class="px-2 py-0.5 rounded-full text-[10px] ${
-            p.status === "removed" ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-700"
-          }">${p.status || "active"}</span>
-        </p>
-      </div>
-      <button data-toggle="${p.id}" class="text-xs px-3 py-1 rounded-full border">
-        ${p.status === "removed" ? "Restore" : "Remove"}
-      </button>
+
+  let postsHtml = "";
+  if (!posts.length) {
+    postsHtml = `<p class="text-sm text-slate-500 mt-2">No posts yet.</p>`;
+  } else {
+    postsHtml = posts
+      .map(p => `
+        <div class="bg-white rounded-xl shadow p-3 flex items-center justify-between text-sm">
+          <div>
+            <p class="font-semibold">${p.title}</p>
+            <p class="text-xs text-slate-500">
+              By ${p.user} • Likes: ${p.likes} • Comments: ${p.comments.length}
+            </p>
+            <p class="text-[11px] mt-1">
+              Credits: ${p.credits || 0} • Price: ₹${p.price || 0}
+            </p>
+            <p class="text-[11px] mt-1">Status:
+              <span class="px-2 py-0.5 rounded-full text-[10px] ${
+                p.status === "removed" ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-700"
+              }">${p.status || "active"}</span>
+            </p>
+          </div>
+          <button data-toggle="${p.id}" class="text-xs px-3 py-1 rounded-full border">
+            ${p.status === "removed" ? "Restore" : "Remove"}
+          </button>
+        </div>
+      `)
+      .join("");
+  }
+
+  adminList.innerHTML = `
+    <div class="bg-white rounded-xl shadow p-3 mb-3">
+      <h3 class="text-sm font-semibold mb-2">User Login Summary</h3>
+      ${usersHtml}
     </div>
-  `)
-    .join("");
+    <h3 class="text-sm font-semibold mb-2">Marketplace Posts</h3>
+    ${postsHtml}
+  `;
 }
 
 // ---------- nav switching (block protected if not logged in) ----------
@@ -258,7 +295,6 @@ const tabLogin = document.getElementById("tabLogin");
 const registerForm = document.getElementById("registerForm");
 const loginForm = document.getElementById("loginForm");
 
-// guard so that if any element is missing, code doesn't crash
 if (tabRegister && tabLogin && registerForm && loginForm) {
   tabRegister.addEventListener("click", () => {
     tabRegister.classList.add("bg-slate-900", "text-white", "font-medium");
@@ -283,13 +319,12 @@ if (tabRegister && tabLogin && registerForm && loginForm) {
   });
 }
 
-
-// --- Register (with Gmail) ---
+// --- Register (with Gmail, no auto-login) ---
 registerForm.addEventListener("submit", async e => {
   e.preventDefault();
   const name = document.getElementById("regName").value.trim();
   const email = document.getElementById("regEmail").value.trim();
-  let role = document.getElementById("regRole").value;
+  let roleSelected = document.getElementById("regRole").value;
 
   if (!name || !email) return;
   if (!email.toLowerCase().endsWith("@gmail.com")) {
@@ -297,24 +332,44 @@ registerForm.addEventListener("submit", async e => {
     return;
   }
 
-  role = normalizeRole(name, role);
+  // if someone tries to register as admin but is not Bajaish
+  if (roleSelected === "admin" && name.trim().toLowerCase() !== "bajaish") {
+    alert("Only authorised access allowed, try logging in using 'User' role.");
+    roleSelected = "user";
+  }
 
+  const finalRole = normalizeRole(name, roleSelected);
+
+  let userId = Date.now();
   try {
-    await fetch("https://carbon-credit-exchange-backend.onrender.com/api/login", {
+    const res = await fetch("https://carbon-credit-exchange-backend.onrender.com/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, role })
+      body: JSON.stringify({ name, role: finalRole })
     });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.id) userId = data.id;
+    }
   } catch (err) {
     // backend optional; ignore for demo
   }
 
-  currentUser = { name, role, email };
+  userLogins.push({
+    id: userId,
+    name,
+    role: finalRole,
+    email,
+    time: new Date().toISOString()
+  });
+
   saveState();
-  updateAuthUI();
-  document.getElementById("loginModal").classList.add("hidden");
-  showSection("feed");
-  renderFeed();
+
+  alert("Registration successful. Please login using your username.");
+
+  // switch to login tab, pre-fill name
+  document.getElementById("loginName").value = name;
+  if (tabLogin) tabLogin.click();
 });
 
 // --- Login (name only) ---
@@ -322,22 +377,33 @@ loginForm.addEventListener("submit", async e => {
   e.preventDefault();
   const name = document.getElementById("loginName").value.trim();
   if (!name) return;
-  let role = "user";
 
-  // Only Bajaish can be admin
-  role = normalizeRole(name, "admin");
+  let role = normalizeRole(name, "admin"); // Bajaish => admin, others => user
 
+  let userId = Date.now();
   try {
-    await fetch("https://carbon-credit-exchange-backend.onrender.com/api/login", {
+    const res = await fetch("https://carbon-credit-exchange-backend.onrender.com/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, role })
     });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.id) userId = data.id;
+    }
   } catch (err) {
     // ignore if backend sleeping
   }
 
   currentUser = { name, role };
+
+  userLogins.push({
+    id: userId,
+    name,
+    role,
+    time: new Date().toISOString()
+  });
+
   saveState();
   updateAuthUI();
   document.getElementById("loginModal").classList.add("hidden");
@@ -592,6 +658,8 @@ document.getElementById("calcLandBtn").addEventListener("click", () => {
 updateAuthUI();
 showSection("landing");
 renderFeed();
+
+
 
 
 
