@@ -35,7 +35,9 @@ app.post("/api/login", (req, res) => {
   res.json(user);
 });
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Backend running on http://localhost:${PORT}`);
+  console.log(`Backend running on port ${PORT}`);
 });
+
+
