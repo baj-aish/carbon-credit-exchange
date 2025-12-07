@@ -6,6 +6,9 @@
 let storedUsers = JSON.parse(localStorage.getItem("cc_users")) || [];
 let storedCurrentUser = JSON.parse(localStorage.getItem("cc_currentUser")) || null;
 let posts = JSON.parse(localStorage.getItem("cc_posts")) || [];
+const inboxIndicator = document.getElementById("inboxIndicator");
+const inboxList = document.getElementById("inboxList");
+
 
 // Ensure users array is valid
 let registeredUsers = Array.isArray(storedUsers) ? storedUsers : [];
@@ -134,7 +137,11 @@ function updateAuthUI() {
     if (feedFiltersBox) feedFiltersBox.classList.add("hidden");
     protectedNavButtons.forEach(btn => btn.classList.add("hidden"));
   }
+
+  // update unread dot on inbox
+  updateUnreadIndicator();
 }
+
 
 function getFilteredPosts() {
   let arr = posts.filter(p => p.status !== "removed");
@@ -217,6 +224,103 @@ function renderFeed() {
 }
 
 function renderAdmin() {
+  // =========================
+// INBOX HELPERS
+// =========================
+
+// collect messages that other people sent on posts owned by currentUser
+function getInboxItems() {
+  if (!currentUser) return [];
+  const myName = currentUser.name;
+  const items = [];
+
+  posts.forEach(post => {
+    if (post.user !== myName) return;
+    if (!post.chatMessages) return;
+    post.chatMessages.forEach(msg => {
+      if (msg.from === myName) return; // only messages from others
+      items.push({
+        postId: post.id,
+        postTitle: post.title,
+        from: msg.from,
+        text: msg.text,
+        time: msg.time || Date.now(),
+        seen: !!msg.seen,
+        msgId: msg.id
+      });
+    });
+  });
+
+  // latest first
+  items.sort((a, b) => (b.time || 0) - (a.time || 0));
+  return items;
+}
+
+function updateUnreadIndicator() {
+  if (!inboxIndicator) return;
+  if (!currentUser) {
+    inboxIndicator.classList.add("hidden");
+    return;
+  }
+  const items = getInboxItems();
+  const unread = items.filter(i => !i.seen).length;
+  if (unread > 0) inboxIndicator.classList.remove("hidden");
+  else inboxIndicator.classList.add("hidden");
+}
+
+function renderInbox() {
+  if (!inboxList) return;
+
+  if (!currentUser) {
+    inboxList.innerHTML =
+      '<p class="text-sm text-slate-500">Please login to see your inbox.</p>';
+    updateUnreadIndicator();
+    return;
+  }
+
+  const items = getInboxItems();
+  if (!items.length) {
+    inboxList.innerHTML =
+      '<p class="text-sm text-slate-500">No messages received on your listings yet.</p>';
+    updateUnreadIndicator();
+    return;
+  }
+
+  inboxList.innerHTML = items
+    .map(i => {
+      const dateStr = new Date(i.time).toLocaleString();
+      const statusClass = i.seen
+        ? "bg-slate-100 text-slate-600"
+        : "bg-red-100 text-red-600";
+      const statusText = i.seen ? "Seen" : "Unread";
+
+      return `
+        <div class="bg-white rounded-xl shadow p-3 flex items-center justify-between text-sm">
+          <div class="pr-3">
+            <p class="font-semibold text-xs">From ${i.from}</p>
+            <p class="text-xs text-slate-500">On: ${i.postTitle}</p>
+            <p class="text-[11px] text-slate-600 mt-1 line-clamp-2">
+              ${i.text}
+            </p>
+            <p class="text-[10px] mt-1 text-slate-400">${dateStr}</p>
+          </div>
+          <div class="flex flex-col items-end gap-1">
+            <span class="text-[10px] px-2 py-0.5 rounded-full ${statusClass}">
+              ${statusText}
+            </span>
+            <button data-open-chat="${i.postId}"
+                    class="text-[11px] underline mt-1">
+              Open chat
+            </button>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  updateUnreadIndicator();
+}
+
   if (!currentUser || currentUser.role !== "admin") {
     adminList.innerHTML = `<p class="text-sm text-slate-500">You are not admin.</p>`;
     return;
@@ -309,8 +413,10 @@ document.querySelectorAll(".nav-btn").forEach(btn => {
     showSection(target);
     if (target === "admin") renderAdmin();
     if (target === "feed") renderFeed();
+    if (target === "inbox") renderInbox();
   });
 });
+
 
 // Hero buttons
 if (heroLoginBtn) {
@@ -571,6 +677,16 @@ adminList.addEventListener("click", e => {
   renderFeed();
   renderAdmin();
 });
+// open chat from Inbox
+if (inboxList) {
+  inboxList.addEventListener("click", e => {
+    const postId = e.target.dataset.openChat;
+    if (!postId) return;
+    if (!requireLogin()) return;
+    openChatForPost(postId);
+  });
+}
+
 
 // =========================
 // CHAT LOGIC
@@ -588,12 +704,14 @@ function openChatForPost(postId) {
     }
   });
   saveState();
+  updateUnreadIndicator();
 
   currentChatPostId = post.id;
   chatPostTitle.textContent = `Chat about: ${post.title}`;
   renderChatMessages(post);
   chatModal.classList.remove("hidden");
 }
+
 
 function renderChatMessages(post) {
   if (!post.chatMessages || !post.chatMessages.length) {
@@ -664,6 +782,7 @@ chatForm.addEventListener("submit", e => {
   saveState();
   chatInput.value = "";
   renderChatMessages(post);
+    updateUnreadIndicator();
 });
 
 // delete message (for everyone)
@@ -732,7 +851,7 @@ document.getElementById("calcLandBtn").addEventListener("click", () => {
 updateAuthUI();
 
 let lastSection = localStorage.getItem("cc_lastSection") || "landing";
-const protectedSections = ["feed", "upload", "calculator", "admin"];
+const protectedSections = ["feed", "upload", "calculator", "admin", "inbox"];
 
 if (!currentUser && protectedSections.includes(lastSection)) {
   lastSection = "landing";
@@ -740,6 +859,9 @@ if (!currentUser && protectedSections.includes(lastSection)) {
 
 showSection(lastSection);
 if (lastSection === "feed") renderFeed();
+if (lastSection === "admin") renderAdmin();
+if (lastSection === "inbox") renderInbox();
+
 
 
 
