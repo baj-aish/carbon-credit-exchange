@@ -1,8 +1,7 @@
-// Frontend-only state (posts in localStorage), users tracked locally + simple backend
-
+// ====== GLOBAL STATE ======
 let currentUser = JSON.parse(localStorage.getItem("cc_currentUser")) || null;
 let posts = JSON.parse(localStorage.getItem("cc_posts")) || [];
-let userLogins = JSON.parse(localStorage.getItem("cc_userLogins")) || [];
+let registeredUsers = JSON.parse(localStorage.getItem("cc_users")) || [];
 
 const feedContainer = document.getElementById("feedContainer");
 const emptyFeedMsg = document.getElementById("emptyFeedMsg");
@@ -25,11 +24,11 @@ const chatForm = document.getElementById("chatForm");
 const chatInput = document.getElementById("chatInput");
 let currentChatPostId = null;
 
-// ---------- helpers ----------
+// ====== HELPERS ======
 function saveState() {
   localStorage.setItem("cc_currentUser", JSON.stringify(currentUser));
   localStorage.setItem("cc_posts", JSON.stringify(posts));
-  localStorage.setItem("cc_userLogins", JSON.stringify(userLogins));
+  localStorage.setItem("cc_users", JSON.stringify(registeredUsers));
 }
 
 function requireLogin() {
@@ -47,9 +46,9 @@ function showSection(name) {
   if (target) target.classList.remove("hidden");
 }
 
-// only Bajaish can actually be admin
-function normalizeRole(name, chosenRole) {
-  if (name.trim().toLowerCase() === "bajaish" && chosenRole === "admin") {
+// only "Bajaish" is allowed to actually be admin
+function normalizeRole(name, requestedRole) {
+  if (name.trim().toLowerCase() === "bajaish" && requestedRole === "admin") {
     return "admin";
   }
   return "user";
@@ -66,7 +65,6 @@ function updateAuthUI() {
     badgeName.textContent = currentUser.name;
     badgeRole.textContent = currentUser.role;
 
-    // show protected nav buttons
     protectedNavButtons.forEach(btn => btn.classList.remove("hidden"));
 
     if (currentUser.role === "admin") adminTab.classList.remove("hidden");
@@ -84,6 +82,7 @@ function updateAuthUI() {
 }
 
 function getFilteredPosts() {
+  // everyone who logs in sees all posts; only admin can edit
   let arr = posts.filter(p => p.status !== "removed");
 
   const cf = creditsFilter ? creditsFilter.value : "all";
@@ -122,9 +121,7 @@ function renderFeed() {
   feedContainer.innerHTML = visiblePosts
     .map(p => {
       const commentsHtml = p.comments && p.comments.length
-        ? p.comments
-            .map(c => `<p class="text-xs"><b>${c.by}:</b> ${c.text}</p>`)
-            .join("")
+        ? p.comments.map(c => `<p class="text-xs"><b>${c.by}:</b> ${c.text}</p>`).join("")
         : '<p class="text-xs text-slate-400">No comments yet</p>';
       return `
       <article class="bg-white rounded-2xl shadow overflow-hidden flex flex-col hover:shadow-lg transition">
@@ -171,70 +168,76 @@ function renderAdmin() {
     return;
   }
 
-  let usersHtml = "";
-  if (!userLogins.length) {
-    usersHtml = `<p class="text-xs text-slate-500">No login records yet.</p>`;
-  } else {
-    usersHtml = userLogins
-      .map(u => {
-        const time = u.time ? new Date(u.time).toLocaleString() : "N/A";
-        const profile = u.email || "Not provided";
-        return `
-        <div class="flex justify-between items-center text-[11px] border-b last:border-b-0 py-1">
-          <div>
-            <p class="font-semibold">${u.name}</p>
-            <p class="text-[10px] text-slate-500">Profile: ${profile}</p>
-          </div>
-          <div class="text-right">
-            <p>ID: <span class="font-mono">${u.id}</span></p>
-            <p>Role: <span class="font-semibold">${u.role}</span></p>
-            <p class="text-[10px] text-slate-500">${time}</p>
-          </div>
-        </div>`;
-      })
-      .join("");
-  }
+  const userListHtml = registeredUsers.length
+    ? registeredUsers
+        .map(
+          u => `
+      <tr class="text-xs">
+        <td class="border px-2 py-1">${u.id}</td>
+        <td class="border px-2 py-1">${u.name}</td>
+        <td class="border px-2 py-1">${u.email || "-"}</td>
+        <td class="border px-2 py-1">${u.role}</td>
+      </tr>`
+        )
+        .join("")
+    : `<tr><td colspan="4" class="text-xs text-center text-slate-500 py-2">No registered users yet.</td></tr>`;
 
-  let postsHtml = "";
-  if (!posts.length) {
-    postsHtml = `<p class="text-sm text-slate-500 mt-2">No posts yet.</p>`;
-  } else {
-    postsHtml = posts
-      .map(p => `
-        <div class="bg-white rounded-xl shadow p-3 flex items-center justify-between text-sm">
-          <div>
-            <p class="font-semibold">${p.title}</p>
-            <p class="text-xs text-slate-500">
-              By ${p.user} • Likes: ${p.likes} • Comments: ${p.comments.length}
-            </p>
-            <p class="text-[11px] mt-1">
-              Credits: ${p.credits || 0} • Price: ₹${p.price || 0}
-            </p>
-            <p class="text-[11px] mt-1">Status:
-              <span class="px-2 py-0.5 rounded-full text-[10px] ${
-                p.status === "removed" ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-700"
-              }">${p.status || "active"}</span>
-            </p>
-          </div>
-          <button data-toggle="${p.id}" class="text-xs px-3 py-1 rounded-full border">
-            ${p.status === "removed" ? "Restore" : "Remove"}
-          </button>
+  const postListHtml = posts.length
+    ? posts
+        .map(
+          p => `
+      <div class="bg-white rounded-xl shadow p-3 flex items-center justify-between text-sm">
+        <div>
+          <p class="font-semibold">${p.title}</p>
+          <p class="text-xs text-slate-500">
+            By ${p.user} • Likes: ${p.likes} • Comments: ${p.comments.length}
+          </p>
+          <p class="text-[11px] mt-1">
+            Credits: ${p.credits || 0} • Price: ₹${p.price || 0}
+          </p>
+          <p class="text-[11px] mt-1">Status:
+            <span class="px-2 py-0.5 rounded-full text-[10px] ${
+              p.status === "removed"
+                ? "bg-red-100 text-red-600"
+                : "bg-emerald-100 text-emerald-700"
+            }">${p.status || "active"}</span>
+          </p>
         </div>
-      `)
-      .join("");
-  }
+        <button data-toggle="${p.id}" class="text-xs px-3 py-1 rounded-full border">
+          ${p.status === "removed" ? "Restore" : "Remove"}
+        </button>
+      </div>`
+        )
+        .join("")
+    : `<p class="text-sm text-slate-500">No posts yet.</p>`;
 
   adminList.innerHTML = `
-    <div class="bg-white rounded-xl shadow p-3 mb-3">
-      <h3 class="text-sm font-semibold mb-2">User Login Summary</h3>
-      ${usersHtml}
+    <div class="bg-white rounded-2xl shadow p-3 mb-3">
+      <h3 class="text-sm font-semibold mb-2">Registered Users (visible to admin)</h3>
+      <div class="overflow-x-auto">
+        <table class="min-w-full border text-xs">
+          <thead class="bg-slate-100">
+            <tr>
+              <th class="border px-2 py-1 text-left">ID</th>
+              <th class="border px-2 py-1 text-left">Name</th>
+              <th class="border px-2 py-1 text-left">Email</th>
+              <th class="border px-2 py-1 text-left">Role</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${userListHtml}
+          </tbody>
+        </table>
+      </div>
     </div>
-    <h3 class="text-sm font-semibold mb-2">Marketplace Posts</h3>
-    ${postsHtml}
+    <div class="space-y-3">
+      <h3 class="text-sm font-semibold mb-1">Post Moderation</h3>
+      ${postListHtml}
+    </div>
   `;
 }
 
-// ---------- nav switching (block protected if not logged in) ----------
+// ====== NAV ======
 document.querySelectorAll(".nav-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     const target = btn.dataset.section;
@@ -270,18 +273,18 @@ if (heroExploreBtn) {
   });
 }
 
-// ---------- filters ----------
+// filters
 if (priceFilter) priceFilter.addEventListener("change", renderFeed);
 if (creditsFilter) creditsFilter.addEventListener("change", renderFeed);
 
-// ---------- jump from upload to calculator ----------
+// goto calculator from upload
 document.getElementById("gotoCalcLink").addEventListener("click", () => {
   if (!requireLogin()) return;
   showSection("calculator");
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
-// ---------- login modal basic controls ----------
+// ====== LOGIN MODAL CONTROLS ======
 document.getElementById("loginBtn").addEventListener("click", () => {
   document.getElementById("loginModal").classList.remove("hidden");
 });
@@ -299,10 +302,8 @@ if (tabRegister && tabLogin && registerForm && loginForm) {
   tabRegister.addEventListener("click", () => {
     tabRegister.classList.add("bg-slate-900", "text-white", "font-medium");
     tabRegister.classList.remove("bg-slate-100", "text-slate-700");
-
     tabLogin.classList.remove("bg-slate-900", "text-white", "font-medium");
     tabLogin.classList.add("bg-slate-100", "text-slate-700");
-
     registerForm.classList.remove("hidden");
     loginForm.classList.add("hidden");
   });
@@ -310,21 +311,19 @@ if (tabRegister && tabLogin && registerForm && loginForm) {
   tabLogin.addEventListener("click", () => {
     tabLogin.classList.add("bg-slate-900", "text-white", "font-medium");
     tabLogin.classList.remove("bg-slate-100", "text-slate-700");
-
     tabRegister.classList.remove("bg-slate-900", "text-white", "font-medium");
     tabRegister.classList.add("bg-slate-100", "text-slate-700");
-
     registerForm.classList.add("hidden");
     loginForm.classList.remove("hidden");
   });
 }
 
-// --- Register (with Gmail, no auto-login) ---
+// ====== REGISTER (with Gmail, no auto-login) ======
 registerForm.addEventListener("submit", async e => {
   e.preventDefault();
   const name = document.getElementById("regName").value.trim();
   const email = document.getElementById("regEmail").value.trim();
-  let roleSelected = document.getElementById("regRole").value;
+  const requestedRole = document.getElementById("regRole").value;
 
   if (!name || !email) return;
   if (!email.toLowerCase().endsWith("@gmail.com")) {
@@ -332,78 +331,83 @@ registerForm.addEventListener("submit", async e => {
     return;
   }
 
-  // if someone tries to register as admin but is not Bajaish
-  if (roleSelected === "admin" && name.trim().toLowerCase() !== "bajaish") {
-    alert("Only authorised access allowed, try logging in using 'User' role.");
-    roleSelected = "user";
+  const existing = registeredUsers.find(
+    u => u.name.toLowerCase() === name.toLowerCase()
+  );
+  if (existing) {
+    alert("User already registered. Please login.");
+    tabLogin.click();
+    return;
   }
 
-  const finalRole = normalizeRole(name, roleSelected);
-
-  let userId = Date.now();
-  try {
-    const res = await fetch("https://carbon-credit-exchange-backend.onrender.com/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, role: finalRole })
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.id) userId = data.id;
-    }
-  } catch (err) {
-    // backend optional; ignore for demo
+  let role = normalizeRole(name, requestedRole);
+  if (requestedRole === "admin" && name.trim().toLowerCase() !== "bajaish") {
+    alert("Only authorised access allowed, try logging in using User role.");
+    role = "user";
   }
 
-  userLogins.push({
-    id: userId,
+  const newUser = {
+    id: Date.now(),
     name,
-    role: finalRole,
     email,
-    time: new Date().toISOString()
-  });
+    role
+  };
+  registeredUsers.push(newUser);
 
-  saveState();
-
-  alert("Registration successful. Please login using your username.");
-
-  // switch to login tab, pre-fill name
-  document.getElementById("loginName").value = name;
-  if (tabLogin) tabLogin.click();
-});
-
-// --- Login (name only) ---
-loginForm.addEventListener("submit", async e => {
-  e.preventDefault();
-  const name = document.getElementById("loginName").value.trim();
-  if (!name) return;
-
-  let role = normalizeRole(name, "admin"); // Bajaish => admin, others => user
-
-  let userId = Date.now();
+  // optional backend call
   try {
-    const res = await fetch("https://carbon-credit-exchange-backend.onrender.com/api/login", {
+    await fetch("https://carbon-credit-exchange-backend.onrender.com/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, role })
     });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.id) userId = data.id;
+  } catch (err) {
+    // ignore
+  }
+
+  saveState();
+  alert("Registration successful. Please login with your username.");
+  // switch to Login tab
+  tabLogin.click();
+});
+
+// ====== LOGIN (username must exist) ======
+loginForm.addEventListener("submit", async e => {
+  e.preventDefault();
+  const name = document.getElementById("loginName").value.trim();
+  const loginRole = document.getElementById("loginRole").value;
+
+  if (!name) return;
+
+  const user = registeredUsers.find(
+    u => u.name.toLowerCase() === name.toLowerCase()
+  );
+
+  if (!user) {
+    alert("No user with such username found, try registering first.");
+    return;
+  }
+
+  if (loginRole === "admin") {
+    if (name.trim().toLowerCase() !== "bajaish") {
+      alert("Only authorised access allowed, try logging in using as user.");
+      return;
     }
+  }
+
+  const role = loginRole === "admin" ? "admin" : "user";
+
+  try {
+    await fetch("https://carbon-credit-exchange-backend.onrender.com/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, role })
+    });
   } catch (err) {
     // ignore if backend sleeping
   }
 
-  currentUser = { name, role };
-
-  userLogins.push({
-    id: userId,
-    name,
-    role,
-    time: new Date().toISOString()
-  });
-
+  currentUser = { name: user.name, role, email: user.email, id: user.id };
   saveState();
   updateAuthUI();
   document.getElementById("loginModal").classList.add("hidden");
@@ -418,7 +422,7 @@ document.getElementById("logoutBtn").addEventListener("click", () => {
   showSection("landing");
 });
 
-// ---------- upload post ----------
+// ====== UPLOAD POST ======
 document.getElementById("uploadForm").addEventListener("submit", e => {
   e.preventDefault();
   if (!requireLogin()) return;
@@ -461,7 +465,7 @@ document.getElementById("uploadForm").addEventListener("submit", e => {
   reader.readAsDataURL(file);
 });
 
-// ---------- feed actions (like + comment + chat) ----------
+// ====== FEED ACTIONS ======
 feedContainer.addEventListener("click", e => {
   const likeId = e.target.dataset.like;
   const commentBtnId = e.target.dataset.commentBtn;
@@ -496,7 +500,7 @@ feedContainer.addEventListener("click", e => {
   }
 });
 
-// ---------- admin actions ----------
+// ====== ADMIN ACTIONS (edit posts only by admin) ======
 adminList.addEventListener("click", e => {
   const id = e.target.dataset.toggle;
   if (!id) return;
@@ -508,13 +512,13 @@ adminList.addEventListener("click", e => {
   renderAdmin();
 });
 
-// ---------- Chat logic ----------
+// ====== CHAT LOGIC ======
 function openChatForPost(postId) {
   const post = posts.find(p => String(p.id) === String(postId));
   if (!post) return;
   if (!post.chatMessages) post.chatMessages = [];
 
-  // mark all messages as seen when someone opens chat
+  // mark messages as seen when opened by other user
   post.chatMessages.forEach(m => {
     if (m.from !== currentUser.name) {
       m.seen = true;
@@ -538,7 +542,10 @@ function renderChatMessages(post) {
   chatMessagesBox.innerHTML = post.chatMessages
     .map(msg => {
       const mine = msg.from === currentUser.name;
-      const time = new Date(msg.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const time = new Date(msg.time).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit"
+      });
       return `
       <div class="flex ${mine ? "justify-end" : "justify-start"}">
         <div class="max-w-[75%] px-2 py-1 rounded-lg text-[11px] ${
@@ -596,7 +603,6 @@ chatForm.addEventListener("submit", e => {
   renderChatMessages(post);
 });
 
-// delete message (for everyone)
 chatMessagesBox.addEventListener("click", e => {
   const msgId = e.target.dataset.delmsg;
   if (!msgId || !currentChatPostId) return;
@@ -609,7 +615,7 @@ chatMessagesBox.addEventListener("click", e => {
   renderChatMessages(post);
 });
 
-// ---------- calculator logic ----------
+// ====== CALCULATOR ======
 document.querySelectorAll('input[name="calcMethod"]').forEach(r => {
   r.addEventListener("change", () => {
     const v = document.querySelector('input[name="calcMethod"]:checked').value;
@@ -628,18 +634,16 @@ function showResult(annual, total) {
     `Total Carbon Credits: ${total.toFixed(2)} tons CO₂`;
 }
 
-// Tree-based
 document.getElementById("calcTreesBtn").addEventListener("click", () => {
-  const x = parseFloat(document.getElementById("treeType").value); // kg CO2/tree/year
+  const x = parseFloat(document.getElementById("treeType").value);
   const N = parseFloat(document.getElementById("treeCount").value);
   const t = parseFloat(document.getElementById("treeYears").value);
   if (N <= 0 || t <= 0) return alert("Enter valid tree count and years.");
-  const annual = (N * x) / 1000; // kg -> tons
+  const annual = (N * x) / 1000;
   const total = annual * t;
   showResult(annual, total);
 });
 
-// Land-based
 document.getElementById("calcLandBtn").addEventListener("click", () => {
   const A = parseFloat(document.getElementById("landArea").value);
   const unit = document.getElementById("landUnit").value;
@@ -647,18 +651,17 @@ document.getElementById("calcLandBtn").addEventListener("click", () => {
   if (A <= 0 || t <= 0) return alert("Enter valid area and years.");
 
   let hectares = A;
-  if (unit === "acres") hectares = A * 0.404686; // acres -> hectares
-  const y = 6; // tons CO2 / hectare / year
+  if (unit === "acres") hectares = A * 0.404686;
+  const y = 6;
   const annual = hectares * y;
   const total = annual * t;
   showResult(annual, total);
 });
 
-// ---------- initial ----------
+// ====== INITIAL ======
 updateAuthUI();
 showSection("landing");
 renderFeed();
-
 
 
 
