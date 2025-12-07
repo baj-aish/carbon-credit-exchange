@@ -56,9 +56,6 @@
         <span id="badgeName" class="font-medium text-blue-700"></span>
         <span id="badgeRole" class="ml-2 text-xs px-2 py-0.5 rounded-full bg-slate-900 text-white"></span>
       </div>
-      <span class="hidden sm:inline text-[11px] text-slate-500">
-        Backend demo stores up to 50 users (name + role).
-      </span>
     </div>
 
     <!-- Landing / Home Section -->
@@ -77,6 +74,14 @@
             A simple web platform to upload plantation listings, calculate carbon credits with tree or land area
             formulas, and explore community projects – built as a Computer Science mini-project.
           </p>
+
+          <!-- Welcome line after login -->
+          <p id="welcomeLine"
+             class="hidden text-sm sm:text-base text-emerald-100 mt-2">
+            Dear <span id="welcomeName" class="font-semibold"></span>, thank you for registering and taking a step
+            forward to make a better and greener tomorrow.
+          </p>
+
           <div class="flex flex-wrap gap-3 mt-4">
             <button id="heroLoginBtn"
                     class="px-4 py-2 rounded-full bg-emerald-400 text-slate-900 text-sm font-semibold">
@@ -108,6 +113,25 @@
               Like, comment and chat on listings. Messages can be deleted and show basic “Seen” status.
             </p>
           </div>
+        </div>
+      </div>
+
+      <!-- Environment quotes -->
+      <div class="grid sm:grid-cols-3 gap-3 mt-4">
+        <div class="bg-white rounded-2xl shadow p-3">
+          <p class="text-xs text-slate-500 mb-1">Quote</p>
+          <p class="text-sm font-semibold mb-1">“The best time to plant a tree was 20 years ago. The second best time is now.”</p>
+          <p class="text-[11px] text-slate-600">Every listing you add here represents a small action towards that “now”.</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow p-3">
+          <p class="text-xs text-slate-500 mb-1">Quote</p>
+          <p class="text-sm font-semibold mb-1">“We do not inherit the Earth from our ancestors; we borrow it from our children.”</p>
+          <p class="text-[11px] text-slate-600">This project helps you quantify and share that responsibility.</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow p-3">
+          <p class="text-xs text-slate-500 mb-1">Quote</p>
+          <p class="text-sm font-semibold mb-1">“A greener tomorrow starts with the choices we make today.”</p>
+          <p class="text-[11px] text-slate-600">Tracking plantations and carbon credits is one such choice.</p>
         </div>
       </div>
     </section>
@@ -306,10 +330,9 @@
     <!-- Admin Section -->
     <section id="section-admin" class="section hidden">
       <h2 class="text-xl sm:text-2xl font-semibold mb-3">Admin Panel</h2>
-     <p class="text-xs text-slate-500 mb-2">
-  Admin panel is restricted to authorized accounts.
-</p>
-
+      <p class="text-xs text-slate-500 mb-2">
+        Admin panel is restricted to authorised accounts.
+      </p>
       <div id="adminList" class="space-y-3"></div>
     </section>
   </main>
@@ -371,47 +394,46 @@
         </div>
         <div>
           <label class="block font-medium mb-1">Role</label>
-         <select id="regRole" class="w-full border rounded-lg px-3 py-2">
-  <option value="user">User</option>
-  <option value="admin">Admin</option>
-</select>
- 
+          <select id="regRole" class="w-full border rounded-lg px-3 py-2">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
         </div>
         <button class="w-full rounded-lg bg-blue-600 text-white py-2 font-medium">
           Register & Continue
         </button>
       </form>
-      
-    <!-- Login form -->
-<form id="loginForm" class="space-y-3 hidden mt-1">
-  <div>
-    <label class="block font-medium mb-1">Username</label>
-    <input required id="loginName" class="w-full border rounded-lg px-3 py-2" />
-  </div>
 
-  <div>
-    <label class="block font-medium mb-1">Login as</label>
-    <select id="loginRole" class="w-full border rounded-lg px-3 py-2">
-      <option value="user">User</option>
-      <option value="admin">Admin</option>
-    </select>
-  </div>
+      <!-- Login form -->
+      <form id="loginForm" class="space-y-3 hidden mt-1">
+        <div>
+          <label class="block font-medium mb-1">Username</label>
+          <input required id="loginName" class="w-full border rounded-lg px-3 py-2" />
+        </div>
 
-  <p class="text-[11px] text-slate-500">
-    For demo, login is based on username. Only authorised accounts can use admin mode.
-  </p>
+        <div>
+          <label class="block font-medium mb-1">Login as</label>
+          <select id="loginRole" class="w-full border rounded-lg px-3 py-2">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
 
-  <button class="w-full rounded-lg bg-emerald-600 text-white py-2 font-medium mt-1">
-    Login
-  </button>
-</form>
+        <p class="text-[11px] text-slate-500">
+          For demo, login is based on username. Only authorised accounts can use admin mode.
+        </p>
 
+        <button class="w-full rounded-lg bg-emerald-600 text-white py-2 font-medium mt-1">
+          Login
+        </button>
+      </form>
     </div>
   </div>
 
   <script src="app.js" defer></script>
 </body>
 </html>
+
 
 
 
