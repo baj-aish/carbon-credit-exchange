@@ -1,7 +1,22 @@
 // ====== GLOBAL STATE ======
-let currentUser = JSON.parse(localStorage.getItem("cc_currentUser")) || null;
+// ====== GLOBAL STATE (with validation) ======
+let storedUsers = JSON.parse(localStorage.getItem("cc_users")) || [];
+let storedCurrentUser = JSON.parse(localStorage.getItem("cc_currentUser")) || null;
 let posts = JSON.parse(localStorage.getItem("cc_posts")) || [];
-let registeredUsers = JSON.parse(localStorage.getItem("cc_users")) || [];
+
+// if no users array, start empty
+let registeredUsers = Array.isArray(storedUsers) ? storedUsers : [];
+
+// only treat currentUser as valid if it exists in registeredUsers
+let currentUser = null;
+if (storedCurrentUser && registeredUsers.length > 0) {
+  const match = registeredUsers.find(
+    u => u.id === storedCurrentUser.id && u.name === storedCurrentUser.name
+  );
+  if (match) {
+    currentUser = { ...match, role: storedCurrentUser.role || match.role };
+  }
+}
 
 const feedContainer = document.getElementById("feedContainer");
 const emptyFeedMsg = document.getElementById("emptyFeedMsg");
@@ -371,32 +386,45 @@ registerForm.addEventListener("submit", async e => {
   tabLogin.click();
 });
 
-// ====== LOGIN (username must exist) ======
+// ====== LOGIN (must already be registered) ======
 loginForm.addEventListener("submit", async e => {
   e.preventDefault();
-  const name = document.getElementById("loginName").value.trim();
-  const loginRole = document.getElementById("loginRole").value;
 
-  if (!name) return;
+  const nameInput = document.getElementById("loginName");
+  const roleSelect = document.getElementById("loginRole");
 
+  const name = nameInput.value.trim();
+  const loginRole = roleSelect.value;
+
+  if (!name) {
+    alert("Please enter a username.");
+    return;
+  }
+
+  // 🔒 Check if this user exists in registeredUsers
   const user = registeredUsers.find(
     u => u.name.toLowerCase() === name.toLowerCase()
   );
 
   if (!user) {
     alert("No user with such username found, try registering first.");
-    return;
+    return; // ⛔ STOP: do NOT log in
   }
 
+  // 🔒 Admin login: only if name is exactly "Bajaish"
   if (loginRole === "admin") {
-    if (name.trim().toLowerCase() !== "bajaish") {
+    if (name.toLowerCase() !== "bajaish") {
       alert("Only authorised access allowed, try logging in using as user.");
-      return;
+      return; // ⛔ STOP: do NOT log in as admin
     }
   }
 
-  const role = loginRole === "admin" ? "admin" : "user";
+  // final role
+  const role = loginRole === "admin" && name.toLowerCase() === "bajaish"
+    ? "admin"
+    : "user";
 
+  // optional backend call (does NOT create new user logic)
   try {
     await fetch("https://carbon-credit-exchange-backend.onrender.com/api/login", {
       method: "POST",
@@ -404,10 +432,17 @@ loginForm.addEventListener("submit", async e => {
       body: JSON.stringify({ name, role })
     });
   } catch (err) {
-    // ignore if backend sleeping
+    // ignore backend failure for demo
   }
 
-  currentUser = { name: user.name, role, email: user.email, id: user.id };
+  // ✅ only now set currentUser (for an already registered user)
+  currentUser = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role
+  };
+
   saveState();
   updateAuthUI();
   document.getElementById("loginModal").classList.add("hidden");
@@ -415,12 +450,6 @@ loginForm.addEventListener("submit", async e => {
   renderFeed();
 });
 
-document.getElementById("logoutBtn").addEventListener("click", () => {
-  currentUser = null;
-  saveState();
-  updateAuthUI();
-  showSection("landing");
-});
 
 // ====== UPLOAD POST ======
 document.getElementById("uploadForm").addEventListener("submit", e => {
@@ -662,6 +691,7 @@ document.getElementById("calcLandBtn").addEventListener("click", () => {
 updateAuthUI();
 showSection("landing");
 renderFeed();
+
 
 
 
