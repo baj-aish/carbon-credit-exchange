@@ -199,7 +199,7 @@ document.getElementById("loginForm").addEventListener("submit", async e => {
   if (!name) return;
 
   try {
-    const res = await fetch("http://localhost:5000/api/login", {
+    const res = await fetch("https://carbon-credit-exchange-backend.onrender.com/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, role })
@@ -362,3 +362,4 @@ document.getElementById("calcLandBtn").addEventListener("click", () => {
 // ---------- initial ----------
 updateAuthUI();
 renderFeed();
+
