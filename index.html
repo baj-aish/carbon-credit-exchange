@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Carbon Credit Platform</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen">
+  <!-- Navbar -->
+  <header class="bg-white/90 backdrop-blur shadow sticky top-0 z-10">
+    <div class="max-w-6xl mx-auto flex items-center justify-between px-4 py-3">
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-white text-sm font-bold">
+          C
+        </div>
+        <div class="font-bold text-lg sm:text-xl">Carbon Credit Hub</div>
+      </div>
+      <nav class="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm">
+        <button data-section="feed" class="nav-btn font-medium text-blue-600">Feed</button>
+        <button data-section="upload" class="nav-btn">Upload</button>
+        <button data-section="calculator" class="nav-btn">Calculator</button>
+        <button data-section="admin" class="nav-btn hidden" id="adminTab">Admin</button>
+        <button id="loginBtn" class="px-3 py-1 rounded-full bg-blue-600 text-white text-xs sm:text-sm">
+          Login / Register
+        </button>
+        <button id="logoutBtn" class="hidden px-3 py-1 rounded-full bg-red-500 text-white text-xs sm:text-sm">
+          Logout
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-4 sm:py-6 space-y-4">
+    <!-- User badge -->
+    <div id="userBadge"
+         class="hidden bg-gradient-to-r from-emerald-50 to-sky-50 border border-emerald-100 rounded-2xl px-3 py-2 text-xs sm:text-sm flex justify-between items-center">
+      <div>
+        <span class="font-semibold">Logged in as:</span>
+        <span id="badgeName" class="font-medium text-blue-700"></span>
+        <span id="badgeRole" class="ml-2 text-xs px-2 py-0.5 rounded-full bg-slate-900 text-white"></span>
+      </div>
+      <span class="hidden sm:inline text-[11px] text-slate-500">
+        Your account is stored securely on the backend (up to 50 users).
+      </span>
+    </div>
+
+    <!-- Feed Section -->
+    <section id="section-feed" class="section">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <h2 class="text-xl sm:text-2xl font-semibold">Marketplace Feed</h2>
+        <p class="text-[11px] sm:text-xs text-slate-500">
+          Browse plantation posts with carbon credits & pricing.
+        </p>
+      </div>
+
+      <!-- Filters -->
+      <div class="bg-white rounded-2xl shadow px-3 py-3 mb-3 flex flex-wrap gap-3 items-center text-xs sm:text-sm">
+        <div class="flex flex-col">
+          <span class="font-medium mb-1">Sort by price</span>
+          <select id="priceFilter" class="border rounded-lg px-2 py-1 text-xs sm:text-sm">
+            <option value="none">Default</option>
+            <option value="low-high">Price: Low to High</option>
+            <option value="high-low">Price: High to Low</option>
+          </select>
+        </div>
+        <div class="flex flex-col">
+          <span class="font-medium mb-1">Filter by carbon credits</span>
+          <select id="creditsFilter" class="border rounded-lg px-2 py-1 text-xs sm:text-sm">
+            <option value="all">All</option>
+            <option value="1-10">1 - 10</option>
+            <option value="10-20">10 - 20</option>
+            <option value="20-30">20 - 30</option>
+            <option value="30-40">30 - 40</option>
+            <option value="40-50">40 - 50</option>
+            <option value="50+">50+</option>
+          </select>
+        </div>
+        <p class="text-[11px] text-slate-500">
+          Tip: Carbon credits = metric tons of CO₂ reduced.
+        </p>
+      </div>
+
+      <div id="feedContainer" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
+      <p id="emptyFeedMsg" class="text-sm text-slate-500 mt-2">
+        No posts yet. Login and upload your first plantation image!
+      </p>
+    </section>
+
+    <!-- Upload Section -->
+    <section id="section-upload" class="section hidden">
+      <h2 class="text-xl sm:text-2xl font-semibold mb-3">Upload Plantation Listing</h2>
+      <div class="bg-white rounded-2xl shadow p-4 sm:p-5 max-w-2xl space-y-4">
+        <div class="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-xl px-3 py-2">
+          <p>🔐 You must be logged in to upload.</p>
+          <p class="mt-1 text-red-500 font-medium">
+            ⚠️ Only images up to <b>50 KB</b> are allowed. Larger files will be rejected.
+          </p>
+        </div>
+
+        <form id="uploadForm" class="space-y-3 text-sm">
+          <div class="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-medium mb-1">Title</label>
+              <input required id="postTitle" class="w-full border rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">Price (₹)</label>
+              <input required id="postPrice" type="number" min="0"
+                     class="w-full border rounded-lg px-3 py-2 text-sm" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-1">Description</label>
+            <textarea required id="postDesc" rows="3"
+                      class="w-full border rounded-lg px-3 py-2 text-sm"></textarea>
+          </div>
+
+          <div class="grid sm:grid-cols-2 gap-3 items-end">
+            <div>
+              <label class="block text-sm font-medium mb-1">Carbon Credits Offered</label>
+              <input required id="postCredits" type="number" min="1" step="0.1"
+                     class="w-full border rounded-lg px-3 py-2 text-sm" />
+              <p class="text-[11px] text-slate-500 mt-1">
+                Total credits this plantation is offering.
+              </p>
+            </div>
+            <div class="text-[11px] sm:text-xs">
+              <p class="font-medium mb-1">Don’t know total carbon credits?</p>
+              <button type="button" id="gotoCalcLink"
+                      class="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-emerald-500 text-emerald-700">
+                Calculate it here
+              </button>
+              <p class="mt-1 text-slate-500">
+                We’ll take you to the calculator section.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-1">Image (max 50 KB)</label>
+            <input required id="postImage" type="file" accept="image/*" class="w-full text-sm" />
+            <p class="text-[11px] text-slate-500 mt-1">
+              Use compressed images (small size) to stay within 50 KB.
+            </p>
+          </div>
+
+          <button
+            type="submit"
+            class="w-full mt-2 rounded-lg bg-gradient-to-r from-blue-600 to-emerald-500 text-white py-2 text-sm font-medium">
+            Upload Listing
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Calculator Section -->
+    <section id="section-calculator" class="section hidden">
+      <h2 class="text-xl sm:text-2xl font-semibold mb-3">Carbon Credit Calculator</h2>
+      <div class="bg-white rounded-2xl shadow p-4 sm:p-5 max-w-2xl space-y-4">
+        <!-- Method Switch -->
+        <div class="flex flex-wrap gap-3 text-sm">
+          <label class="flex items-center gap-2">
+            <input type="radio" name="calcMethod" value="trees" checked />
+            <span>Tree-based</span>
+          </label>
+          <label class="flex items-center gap-2">
+            <input type="radio" name="calcMethod" value="land" />
+            <span>Land area-based</span>
+          </label>
+        </div>
+
+        <!-- Tree-based form -->
+        <div id="treeForm" class="space-y-3">
+          <div>
+            <label class="block text-sm font-medium mb-1">Tree Type</label>
+            <select id="treeType" class="w-full border rounded-lg px-3 py-2 text-sm">
+              <option value="3.5">Small plants (3.5 kg CO₂/tree/year)</option>
+              <option value="12.5">Medium trees (Mango, Ashoka) – 12.5</option>
+              <option value="22.5">Fast-growing (Neem, Peepal, Bamboo) – 22.5</option>
+            </select>
+          </div>
+          <div class="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-medium mb-1">Number of Trees (N)</label>
+              <input id="treeCount" type="number" min="1" value="10"
+                     class="w-full border rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">Years (t)</label>
+              <input id="treeYears" type="number" min="1" value="5"
+                     class="w-full border rounded-lg px-3 py-2 text-sm" />
+            </div>
+          </div>
+          <button id="calcTreesBtn"
+                  class="w-full sm:w-auto rounded-lg bg-emerald-600 text-white px-4 py-2 text-sm font-medium">
+            Calculate Tree-based Credits
+          </button>
+        </div>
+
+        <!-- Land-based form -->
+        <div id="landForm" class="space-y-3 hidden">
+          <div class="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-medium mb-1">Area Value (A)</label>
+              <input id="landArea" type="number" min="0.1" value="1"
+                     class="w-full border rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">Unit</label>
+              <select id="landUnit" class="w-full border rounded-lg px-3 py-2 text-sm">
+                <option value="hectares">Hectares</option>
+                <option value="acres">Acres</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Years (t)</label>
+            <input id="landYears" type="number" min="1" value="5"
+                   class="w-full border rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <button id="calcLandBtn"
+                  class="w-full sm:w-auto rounded-lg bg-emerald-600 text-white px-4 py-2 text-sm font-medium">
+            Calculate Land-based Credits
+          </button>
+        </div>
+
+        <!-- Result -->
+        <div id="calcResult" class="mt-3 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 hidden">
+          <p class="font-semibold mb-1">Result</p>
+          <p id="annualCredits"></p>
+          <p id="totalCredits"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Admin Section -->
+    <section id="section-admin" class="section hidden">
+      <h2 class="text-xl sm:text-2xl font-semibold mb-3">Admin Panel</h2>
+      <p class="text-xs text-slate-500 mb-2">
+        Login as role <b>admin</b> to manage posts (remove/restore).
+      </p>
+      <div id="adminList" class="space-y-3"></div>
+    </section>
+  </main>
+
+  <!-- Login Modal -->
+  <div id="loginModal"
+       class="hidden fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-20">
+    <div class="bg-white rounded-2xl shadow-lg max-w-sm w-full p-4 sm:p-5">
+      <h3 class="text-lg font-semibold mb-3">Login / Register</h3>
+      <form id="loginForm" class="space-y-3 text-sm">
+        <div>
+          <label class="block font-medium mb-1">Your Name</label>
+          <input required id="loginName" class="w-full border rounded-lg px-3 py-2" />
+        </div>
+        <div>
+          <label class="block font-medium mb-1">Role</label>
+          <select id="loginRole" class="w-full border rounded-lg px-3 py-2">
+            <option value="user">User</option>
+            <option value="admin">Admin (for demo)</option>
+          </select>
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button type="submit"
+                  class="flex-1 rounded-lg bg-blue-600 text-white py-2 font-medium">
+            Continue
+          </button>
+          <button type="button" id="closeLogin"
+                  class="px-3 py-2 text-slate-600 text-xs">
+            Cancel
+          </button>
+        </div>
+        <p class="mt-2 text-[11px] text-slate-500">
+          Backend stores up to 50 users (name + role) for demo purposes.
+        </p>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
