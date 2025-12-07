@@ -1,4 +1,4 @@
-// --- Simple frontend state (posts in localStorage, users in backend) ---
+// Frontend-only state (posts in localStorage), users in simple backend
 
 let currentUser = JSON.parse(localStorage.getItem("cc_currentUser")) || null;
 let posts = JSON.parse(localStorage.getItem("cc_posts")) || [];
@@ -14,6 +14,7 @@ const priceFilter = document.getElementById("priceFilter");
 const creditsFilter = document.getElementById("creditsFilter");
 const feedFiltersBox = document.getElementById("feedFilters");
 const sections = document.querySelectorAll(".section");
+const protectedNavButtons = document.querySelectorAll(".protected-nav");
 
 // chat elements
 const chatModal = document.getElementById("chatModal");
@@ -44,17 +45,31 @@ function showSection(name) {
   if (target) target.classList.remove("hidden");
 }
 
+function normalizeRole(name, chosenRole) {
+  // Only user "Bajaish" can actually be admin
+  if (name.trim().toLowerCase() === "bajaish") {
+    return chosenRole === "admin" ? "admin" : "user";
+  }
+  return "user";
+}
+
 function updateAuthUI() {
   const loginBtn = document.getElementById("loginBtn");
   const logoutBtn = document.getElementById("logoutBtn");
+
   if (currentUser) {
     loginBtn.classList.add("hidden");
     logoutBtn.classList.remove("hidden");
     userBadge.classList.remove("hidden");
     badgeName.textContent = currentUser.name;
     badgeRole.textContent = currentUser.role;
+
+    // show protected nav buttons
+    protectedNavButtons.forEach(btn => btn.classList.remove("hidden"));
+
     if (currentUser.role === "admin") adminTab.classList.remove("hidden");
     else adminTab.classList.add("hidden");
+
     if (feedFiltersBox) feedFiltersBox.classList.remove("hidden");
   } else {
     loginBtn.classList.remove("hidden");
@@ -62,6 +77,7 @@ function updateAuthUI() {
     userBadge.classList.add("hidden");
     adminTab.classList.add("hidden");
     if (feedFiltersBox) feedFiltersBox.classList.add("hidden");
+    protectedNavButtons.forEach(btn => btn.classList.add("hidden"));
   }
 }
 
@@ -181,11 +197,18 @@ function renderAdmin() {
     .join("");
 }
 
-// ---------- nav switching ----------
+// ---------- nav switching (block protected if not logged in) ----------
 document.querySelectorAll(".nav-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     const target = btn.dataset.section;
     if (!target) return;
+
+    const isProtected = btn.classList.contains("protected-nav");
+    if (isProtected && !currentUser) {
+      requireLogin();
+      return;
+    }
+
     showSection(target);
     if (target === "admin") renderAdmin();
     if (target === "feed") renderFeed();
@@ -204,8 +227,9 @@ if (heroLoginBtn) {
 
 if (heroExploreBtn) {
   heroExploreBtn.addEventListener("click", () => {
+    if (!requireLogin()) return;
     showSection("feed");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    renderFeed();
   });
 }
 
@@ -215,11 +239,12 @@ if (creditsFilter) creditsFilter.addEventListener("change", renderFeed);
 
 // ---------- jump from upload to calculator ----------
 document.getElementById("gotoCalcLink").addEventListener("click", () => {
+  if (!requireLogin()) return;
   showSection("calculator");
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
-// ---------- login modal ----------
+// ---------- login modal basic controls ----------
 document.getElementById("loginBtn").addEventListener("click", () => {
   document.getElementById("loginModal").classList.remove("hidden");
 });
@@ -227,33 +252,82 @@ document.getElementById("closeLogin").addEventListener("click", () => {
   document.getElementById("loginModal").classList.add("hidden");
 });
 
-// --- Login with backend (max 50 users stored on server) ---
-document.getElementById("loginForm").addEventListener("submit", async e => {
+// tabs: register vs login
+const tabRegister = document.getElementById("tabRegister");
+const tabLogin = document.getElementById("tabLogin");
+const registerForm = document.getElementById("registerForm");
+const loginForm = document.getElementById("loginForm");
+
+tabRegister.addEventListener("click", () => {
+  tabRegister.classList.add("bg-slate-900", "text-white", "font-medium");
+  tabLogin.classList.remove("bg-slate-900", "text-white", "font-medium");
+  tabLogin.classList.add("bg-slate-100", "text-slate-700");
+  registerForm.classList.remove("hidden");
+  loginForm.classList.add("hidden");
+});
+
+tabLogin.addEventListener("click", () => {
+  tabLogin.classList.add("bg-slate-900", "text-white", "font-medium");
+  tabRegister.classList.remove("bg-slate-900", "text-white", "font-medium");
+  tabRegister.classList.add("bg-slate-100", "text-slate-700");
+  registerForm.classList.add("hidden");
+  loginForm.classList.remove("hidden");
+});
+
+// --- Register (with Gmail) ---
+registerForm.addEventListener("submit", async e => {
   e.preventDefault();
-  const name = document.getElementById("loginName").value.trim();
-  const role = document.getElementById("loginRole").value;
-  if (!name) return;
+  const name = document.getElementById("regName").value.trim();
+  const email = document.getElementById("regEmail").value.trim();
+  let role = document.getElementById("regRole").value;
+
+  if (!name || !email) return;
+  if (!email.toLowerCase().endsWith("@gmail.com")) {
+    alert("Please enter a valid Gmail address.");
+    return;
+  }
+
+  role = normalizeRole(name, role);
 
   try {
-    const res = await fetch("https://carbon-credit-exchange-backend.onrender.com/api/login", {
+    await fetch("https://carbon-credit-exchange-backend.onrender.com/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, role })
     });
-
-    if (!res.ok) {
-      const err = await res.json();
-      alert(err.message || "Login failed");
-      return;
-    }
-
-    const data = await res.json(); // {id, name, role}
-    currentUser = { name: data.name, role: data.role };
   } catch (err) {
-    alert("Backend not reachable, using local login only.");
-    currentUser = { name, role };
+    // backend optional; ignore for demo
   }
 
+  currentUser = { name, role, email };
+  saveState();
+  updateAuthUI();
+  document.getElementById("loginModal").classList.add("hidden");
+  showSection("feed");
+  renderFeed();
+});
+
+// --- Login (name only) ---
+loginForm.addEventListener("submit", async e => {
+  e.preventDefault();
+  const name = document.getElementById("loginName").value.trim();
+  if (!name) return;
+  let role = "user";
+
+  // Only Bajaish can be admin
+  role = normalizeRole(name, "admin");
+
+  try {
+    await fetch("https://carbon-credit-exchange-backend.onrender.com/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, role })
+    });
+  } catch (err) {
+    // ignore if backend sleeping
+  }
+
+  currentUser = { name, role };
   saveState();
   updateAuthUI();
   document.getElementById("loginModal").classList.add("hidden");
@@ -412,7 +486,6 @@ function renderChatMessages(post) {
     })
     .join("");
 
-  // scroll to bottom
   chatMessagesBox.scrollTop = chatMessagesBox.scrollHeight;
 }
 
@@ -509,5 +582,6 @@ document.getElementById("calcLandBtn").addEventListener("click", () => {
 updateAuthUI();
 showSection("landing");
 renderFeed();
+
 
 
