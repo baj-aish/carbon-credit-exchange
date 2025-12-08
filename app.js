@@ -185,49 +185,32 @@ const requireLogin = () => {
 const getInboxItems = () => {
   if (!state.currentUser) return [];
   const me = state.currentUser.name;
-  const convoMap = new Map();
+  const items = [];
 
   state.posts.forEach(p => {
     if (!p.chatMessages?.length) return;
-
-    // Only consider threads where I'm involved somehow
     const meInThread =
-      p.user === me ||
-      p.chatMessages.some(m => m.from === me);
+      p.user === me || p.chatMessages.some(m => m.from === me);
     if (!meInThread) return;
-
     p.chatMessages.forEach(m => {
-      if (m.from === me) return; // only incoming messages
-
-      const key = `${p.id}|${m.from}`; // one entry per (post, otherUser)
-      const existing = convoMap.get(key);
-      const time = m.time || Date.now();
-
-      // store latest message
-      if (!existing || time > existing.time) {
-        convoMap.set(key, {
-          postId: p.id,
-          postTitle: p.title,
-          from: m.from,
-          text: m.text,
-          time,
-          seen: !!m.seen
-        });
-      }
+      if (m.from === me) return;
+      items.push({
+        postId: p.id,
+        postTitle: p.title,
+        from: m.from,
+        text: m.text,
+        time: m.time || Date.now(),
+        seen: !!m.seen
+      });
     });
   });
 
-  const items = [...convoMap.values()];
-  // newest first
   return items.sort((a, b) => (b.time || 0) - (a.time || 0));
 };
 
 const updateUnreadIndicator = () => {
   if (!inboxIndicator) return;
-  if (!state.currentUser) {
-    inboxIndicator.classList.add("hidden");
-    return;
-  }
+  if (!state.currentUser) return inboxIndicator.classList.add("hidden");
   const unread = getInboxItems().filter(i => !i.seen).length;
   unread
     ? inboxIndicator.classList.remove("hidden")
@@ -236,22 +219,16 @@ const updateUnreadIndicator = () => {
 
 const renderInbox = () => {
   if (!inboxList) return;
-
   if (!state.currentUser) {
     inboxList.innerHTML =
       `<p class="text-sm text-slate-300">Please login to see your inbox.</p>`;
-    updateUnreadIndicator();
-    return;
+    return updateUnreadIndicator();
   }
-
   const items = getInboxItems();
   if (!items.length) {
-    inboxList.innerHTML =
-      `<p class="text-sm text-slate-300">No messages yet.</p>`;
-    updateUnreadIndicator();
-    return;
+    inboxList.innerHTML = `<p class="text-sm text-slate-300">No messages yet.</p>`;
+    return updateUnreadIndicator();
   }
-
   inboxList.innerHTML = items
     .map(i => {
       const t = new Date(i.time).toLocaleString();
@@ -276,10 +253,8 @@ const renderInbox = () => {
       </div>`;
     })
     .join("");
-
   updateUnreadIndicator();
 };
-
 
 // ===== AUTH UI =====
 const updateAuthUI = () => {
@@ -839,13 +814,11 @@ const openChatForPost = postId => {
   post.chatMessages ||= [];
   // mark incoming as seen for this user
   if (state.currentUser) {
-  post.chatMessages.forEach(m => {
-    if (m.from !== state.currentUser.name) m.seen = true;
-  });
-  syncState();
-  updateUnreadIndicator();   // <--- add this
-}
-
+    post.chatMessages.forEach(m => {
+      if (m.from !== state.currentUser.name) m.seen = true;
+    });
+    syncState();
+  }
   currentChatPostId = post.id;
   chatPostTitle.textContent = `Chat about: ${post.title}`;
   renderChatMessages(post);
@@ -914,7 +887,6 @@ on(chatForm, "submit", e => {
   chatInput.value = "";
   renderChatMessages(post);
   updateUnreadIndicator();
-  refreshFromServer();   // get the freshest state back from server
 });
 
 // ===== CALCULATOR =====
