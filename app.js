@@ -1,19 +1,27 @@
 // =========================
-// GLOBAL STATE (with checks)
+// GLOBAL STATE + 30-DAY RETENTION
 // =========================
 
-// Load from localStorage
+// Load raw data from localStorage
 let storedUsers = JSON.parse(localStorage.getItem("cc_users")) || [];
 let storedCurrentUser = JSON.parse(localStorage.getItem("cc_currentUser")) || null;
 let posts = JSON.parse(localStorage.getItem("cc_posts")) || [];
-const inboxIndicator = document.getElementById("inboxIndicator");
-const inboxList = document.getElementById("inboxList");
 
+const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+const nowTs = Date.now();
 
-// Ensure users array is valid
+// Clean old users/posts older than 30 days (if timestamp exists)
+if (Array.isArray(storedUsers)) {
+  storedUsers = storedUsers.filter(u => !u.createdAt || nowTs - u.createdAt <= THIRTY_DAYS);
+}
+if (Array.isArray(posts)) {
+  posts = posts.filter(p => !p.createdAt || nowTs - p.createdAt <= THIRTY_DAYS);
+}
+
+// Ensure arrays valid
 let registeredUsers = Array.isArray(storedUsers) ? storedUsers : [];
 
-// Only accept currentUser if it exists in registeredUsers
+// Only accept currentUser if still in users
 let currentUser = null;
 if (storedCurrentUser && registeredUsers.length > 0) {
   const match = registeredUsers.find(
@@ -32,12 +40,18 @@ const feedContainer = document.getElementById("feedContainer");
 const emptyFeedMsg = document.getElementById("emptyFeedMsg");
 const adminList = document.getElementById("adminList");
 const adminTab = document.getElementById("adminTab");
+
+const inboxIndicator = document.getElementById("inboxIndicator");
+const inboxList = document.getElementById("inboxList");
+
 const userBadge = document.getElementById("userBadge");
 const badgeName = document.getElementById("badgeName");
 const badgeRole = document.getElementById("badgeRole");
+
 const priceFilter = document.getElementById("priceFilter");
 const creditsFilter = document.getElementById("creditsFilter");
 const feedFiltersBox = document.getElementById("feedFilters");
+
 const sections = document.querySelectorAll(".section");
 const protectedNavButtons = document.querySelectorAll(".protected-nav");
 
@@ -61,7 +75,7 @@ const registerForm = document.getElementById("registerForm");
 const loginForm = document.getElementById("loginForm");
 
 // =========================
-// UTILS
+// UTIL FUNCTIONS
 // =========================
 
 function saveState() {
@@ -84,17 +98,116 @@ function showSection(name) {
   const target = document.getElementById(`section-${name}`);
   if (target) {
     target.classList.remove("hidden");
-    localStorage.setItem("cc_lastSection", name); // remember last page
+    localStorage.setItem("cc_lastSection", name);
   }
 }
 
-// Only Bajaish can truly be admin
+// Only Bajaish can really be admin
 function normalizeRole(name, requestedRole) {
   if (name.trim().toLowerCase() === "bajaish" && requestedRole === "admin") {
     return "admin";
   }
   return "user";
 }
+
+// =========================
+// INBOX HELPERS
+// =========================
+
+function getInboxItems() {
+  if (!currentUser) return [];
+  const myName = currentUser.name;
+  const items = [];
+
+  posts.forEach(post => {
+    if (post.user !== myName) return;
+    if (!post.chatMessages) return;
+    post.chatMessages.forEach(msg => {
+      if (msg.from === myName) return;
+      items.push({
+        postId: post.id,
+        postTitle: post.title,
+        from: msg.from,
+        text: msg.text,
+        time: msg.time || Date.now(),
+        seen: !!msg.seen,
+        msgId: msg.id
+      });
+    });
+  });
+
+  items.sort((a, b) => (b.time || 0) - (a.time || 0));
+  return items;
+}
+
+function updateUnreadIndicator() {
+  if (!inboxIndicator) return;
+  if (!currentUser) {
+    inboxIndicator.classList.add("hidden");
+    return;
+  }
+  const items = getInboxItems();
+  const unread = items.filter(i => !i.seen).length;
+  if (unread > 0) inboxIndicator.classList.remove("hidden");
+  else inboxIndicator.classList.add("hidden");
+}
+
+function renderInbox() {
+  if (!inboxList) return;
+
+  if (!currentUser) {
+    inboxList.innerHTML =
+      '<p class="text-sm text-slate-500">Please login to see your inbox.</p>';
+    updateUnreadIndicator();
+    return;
+  }
+
+  const items = getInboxItems();
+  if (!items.length) {
+    inboxList.innerHTML =
+      '<p class="text-sm text-slate-500">No messages received on your listings yet.</p>';
+    updateUnreadIndicator();
+    return;
+  }
+
+  inboxList.innerHTML = items
+    .map(i => {
+      const dateStr = new Date(i.time).toLocaleString();
+      const statusClass = i.seen
+        ? "bg-slate-100 text-slate-600"
+        : "bg-red-100 text-red-600";
+      const statusText = i.seen ? "Seen" : "Unread";
+
+      return `
+        <div class="bg-white rounded-xl shadow p-3 flex items-center justify-between text-sm">
+          <div class="pr-3">
+            <p class="font-semibold text-xs">From ${i.from}</p>
+            <p class="text-xs text-slate-500">On: ${i.postTitle}</p>
+            <p class="text-[11px] text-slate-600 mt-1 line-clamp-2">
+              ${i.text}
+            </p>
+            <p class="text-[10px] mt-1 text-slate-400">${dateStr}</p>
+          </div>
+          <div class="flex flex-col items-end gap-1">
+            <span class="text-[10px] px-2 py-0.5 rounded-full ${statusClass}">
+              ${statusText}
+            </span>
+            <button data-open-chat="${i.postId}"
+                    class="text-[11px] underline mt-1">
+              Open chat
+            </button>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  updateUnreadIndicator();
+}
+
+// =========================
+// AUTH UI
+// =========================
 
 function updateAuthUI() {
   const loginBtn = document.getElementById("loginBtn");
@@ -108,7 +221,7 @@ function updateAuthUI() {
     badgeName.textContent = currentUser.name;
     badgeRole.textContent = currentUser.role;
 
-    // hero: hide login, show welcome line
+    // hero: hide login button, show welcome line
     if (heroLoginBtn) heroLoginBtn.classList.add("hidden");
     if (welcomeLine && welcomeName) {
       welcomeName.textContent = currentUser.name;
@@ -138,10 +251,12 @@ function updateAuthUI() {
     protectedNavButtons.forEach(btn => btn.classList.add("hidden"));
   }
 
-  // update unread dot on inbox
   updateUnreadIndicator();
 }
 
+// =========================
+// FEED / ADMIN RENDER
+// =========================
 
 function getFilteredPosts() {
   let arr = posts.filter(p => p.status !== "removed");
@@ -224,103 +339,6 @@ function renderFeed() {
 }
 
 function renderAdmin() {
-  // =========================
-// INBOX HELPERS
-// =========================
-
-// collect messages that other people sent on posts owned by currentUser
-function getInboxItems() {
-  if (!currentUser) return [];
-  const myName = currentUser.name;
-  const items = [];
-
-  posts.forEach(post => {
-    if (post.user !== myName) return;
-    if (!post.chatMessages) return;
-    post.chatMessages.forEach(msg => {
-      if (msg.from === myName) return; // only messages from others
-      items.push({
-        postId: post.id,
-        postTitle: post.title,
-        from: msg.from,
-        text: msg.text,
-        time: msg.time || Date.now(),
-        seen: !!msg.seen,
-        msgId: msg.id
-      });
-    });
-  });
-
-  // latest first
-  items.sort((a, b) => (b.time || 0) - (a.time || 0));
-  return items;
-}
-
-function updateUnreadIndicator() {
-  if (!inboxIndicator) return;
-  if (!currentUser) {
-    inboxIndicator.classList.add("hidden");
-    return;
-  }
-  const items = getInboxItems();
-  const unread = items.filter(i => !i.seen).length;
-  if (unread > 0) inboxIndicator.classList.remove("hidden");
-  else inboxIndicator.classList.add("hidden");
-}
-
-function renderInbox() {
-  if (!inboxList) return;
-
-  if (!currentUser) {
-    inboxList.innerHTML =
-      '<p class="text-sm text-slate-500">Please login to see your inbox.</p>';
-    updateUnreadIndicator();
-    return;
-  }
-
-  const items = getInboxItems();
-  if (!items.length) {
-    inboxList.innerHTML =
-      '<p class="text-sm text-slate-500">No messages received on your listings yet.</p>';
-    updateUnreadIndicator();
-    return;
-  }
-
-  inboxList.innerHTML = items
-    .map(i => {
-      const dateStr = new Date(i.time).toLocaleString();
-      const statusClass = i.seen
-        ? "bg-slate-100 text-slate-600"
-        : "bg-red-100 text-red-600";
-      const statusText = i.seen ? "Seen" : "Unread";
-
-      return `
-        <div class="bg-white rounded-xl shadow p-3 flex items-center justify-between text-sm">
-          <div class="pr-3">
-            <p class="font-semibold text-xs">From ${i.from}</p>
-            <p class="text-xs text-slate-500">On: ${i.postTitle}</p>
-            <p class="text-[11px] text-slate-600 mt-1 line-clamp-2">
-              ${i.text}
-            </p>
-            <p class="text-[10px] mt-1 text-slate-400">${dateStr}</p>
-          </div>
-          <div class="flex flex-col items-end gap-1">
-            <span class="text-[10px] px-2 py-0.5 rounded-full ${statusClass}">
-              ${statusText}
-            </span>
-            <button data-open-chat="${i.postId}"
-                    class="text-[11px] underline mt-1">
-              Open chat
-            </button>
-          </div>
-        </div>
-      `;
-    })
-    .join("");
-
-  updateUnreadIndicator();
-}
-
   if (!currentUser || currentUser.role !== "admin") {
     adminList.innerHTML = `<p class="text-sm text-slate-500">You are not admin.</p>`;
     return;
@@ -417,7 +435,6 @@ document.querySelectorAll(".nav-btn").forEach(btn => {
   });
 });
 
-
 // Hero buttons
 if (heroLoginBtn) {
   heroLoginBtn.addEventListener("click", () => {
@@ -509,13 +526,14 @@ registerForm.addEventListener("submit", e => {
     id: Date.now(),
     name,
     email,
-    role
+    role,
+    createdAt: Date.now()
   };
   registeredUsers.push(newUser);
   saveState();
 
   alert("Registration successful. Please login with your username.");
-  tabLogin.click(); // switch to login tab
+  tabLogin.click();
 });
 
 // =========================
@@ -562,7 +580,7 @@ loginForm.addEventListener("submit", e => {
 
   saveState();
   updateAuthUI();
-  document.getElementById("loginModal").classList.add("hidden");
+  document.getElementById("loginModal").classList.add("hidden"); // 👈 login box disappears
   showSection("feed");
   renderFeed();
 });
@@ -610,11 +628,13 @@ document.getElementById("uploadForm").addEventListener("submit", e => {
       image: ev.target.result,
       user: currentUser.name,
       likes: 0,
+      likedBy: [], // 👈 for like/unlike per user
       comments: [],
       chatMessages: [],
       status: "active",
       price,
-      credits
+      credits,
+      createdAt: Date.now()
     };
     posts.unshift(newPost);
     saveState();
@@ -626,7 +646,7 @@ document.getElementById("uploadForm").addEventListener("submit", e => {
 });
 
 // =========================
-// FEED ACTIONS
+// FEED ACTIONS (like toggle + comment + chat)
 // =========================
 
 feedContainer.addEventListener("click", e => {
@@ -638,7 +658,19 @@ feedContainer.addEventListener("click", e => {
     if (!requireLogin()) return;
     const post = posts.find(p => String(p.id) === likeId);
     if (post) {
-      post.likes++;
+      if (!Array.isArray(post.likedBy)) post.likedBy = [];
+      const idx = post.likedBy.indexOf(currentUser.name);
+
+      if (idx === -1) {
+        // like
+        post.likedBy.push(currentUser.name);
+        post.likes = (post.likes || 0) + 1;
+      } else {
+        // unlike
+        post.likedBy.splice(idx, 1);
+        post.likes = Math.max(0, (post.likes || 0) - 1);
+      }
+
       saveState();
       renderFeed();
     }
@@ -664,7 +696,7 @@ feedContainer.addEventListener("click", e => {
 });
 
 // =========================
-// ADMIN POST TOGGLE
+// ADMIN TOGGLE POST
 // =========================
 
 adminList.addEventListener("click", e => {
@@ -677,7 +709,8 @@ adminList.addEventListener("click", e => {
   renderFeed();
   renderAdmin();
 });
-// open chat from Inbox
+
+// Inbox: open chat from list
 if (inboxList) {
   inboxList.addEventListener("click", e => {
     const postId = e.target.dataset.openChat;
@@ -686,7 +719,6 @@ if (inboxList) {
     openChatForPost(postId);
   });
 }
-
 
 // =========================
 // CHAT LOGIC
@@ -697,7 +729,7 @@ function openChatForPost(postId) {
   if (!post) return;
   if (!post.chatMessages) post.chatMessages = [];
 
-  // mark other-person messages as seen
+  // mark messages from others as seen
   post.chatMessages.forEach(m => {
     if (m.from !== currentUser.name) {
       m.seen = true;
@@ -711,7 +743,6 @@ function openChatForPost(postId) {
   renderChatMessages(post);
   chatModal.classList.remove("hidden");
 }
-
 
 function renderChatMessages(post) {
   if (!post.chatMessages || !post.chatMessages.length) {
@@ -782,10 +813,9 @@ chatForm.addEventListener("submit", e => {
   saveState();
   chatInput.value = "";
   renderChatMessages(post);
-    updateUnreadIndicator();
+  updateUnreadIndicator();
 });
 
-// delete message (for everyone)
 chatMessagesBox.addEventListener("click", e => {
   const msgId = e.target.dataset.delmsg;
   if (!msgId || !currentChatPostId) return;
@@ -796,6 +826,7 @@ chatMessagesBox.addEventListener("click", e => {
   post.chatMessages = post.chatMessages.filter(m => String(m.id) !== String(msgId));
   saveState();
   renderChatMessages(post);
+  updateUnreadIndicator();
 });
 
 // =========================
@@ -861,12 +892,3 @@ showSection(lastSection);
 if (lastSection === "feed") renderFeed();
 if (lastSection === "admin") renderAdmin();
 if (lastSection === "inbox") renderInbox();
-
-
-
-
-
-
-
-
-
