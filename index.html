@@ -9,65 +9,82 @@
 <body class="bg-slate-950 text-slate-50 min-h-screen">
   <!-- Navbar -->
 <header class="bg-slate-950 border-b border-slate-800">
-  <div class="max-w-6xl mx-auto flex items-center justify-between px-4 py-3">
-    <!-- LEFT: logo + HOME -->
+  <div class="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-2">
+    <!-- Row 1: Logo + Title -->
     <div class="flex items-center gap-3">
-      <!-- your existing logo -->
-      <div class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-slate-950 font-bold">
-          C
-        </div>
-        <div class="flex flex-col leading-tight">
-          <span class="font-semibold text-slate-100 text-sm">Carbon Credit Hub</span>
-          <span class="text-[11px] text-slate-400">Plant. Measure. Trade.</span>
-        </div>
+      <!-- logo circle -->
+      <div class="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center text-slate-950 font-bold text-lg">
+        C
       </div>
-
-      <!-- HOME button (extreme left nav button) -->
-      <button
-        class="nav-btn border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm"
-        data-section="landing">
-        Home
-      </button>
+      <div class="flex flex-col leading-tight">
+        <span class="font-semibold text-slate-100 text-base">Carbon Credit Hub</span>
+        <span class="text-[11px] text-slate-400">Plant. Measure. Trade.</span>
+      </div>
     </div>
 
-    <!-- RIGHT: rest of nav (Inbox, Marketplace, Post Listing, Calculator, Admin, Login/Logout) -->
-    <div class="flex items-center gap-2">
-      <button class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm"
-              data-section="inbox">
-        Inbox <span id="inboxIndicator" class="hidden ml-1 w-2 h-2 rounded-full bg-red-500"></span>
-      </button>
-      <button class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm"
-              data-section="feed">
-        Marketplace
-      </button>
-      <button class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm"
-              data-section="upload">
-        Post Listing
-      </button>
-      <button class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm"
-              data-section="calculator">
-        Calculator
-      </button>
-      <button id="adminTab"
-              class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm hidden"
-              data-section="admin">
-        Admin
-      </button>
+    <!-- Row 2: Navigation buttons -->
+    <div class="flex items-center justify-between flex-wrap gap-2">
+      <!-- left side: main nav -->
+      <div class="flex items-center gap-2 flex-wrap">
+        <button
+          class="nav-btn border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm"
+          data-section="landing">
+          Home
+        </button>
 
-      <!-- login / logout buttons you already have -->
-      <button id="loginBtn"
-              class="ml-2 px-3 py-1.5 rounded-full bg-emerald-500 text-slate-950 text-sm">
-        Login / Sign Up
-      </button>
-      <button id="logoutBtn"
-              class="ml-2 px-3 py-1.5 rounded-full bg-red-500 text-white text-sm hidden">
-        Logout
-      </button>
+        <button
+          class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm"
+          data-section="inbox">
+          Inbox
+          <span id="inboxIndicator" class="hidden ml-1 w-2 h-2 rounded-full bg-red-500"></span>
+        </button>
+
+        <button
+          class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm"
+          data-section="feed">
+          Marketplace
+        </button>
+
+        <button
+          class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm"
+          data-section="upload">
+          Post Listing
+        </button>
+
+        <button
+          class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm"
+          data-section="calculator">
+          Calculator
+        </button>
+
+        <button
+          id="adminTab"
+          class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm hidden"
+          data-section="admin">
+          Admin
+        </button>
+      </div>
+
+      <!-- right side: login / logout / user badge -->
+      <div class="flex items-center gap-2">
+        <div id="userBadge" class="hidden text-xs px-3 py-1.5 rounded-full bg-slate-800 border border-slate-600 text-slate-100">
+          <span id="badgeName" class="font-semibold"></span>
+          <span class="mx-1 text-slate-400">•</span>
+          <span id="badgeRole" class="uppercase text-[10px] tracking-wide"></span>
+        </div>
+
+        <button id="loginBtn"
+          class="px-3 py-1.5 rounded-full bg-emerald-500 text-slate-950 text-sm">
+          Login / Sign Up
+        </button>
+        <button id="logoutBtn"
+          class="px-3 py-1.5 rounded-full bg-red-500 text-white text-sm hidden">
+          Logout
+        </button>
+      </div>
     </div>
   </div>
 </header>
-
 
   <main class="max-w-6xl mx-auto px-4 py-4 sm:py-6 space-y-4">
     <!-- User badge -->
@@ -480,5 +497,6 @@
   <script src="app.js" defer></script>
 </body>
 </html>
+
 
 
