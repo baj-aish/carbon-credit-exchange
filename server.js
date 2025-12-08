@@ -1,4 +1,3 @@
-// server.js (backend on Render)
 const express = require("express");
 const cors = require("cors");
 const app = express();
@@ -29,7 +28,7 @@ app.get("/api/state", (req, res) => {
   res.json(state);
 });
 
-// overwrite global users + posts (mini-project, no auth)
+// overwrite global users + posts
 app.post("/api/state", (req, res) => {
   const body = req.body || {};
   if (Array.isArray(body.users)) state.users = body.users;
