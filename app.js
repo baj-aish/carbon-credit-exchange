@@ -3,12 +3,10 @@ const qs = id => document.getElementById(id);
 const qsa = sel => [...document.querySelectorAll(sel)];
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 
-
 const API_BASE = "https://carbon-credit-exchange-backend.onrender.com";
 const SESSION_KEY = "ccx_session_v1";
 const LAST_SECTION_KEY = "ccx_last_section_v1";
 const PROTECTED_SECTIONS = ["feed", "upload", "calculator", "admin", "inbox"];
-const BACKUP_KEY = "ccx_backup_state_v1";
 
 // highlight active nav item (underline + dark bg)
 const setActiveNav = section => {
@@ -60,24 +58,13 @@ const normalizeRole = (name, role) =>
   name.trim().toLowerCase() === "bajaish" && role === "admin" ? "admin" : "user";
 
 // ===== backend sync =====
-// ===== backend sync =====
 const syncState = () => {
-  const payload = { users: state.users, posts: state.posts };
-
-  // keep a local backup so we can restore if backend memory resets
-  try {
-    localStorage.setItem(BACKUP_KEY, JSON.stringify(payload));
-  } catch (e) {
-    console.log("backup save error", e);
-  }
-
   fetch(API_BASE + "/api/state", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
+    body: JSON.stringify({ users: state.users, posts: state.posts })
   }).catch(err => console.log("sync error", err));
 };
-
 
 const applyRemoteState = data => {
   state.users = Array.isArray(data.users) ? data.users : [];
@@ -120,44 +107,19 @@ const loadState = () => {
   fetch(API_BASE + "/api/state")
     .then(r => r.json())
     .then(data => {
-      let remoteUsers = Array.isArray(data.users) ? data.users : [];
-      let remotePosts = Array.isArray(data.posts) ? data.posts : [];
-
-      // If backend is empty but this browser has a backup, restore from backup
-      if (!remoteUsers.length && !remotePosts.length) {
-        try {
-          const backupRaw = localStorage.getItem(BACKUP_KEY);
-          if (backupRaw) {
-            const backup = JSON.parse(backupRaw);
-            if (Array.isArray(backup.users)) remoteUsers = backup.users;
-            if (Array.isArray(backup.posts)) remotePosts = backup.posts;
-
-            // push backup back to backend (fire-and-forget)
-            fetch(API_BASE + "/api/state", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ users: remoteUsers, posts: remotePosts })
-            }).catch(() => {});
-          }
-        } catch (e) {
-          console.log("backup restore error", e);
-        }
-      }
-
-      applyRemoteState({ users: remoteUsers, posts: remotePosts });
-      restoreSession();
+      applyRemoteState(data);   // sets users/posts + renders
+      restoreSession();         // restores currentUser from local session
 
       // decide which section to show after data + session are ready
       const last = localStorage.getItem(LAST_SECTION_KEY) || "landing";
       if (!state.currentUser && PROTECTED_SECTIONS.includes(last)) {
-        showSection("landing");
+        showSection("landing");         // not logged in → send to landing
       } else {
-        showSection(last);
+        showSection(last);              // stay where you were
       }
     })
     .catch(err => console.log("load error", err));
 };
-
 
 
 const refreshFromServer = () => {
@@ -373,18 +335,14 @@ const getFilteredPosts = () => {
       return true;
     });
   }
- if (pf === "low-high")
-  arr = [...arr].sort((a, b) => (a.price || 0) - (b.price || 0));
-if (pf === "high-low")
-  arr = [...arr].sort((a, b) => (b.price || 0) - (a.price || 0));
+  if (pf === "low-high") arr = [...arr].sort((a, b) => (a.price || 0) - (b.price || 0));
+  if (pf === "high-low") arr = [...arr].sort((a, b) => (b.price || 0) - (a.price || 0));
 
-if (state.currentUser) {
-  const me = state.currentUser.name;
-  const mine = arr.filter(p => p.user === me);
-  const others = arr.filter(p => p.user !== me);
-  arr = [...mine, ...others];
-}
-
+  if (state.currentUser) {
+    const me = state.currentUser.name;
+    const mine = arr.filter(p => p.user === me);
+    const others = arr.filter(p => p.user !== me);
+    arr = [...mine, ...others];
   }
   return arr;
 };
@@ -848,8 +806,8 @@ on(adminList, "click", e => {
     const participants = new Set();
     participants.add(post.user);
     (post.chatMessages || []).forEach(m => participants.add(m.from));
-   const names = [...participants];
-   
+    const names = [...participants];
+
     if (names.length === 2) {
       chatPostTitle.textContent = `Chat between ${names[0]} and ${names[1]}`;
     } else {
@@ -1002,7 +960,3 @@ on(qs("calcLandBtn"), "click", () => {
 updateAuthUI();
 loadState();                  // loadState will decide which section to show
 setInterval(refreshFromServer, 4000);
-
-
-
-
