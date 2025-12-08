@@ -9,12 +9,14 @@
 
 <body class="bg-slate-950 text-slate-50 min-h-screen">
 
-<!-- ================= NAVBAR ================= -->
+<!-- ============================= -->
+<!-- ========== NAVBAR =========== -->
+<!-- ============================= -->
 <header class="bg-slate-950 border-b border-slate-800">
-  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between flex-wrap gap-2">
 
-    <!-- LEFT: HOME ONLY -->
-    <div class="flex items-center gap-4">
+    <!-- LEFT SIDE: LOGO + HOME -->
+    <div class="flex items-center gap-3">
       <div class="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center text-slate-950 font-bold text-lg">
         C
       </div>
@@ -26,7 +28,7 @@
       </button>
     </div>
 
-    <!-- RIGHT: ALL OTHER NAV + USER -->
+    <!-- RIGHT SIDE: ALL OTHER NAV + USER -->
     <div class="flex items-center gap-2 flex-wrap">
 
       <button
@@ -61,8 +63,9 @@
         Admin
       </button>
 
-      <!-- USER BADGE -->
-      <div id="userBadge" class="hidden text-xs px-3 py-1.5 rounded-full bg-slate-800 border border-slate-600 text-slate-100">
+      <!-- USER BADGE (ONLY ONE, DUPLICATE REMOVED) -->
+      <div id="userBadge"
+           class="hidden text-xs px-3 py-1.5 rounded-full bg-slate-800 border border-slate-600 text-slate-100">
         <span id="badgeName" class="font-semibold"></span>
         <span class="mx-1 text-slate-400">•</span>
         <span id="badgeRole" class="uppercase text-[10px] tracking-wide"></span>
@@ -77,30 +80,41 @@
         class="px-3 py-1.5 rounded-full bg-red-500 text-white text-sm hidden">
         Logout
       </button>
-
     </div>
   </div>
 </header>
 
-<!-- ================= MAIN ================= -->
+<!-- ============================= -->
+<!-- ========== MAIN ============= -->
+<!-- ============================= -->
 <main class="max-w-6xl mx-auto px-4 py-4 sm:py-6 space-y-4">
 
-<!-- ================= LANDING ================= -->
+<!-- ============================= -->
+<!-- ========= LANDING =========== -->
+<!-- ============================= -->
 <section id="section-landing" class="section">
-  <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-900 rounded-3xl shadow-xl p-5 sm:p-8 flex flex-col gap-6 sm:gap-8">
+  <div
+    class="bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-900 rounded-3xl shadow-xl p-5 sm:p-8 flex flex-col gap-6 sm:gap-8">
 
     <div class="max-w-3xl">
       <p class="text-xs sm:text-sm uppercase tracking-[0.2em] text-emerald-300 mb-2">
         CARBON CREDIT EXCHANGE PLATFORM
       </p>
 
-      <h1 class="text-2xl sm:text-3xl md:text-4xl font-extrabold leading-snug mb-3">
-        Track your plantations.<br>
+      <h1
+        class="text-2xl sm:text-3xl md:text-4xl font-extrabold leading-snug mb-3">
+        Track your plantations.
+        <br class="hidden sm:block" />
         <span class="text-emerald-300">Calculate carbon credits.</span> Share impact.
       </h1>
 
       <p class="text-sm sm:text-base text-emerald-100 max-w-xl">
-        Upload plantation listings, calculate carbon credits with tree or land formulas, and explore community projects.
+        Upload plantation listings, calculate carbon credits with tree or land formulas, and explore community projects – built as a Computer Science mini-project.
+      </p>
+
+      <p id="welcomeLine"
+         class="hidden text-sm sm:text-base text-emerald-100 mt-2">
+        Dear <span id="welcomeName" class="font-semibold"></span>, thank you for registering and taking a step forward to make a better and greener tomorrow.
       </p>
 
       <div class="flex flex-wrap gap-3 mt-4">
@@ -116,143 +130,331 @@
       </div>
     </div>
 
+    <!-- FEATURES GRID -->
+    <div class="grid sm:grid-cols-3 gap-3 text-xs sm:text-sm">
+      <div class="bg-slate-900 rounded-2xl p-3 border border-white/5">
+        <p class="font-semibold mb-1 text-emerald-200">Calculator</p>
+        <p class="text-slate-200">
+          Tree-based and land-based calculator with CO₂ absorption values and unit conversion.
+        </p>
+      </div>
+
+      <div class="bg-slate-900 rounded-2xl p-3 border border-white/5">
+        <p class="font-semibold mb-1 text-emerald-200">Marketplace</p>
+        <p class="text-slate-200">
+          Upload plantation images with credits & pricing, then filter listings after login.
+        </p>
+      </div>
+
+      <div class="bg-slate-900 rounded-2xl p-3 border border-white/5">
+        <p class="font-semibold mb-1 text-emerald-200">Social Interaction</p>
+        <p class="text-slate-200">
+          Like, comment and chat on listings. Inbox shows unread messages with a badge.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUOTES -->
+  <div class="grid sm:grid-cols-3 gap-3 mt-4">
+    <div class="bg-slate-900 rounded-2xl shadow p-3">
+      <p class="text-xs text-emerald-300 mb-1">Quote</p>
+      <p class="text-sm font-semibold mb-1">
+        “The best time to plant a tree was 20 years ago. The second best time is now.”
+      </p>
+      <p class="text-[11px] text-slate-300">
+        Every listing you add here represents a small action towards that “now”.
+      </p>
+    </div>
+
+    <div class="bg-slate-900 rounded-2xl shadow p-3">
+      <p class="text-xs text-emerald-300 mb-1">Quote</p>
+      <p class="text-sm font-semibold mb-1">
+        “We do not inherit the Earth from our ancestors; we borrow it from our children.”
+      </p>
+      <p class="text-[11px] text-slate-300">
+        This project helps you quantify and share that responsibility.
+      </p>
+    </div>
+
+    <div class="bg-slate-900 rounded-2xl shadow p-3">
+      <p class="text-xs text-emerald-300 mb-1">Quote</p>
+      <p class="text-sm font-semibold mb-1">
+        “A greener tomorrow starts with the choices we make today.”
+      </p>
+      <p class="text-[11px] text-slate-300">
+        Tracking plantations and carbon credits is one such choice.
+      </p>
+    </div>
   </div>
 </section>
 
-  <!-- ================= FEED / MARKETPLACE ================= -->
+  <!-- ================== FEED / MARKETPLACE ================== -->
 <section id="section-feed" class="section hidden">
-  <div class="flex items-center justify-between mb-3">
-    <h2 class="text-xl font-semibold">Carbon Credit Marketplace</h2>
+  <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+    <h2 class="text-xl sm:text-2xl font-semibold">Carbon Credit Marketplace</h2>
+    <p class="text-[11px] sm:text-xs text-slate-300">
+      Browse plantation listings with carbon credits & pricing.
+    </p>
   </div>
 
-  <div class="flex gap-3 mb-3">
-    <select id="priceFilter" class="border bg-slate-900 px-2 py-1 rounded">
-      <option value="none">Default</option>
-      <option value="low-high">Low to High</option>
-      <option value="high-low">High to Low</option>
-    </select>
+  <div id="feedFilters"
+       class="hidden bg-slate-900 rounded-2xl shadow px-3 py-3 mb-3 flex flex-wrap gap-3 items-center text-xs sm:text-sm">
+    <div class="flex flex-col">
+      <span class="font-medium mb-1">Sort by price</span>
+      <select id="priceFilter" class="border border-slate-600 bg-slate-900 rounded-lg px-2 py-1">
+        <option value="none">Default</option>
+        <option value="low-high">Price: Low to High</option>
+        <option value="high-low">Price: High to Low</option>
+      </select>
+    </div>
 
-    <select id="creditsFilter" class="border bg-slate-900 px-2 py-1 rounded">
-      <option value="all">All Credits</option>
-      <option value="1-10">1 - 10</option>
-      <option value="10-20">10 - 20</option>
-      <option value="20-30">20 - 30</option>
-      <option value="30-40">30 - 40</option>
-      <option value="40-50">40 - 50</option>
-      <option value="50+">50+</option>
-    </select>
+    <div class="flex flex-col">
+      <span class="font-medium mb-1">Filter by carbon credits</span>
+      <select id="creditsFilter" class="border border-slate-600 bg-slate-900 rounded-lg px-2 py-1">
+        <option value="all">All</option>
+        <option value="1-10">1 - 10</option>
+        <option value="10-20">10 - 20</option>
+        <option value="20-30">20 - 30</option>
+        <option value="30-40">30 - 40</option>
+        <option value="40-50">40 - 50</option>
+        <option value="50+">50+</option>
+      </select>
+    </div>
   </div>
 
   <div id="feedContainer" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
-  <p id="emptyFeedMsg" class="text-sm text-slate-400 mt-2">No posts yet.</p>
+  <p id="emptyFeedMsg" class="text-sm text-slate-300 mt-2">
+    No posts yet. Login and upload your first plantation image!
+  </p>
 </section>
 
-<!-- ================= INBOX ================= -->
+<!-- ================== INBOX ================== -->
 <section id="section-inbox" class="section hidden">
-  <h2 class="text-xl font-semibold mb-3">Inbox</h2>
+  <div class="flex items-center justify-between mb-3 gap-2">
+    <h2 class="text-xl sm:text-2xl font-semibold">Inbox</h2>
+    <p class="text-[11px] sm:text-xs text-slate-300">
+      Messages you receive on your plantation listings.
+    </p>
+  </div>
   <div id="inboxList" class="space-y-3"></div>
 </section>
 
-<!-- ================= POST LISTING ================= -->
+<!-- ================== POST LISTING ================== -->
 <section id="section-upload" class="section hidden">
-  <h2 class="text-xl font-semibold mb-3">Post Listing</h2>
+  <h2 class="text-xl sm:text-2xl font-semibold mb-3">Post Listing</h2>
 
-  <form id="uploadForm" class="space-y-3">
-    <input id="postTitle" placeholder="Title" class="w-full px-2 py-1 bg-slate-900 border rounded" required>
-    <textarea id="postDesc" placeholder="Description" class="w-full px-2 py-1 bg-slate-900 border rounded" required></textarea>
-    <input id="postPrice" type="number" placeholder="Price" class="w-full px-2 py-1 bg-slate-900 border rounded" required>
-    <input id="postCredits" type="number" placeholder="Credits" class="w-full px-2 py-1 bg-slate-900 border rounded" required>
-    <input id="postImage" type="file" class="w-full">
-    <button id="uploadFormBtn" class="bg-emerald-600 px-3 py-1 rounded">Upload</button>
-  </form>
+  <div class="bg-slate-900 rounded-2xl shadow p-4 sm:p-5 max-w-2xl space-y-4 border border-slate-700">
+
+    <div class="flex mb-3 border border-slate-700 rounded-full overflow-hidden text-xs">
+      <button id="yourListingsTab"
+              class="flex-1 py-1.5 bg-slate-800 text-white font-medium">
+        Your listings
+      </button>
+      <button id="createListingTab"
+              class="flex-1 py-1.5 bg-slate-900 text-slate-300">
+        Create new listing
+      </button>
+    </div>
+
+    <div id="userListings" class="space-y-3 text-sm"></div>
+
+    <div id="uploadWrapper" class="space-y-4 hidden">
+      <div class="text-xs text-slate-300 bg-slate-800 border border-dashed border-slate-600 rounded-xl px-3 py-2">
+        <p>🔐 You must be logged in to upload.</p>
+        <p class="mt-1 text-red-400 font-medium">
+          ⚠️ Only images up to <b>50 KB</b> are allowed.
+        </p>
+      </div>
+
+      <form id="uploadForm" class="space-y-3 text-sm">
+        <div class="grid sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-medium mb-1">Title</label>
+            <input required id="postTitle"
+                   class="w-full border border-slate-600 bg-slate-900 rounded-lg px-3 py-2" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Price (₹)</label>
+            <input required id="postPrice" type="number"
+                   class="w-full border border-slate-600 bg-slate-900 rounded-lg px-3 py-2" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium mb-1">Description</label>
+          <textarea required id="postDesc" rows="3"
+                    class="w-full border border-slate-600 bg-slate-900 rounded-lg px-3 py-2"></textarea>
+        </div>
+
+        <div class="grid sm:grid-cols-2 gap-3 items-end">
+          <div>
+            <label class="block text-sm font-medium mb-1">Carbon Credits Offered</label>
+            <input required id="postCredits" type="number"
+                   class="w-full border border-slate-600 bg-slate-900 rounded-lg px-3 py-2" />
+          </div>
+          <div class="text-[11px] sm:text-xs">
+            <p class="font-medium mb-1">Don’t know total carbon credits?</p>
+            <button type="button" id="gotoCalcLink"
+                    class="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-emerald-500 text-emerald-200">
+              Calculate it here
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium mb-1">Image (max 50 KB)</label>
+          <input id="postImage" type="file" accept="image/*"
+                 class="w-full text-sm text-slate-200" />
+        </div>
+
+        <button id="uploadFormBtn" type="submit"
+          class="w-full mt-2 rounded-lg bg-gradient-to-r from-blue-600 to-emerald-500 text-white py-2 text-sm font-medium">
+          Upload Listing
+        </button>
+      </form>
+    </div>
+  </div>
 </section>
 
-<!-- ================= CALCULATOR ================= -->
+<!-- ================== CALCULATOR ================== -->
 <section id="section-calculator" class="section hidden">
-  <h2 class="text-xl font-semibold mb-3">Carbon Calculator</h2>
+  <h2 class="text-xl sm:text-2xl font-semibold mb-3">Carbon Credit Calculator</h2>
 
-  <div id="treeForm" class="space-y-2">
-    <select id="treeType" class="w-full bg-slate-900 border px-2 py-1 rounded">
-      <option value="3.5">Small</option>
-      <option value="12.5">Medium</option>
-      <option value="22.5">Large</option>
-    </select>
-    <input id="treeCount" type="number" placeholder="Number of Trees" class="w-full bg-slate-900 border px-2 py-1 rounded">
-    <input id="treeYears" type="number" placeholder="Years" class="w-full bg-slate-900 border px-2 py-1 rounded">
-    <button id="calcTreesBtn" class="bg-emerald-600 px-3 py-1 rounded">Calculate</button>
-  </div>
+  <div class="bg-slate-900 rounded-2xl shadow p-4 sm:p-5 max-w-2xl space-y-4">
 
-  <div id="landForm" class="space-y-2 hidden">
-    <input id="landArea" type="number" placeholder="Land Area" class="w-full bg-slate-900 border px-2 py-1 rounded">
-    <input id="landYears" type="number" placeholder="Years" class="w-full bg-slate-900 border px-2 py-1 rounded">
-    <button id="calcLandBtn" class="bg-emerald-600 px-3 py-1 rounded">Calculate</button>
-  </div>
+    <div class="flex flex-wrap gap-3 text-sm">
+      <label class="flex items-center gap-2">
+        <input type="radio" name="calcMethod" value="trees" checked />
+        <span>Tree-based</span>
+      </label>
+      <label class="flex items-center gap-2">
+        <input type="radio" name="calcMethod" value="land" />
+        <span>Land area-based</span>
+      </label>
+    </div>
 
-  <div id="calcResult" class="mt-3 hidden">
-    <p id="annualCredits"></p>
-    <p id="totalCredits"></p>
+    <div id="treeForm" class="space-y-3">
+      <select id="treeType"
+              class="w-full border border-slate-600 bg-slate-900 rounded-lg px-3 py-2">
+        <option value="3.5">Small plants</option>
+        <option value="12.5">Medium trees</option>
+        <option value="22.5">Fast growing trees</option>
+      </select>
+
+      <input id="treeCount" type="number"
+             class="w-full border border-slate-600 bg-slate-900 rounded-lg px-3 py-2" />
+
+      <input id="treeYears" type="number"
+             class="w-full border border-slate-600 bg-slate-900 rounded-lg px-3 py-2" />
+
+      <button id="calcTreesBtn"
+        class="rounded-lg bg-emerald-600 text-white px-4 py-2 text-sm font-medium">
+        Calculate Tree-based Credits
+      </button>
+    </div>
+
+    <div id="landForm" class="space-y-3 hidden">
+      <input id="landArea" type="number"
+             class="w-full border border-slate-600 bg-slate-900 rounded-lg px-3 py-2" />
+
+      <select id="landUnit"
+              class="w-full border border-slate-600 bg-slate-900 rounded-lg px-3 py-2">
+        <option value="hectares">Hectares</option>
+        <option value="acres">Acres</option>
+      </select>
+
+      <input id="landYears" type="number"
+             class="w-full border border-slate-600 bg-slate-900 rounded-lg px-3 py-2" />
+
+      <button id="calcLandBtn"
+        class="rounded-lg bg-emerald-600 text-white px-4 py-2 text-sm font-medium">
+        Calculate Land-based Credits
+      </button>
+    </div>
+
+    <div id="calcResult"
+         class="mt-3 text-sm bg-slate-800 border border-slate-600 rounded-xl px-3 py-2 hidden">
+      <p id="annualCredits"></p>
+      <p id="totalCredits"></p>
+    </div>
+
   </div>
 </section>
 
-<!-- ================= ADMIN ================= -->
+<!-- ================== ADMIN ================== -->
 <section id="section-admin" class="section hidden">
-  <h2 class="text-xl font-semibold mb-3">Admin Panel</h2>
-  <div id="adminList"></div>
+  <h2 class="text-xl sm:text-2xl font-semibold mb-3">Admin Panel</h2>
+  <p class="text-xs text-slate-300 mb-2">
+    Admin panel is restricted to authorised accounts.
+  </p>
+  <div id="adminList" class="space-y-3"></div>
 </section>
 
 </main>
 
-<!-- ================= CHAT MODAL ================= -->
-<div id="chatModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center">
-  <div class="bg-slate-900 p-4 rounded w-full max-w-md">
-    <div class="flex justify-between mb-2">
-      <h3 id="chatPostTitle"></h3>
-      <button id="closeChat">Close</button>
+<!-- ================== CHAT MODAL ================== -->
+<div id="chatModal"
+     class="hidden fixed inset-0 bg-black/60 flex items-center justify-center px-4 z-30">
+  <div class="bg-slate-900 rounded-2xl shadow-lg max-w-md w-full p-4 sm:p-5 flex flex-col border border-slate-700">
+    <div class="flex items-center justify-between mb-2">
+      <h3 id="chatPostTitle" class="text-sm font-semibold">Chat</h3>
+      <button id="closeChat" class="text-xs text-slate-400">Close</button>
     </div>
-
-    <div id="chatMessages" class="h-60 overflow-y-auto bg-slate-950 p-2 mb-2"></div>
-
+    <div id="chatMessages"
+         class="flex-1 min-h-[160px] max-h-64 overflow-y-auto border border-slate-700 rounded-lg p-2 mb-2 text-xs space-y-1 bg-slate-950"></div>
     <form id="chatForm" class="flex gap-1">
-      <input id="chatInput" class="flex-1 bg-slate-800 border px-2 py-1 rounded">
-      <button class="bg-emerald-600 px-3 py-1 rounded">Send</button>
+      <input id="chatInput"
+             class="flex-1 border border-slate-700 bg-slate-900 rounded-lg px-2 py-1 text-xs"
+             placeholder="Type a message..." />
+      <button class="px-3 py-1 rounded-lg bg-emerald-600 text-white text-xs">
+        Send
+      </button>
     </form>
   </div>
 </div>
 
-<!-- ================= LOGIN MODAL ================= -->
-<div id="loginModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center">
-  <div class="bg-slate-900 p-4 rounded w-full max-w-sm">
+<!-- ================== LOGIN MODAL ================== -->
+<div id="loginModal"
+     class="hidden fixed inset-0 bg-black/60 flex items-center justify-center px-4 z-20">
+  <div class="bg-slate-900 rounded-2xl shadow-lg max-w-sm w-full p-4 sm:p-5 text-sm border border-slate-700">
 
-    <div class="flex mb-2">
-      <button id="tabRegister" class="flex-1 bg-slate-800 p-1">Register</button>
-      <button id="tabLogin" class="flex-1 bg-slate-700 p-1">Login</button>
+    <div class="flex mb-3 border border-slate-700 rounded-full overflow-hidden text-xs">
+      <button id="tabRegister" class="flex-1 py-1.5 bg-slate-800 text-white font-medium">
+        Register
+      </button>
+      <button id="tabLogin" class="flex-1 py-1.5 bg-slate-900 text-slate-300">
+        Login
+      </button>
     </div>
 
-    <form id="registerForm" class="space-y-2">
-      <input id="regName" placeholder="Name" class="w-full bg-slate-800 border px-2 py-1 rounded">
-      <input id="regEmail" placeholder="Email" class="w-full bg-slate-800 border px-2 py-1 rounded">
-      <select id="regRole" class="w-full bg-slate-800 border px-2 py-1 rounded">
+    <form id="registerForm" class="space-y-3">
+      <input id="regName" class="w-full border border-slate-700 bg-slate-900 rounded-lg px-3 py-2" />
+      <input id="regEmail" class="w-full border border-slate-700 bg-slate-900 rounded-lg px-3 py-2" />
+      <select id="regRole" class="w-full border border-slate-700 bg-slate-900 rounded-lg px-3 py-2">
         <option value="user">User</option>
         <option value="admin">Admin</option>
       </select>
-      <button class="bg-emerald-600 w-full py-1 rounded">Register</button>
+      <button class="w-full rounded-lg bg-blue-600 text-white py-2 font-medium">
+        Register & Continue
+      </button>
     </form>
 
-    <form id="loginForm" class="space-y-2 hidden">
-      <input id="loginName" placeholder="Name" class="w-full bg-slate-800 border px-2 py-1 rounded">
-      <select id="loginRole" class="w-full bg-slate-800 border px-2 py-1 rounded">
+    <form id="loginForm" class="space-y-3 hidden mt-2">
+      <input id="loginName" class="w-full border border-slate-700 bg-slate-900 rounded-lg px-3 py-2" />
+      <select id="loginRole" class="w-full border border-slate-700 bg-slate-900 rounded-lg px-3 py-2">
         <option value="user">User</option>
         <option value="admin">Admin</option>
       </select>
-      <button class="bg-emerald-600 w-full py-1 rounded">Login</button>
+      <button class="w-full rounded-lg bg-emerald-600 text-white py-2 font-medium">
+        Login
+      </button>
     </form>
 
   </div>
 </div>
 
-<!-- ================= SCRIPT ================= -->
-<script src="app.js"></script>
-
+<script src="app.js" defer></script>
 </body>
 </html>
 
