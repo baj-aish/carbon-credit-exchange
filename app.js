@@ -5,7 +5,7 @@ const qs = (id) => document.getElementById(id);
 const qsa = (sel) => Array.from(document.querySelectorAll(sel));
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 
-const API_BASE = "https://<YOUR-RENDER-URL>"; // <-- PUT YOUR RENDER URL HERE
+const API_BASE = "https://carbon-credit-exchange-backend.onrender.com"; // <-- PUT YOUR RENDER URL HERE
 
 const SESSION_KEY = "ccx_session_v1";
 const LAST_SECTION_KEY = "ccx_last_section_v1";
@@ -805,3 +805,4 @@ document.addEventListener("DOMContentLoaded", () => {
     showError("App failed to initialize.");
   }
 });
+
