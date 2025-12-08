@@ -1,22 +1,87 @@
-// --- Simple frontend state (posts in localStorage, users in backend) ---
+// =========================
+// GLOBAL STATE + 30-DAY RETENTION
+// =========================
 
-let currentUser = JSON.parse(localStorage.getItem("cc_currentUser")) || null;
+// Load raw data from localStorage
+let storedUsers = JSON.parse(localStorage.getItem("cc_users")) || [];
+let storedCurrentUser = JSON.parse(localStorage.getItem("cc_currentUser")) || null;
 let posts = JSON.parse(localStorage.getItem("cc_posts")) || [];
+
+const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+const nowTs = Date.now();
+
+// Clean old users/posts older than 30 days (if timestamp exists)
+if (Array.isArray(storedUsers)) {
+  storedUsers = storedUsers.filter(u => !u.createdAt || nowTs - u.createdAt <= THIRTY_DAYS);
+}
+if (Array.isArray(posts)) {
+  posts = posts.filter(p => !p.createdAt || nowTs - p.createdAt <= THIRTY_DAYS);
+}
+
+// Ensure arrays valid
+let registeredUsers = Array.isArray(storedUsers) ? storedUsers : [];
+
+// Only accept currentUser if still in users
+let currentUser = null;
+if (storedCurrentUser && registeredUsers.length > 0) {
+  const match = registeredUsers.find(
+    u => u.id === storedCurrentUser.id && u.name === storedCurrentUser.name
+  );
+  if (match) {
+    currentUser = { ...match, role: storedCurrentUser.role || match.role };
+  }
+}
+
+// =========================
+// DOM REFERENCES
+// =========================
 
 const feedContainer = document.getElementById("feedContainer");
 const emptyFeedMsg = document.getElementById("emptyFeedMsg");
 const adminList = document.getElementById("adminList");
 const adminTab = document.getElementById("adminTab");
+
+const inboxIndicator = document.getElementById("inboxIndicator");
+const inboxList = document.getElementById("inboxList");
+
 const userBadge = document.getElementById("userBadge");
 const badgeName = document.getElementById("badgeName");
 const badgeRole = document.getElementById("badgeRole");
+
 const priceFilter = document.getElementById("priceFilter");
 const creditsFilter = document.getElementById("creditsFilter");
+const feedFiltersBox = document.getElementById("feedFilters");
 
-// ---------- helpers ----------
+const sections = document.querySelectorAll(".section");
+const protectedNavButtons = document.querySelectorAll(".protected-nav");
+
+const heroLoginBtn = document.getElementById("heroLoginBtn");
+const heroExploreBtn = document.getElementById("heroExploreBtn");
+const welcomeLine = document.getElementById("welcomeLine");
+const welcomeName = document.getElementById("welcomeName");
+
+// Chat
+const chatModal = document.getElementById("chatModal");
+const chatMessagesBox = document.getElementById("chatMessages");
+const chatPostTitle = document.getElementById("chatPostTitle");
+const chatForm = document.getElementById("chatForm");
+const chatInput = document.getElementById("chatInput");
+let currentChatPostId = null;
+
+// Login/Register modal
+const tabRegister = document.getElementById("tabRegister");
+const tabLogin = document.getElementById("tabLogin");
+const registerForm = document.getElementById("registerForm");
+const loginForm = document.getElementById("loginForm");
+
+// =========================
+// UTIL FUNCTIONS
+// =========================
+
 function saveState() {
   localStorage.setItem("cc_currentUser", JSON.stringify(currentUser));
   localStorage.setItem("cc_posts", JSON.stringify(posts));
+  localStorage.setItem("cc_users", JSON.stringify(registeredUsers));
 }
 
 function requireLogin() {
@@ -28,30 +93,175 @@ function requireLogin() {
   return true;
 }
 
+function showSection(name) {
+  sections.forEach(sec => sec.classList.add("hidden"));
+  const target = document.getElementById(`section-${name}`);
+  if (target) {
+    target.classList.remove("hidden");
+    localStorage.setItem("cc_lastSection", name);
+  }
+}
+
+// Only Bajaish can really be admin
+function normalizeRole(name, requestedRole) {
+  if (name.trim().toLowerCase() === "bajaish" && requestedRole === "admin") {
+    return "admin";
+  }
+  return "user";
+}
+
+// =========================
+// INBOX HELPERS
+// =========================
+
+function getInboxItems() {
+  if (!currentUser) return [];
+  const myName = currentUser.name;
+  const items = [];
+
+  posts.forEach(post => {
+    if (post.user !== myName) return;
+    if (!post.chatMessages) return;
+    post.chatMessages.forEach(msg => {
+      if (msg.from === myName) return;
+      items.push({
+        postId: post.id,
+        postTitle: post.title,
+        from: msg.from,
+        text: msg.text,
+        time: msg.time || Date.now(),
+        seen: !!msg.seen,
+        msgId: msg.id
+      });
+    });
+  });
+
+  items.sort((a, b) => (b.time || 0) - (a.time || 0));
+  return items;
+}
+
+function updateUnreadIndicator() {
+  if (!inboxIndicator) return;
+  if (!currentUser) {
+    inboxIndicator.classList.add("hidden");
+    return;
+  }
+  const items = getInboxItems();
+  const unread = items.filter(i => !i.seen).length;
+  if (unread > 0) inboxIndicator.classList.remove("hidden");
+  else inboxIndicator.classList.add("hidden");
+}
+
+function renderInbox() {
+  if (!inboxList) return;
+
+  if (!currentUser) {
+    inboxList.innerHTML =
+      '<p class="text-sm text-slate-500">Please login to see your inbox.</p>';
+    updateUnreadIndicator();
+    return;
+  }
+
+  const items = getInboxItems();
+  if (!items.length) {
+    inboxList.innerHTML =
+      '<p class="text-sm text-slate-500">No messages received on your listings yet.</p>';
+    updateUnreadIndicator();
+    return;
+  }
+
+  inboxList.innerHTML = items
+    .map(i => {
+      const dateStr = new Date(i.time).toLocaleString();
+      const statusClass = i.seen
+        ? "bg-slate-100 text-slate-600"
+        : "bg-red-100 text-red-600";
+      const statusText = i.seen ? "Seen" : "Unread";
+
+      return `
+        <div class="bg-white rounded-xl shadow p-3 flex items-center justify-between text-sm">
+          <div class="pr-3">
+            <p class="font-semibold text-xs">From ${i.from}</p>
+            <p class="text-xs text-slate-500">On: ${i.postTitle}</p>
+            <p class="text-[11px] text-slate-600 mt-1 line-clamp-2">
+              ${i.text}
+            </p>
+            <p class="text-[10px] mt-1 text-slate-400">${dateStr}</p>
+          </div>
+          <div class="flex flex-col items-end gap-1">
+            <span class="text-[10px] px-2 py-0.5 rounded-full ${statusClass}">
+              ${statusText}
+            </span>
+            <button data-open-chat="${i.postId}"
+                    class="text-[11px] underline mt-1">
+              Open chat
+            </button>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  updateUnreadIndicator();
+}
+
+// =========================
+// AUTH UI
+// =========================
+
 function updateAuthUI() {
   const loginBtn = document.getElementById("loginBtn");
   const logoutBtn = document.getElementById("logoutBtn");
+
   if (currentUser) {
+    // navbar
     loginBtn.classList.add("hidden");
     logoutBtn.classList.remove("hidden");
     userBadge.classList.remove("hidden");
     badgeName.textContent = currentUser.name;
     badgeRole.textContent = currentUser.role;
+
+    // hero: hide login button, show welcome line
+    if (heroLoginBtn) heroLoginBtn.classList.add("hidden");
+    if (welcomeLine && welcomeName) {
+      welcomeName.textContent = currentUser.name;
+      welcomeLine.classList.remove("hidden");
+    }
+
+    // protected nav
+    protectedNavButtons.forEach(btn => btn.classList.remove("hidden"));
+
     if (currentUser.role === "admin") adminTab.classList.remove("hidden");
     else adminTab.classList.add("hidden");
+
+    if (feedFiltersBox) feedFiltersBox.classList.remove("hidden");
   } else {
+    // navbar
     loginBtn.classList.remove("hidden");
     logoutBtn.classList.add("hidden");
     userBadge.classList.add("hidden");
+    badgeRole.textContent = "";
+
+    // hero
+    if (heroLoginBtn) heroLoginBtn.classList.remove("hidden");
+    if (welcomeLine) welcomeLine.classList.add("hidden");
+
     adminTab.classList.add("hidden");
+    if (feedFiltersBox) feedFiltersBox.classList.add("hidden");
+    protectedNavButtons.forEach(btn => btn.classList.add("hidden"));
   }
+
+  updateUnreadIndicator();
 }
+
+// =========================
+// FEED / ADMIN RENDER
+// =========================
 
 function getFilteredPosts() {
   let arr = posts.filter(p => p.status !== "removed");
 
-  // credits range filter
-  const cf = creditsFilter.value;
+  const cf = creditsFilter ? creditsFilter.value : "all";
   if (cf !== "all") {
     arr = arr.filter(p => {
       const c = Number(p.credits || 0);
@@ -65,8 +275,7 @@ function getFilteredPosts() {
     });
   }
 
-  // price sort
-  const pf = priceFilter.value;
+  const pf = priceFilter ? priceFilter.value : "none";
   if (pf === "low-high") {
     arr = [...arr].sort((a, b) => (a.price || 0) - (b.price || 0));
   } else if (pf === "high-low") {
@@ -87,10 +296,8 @@ function renderFeed() {
 
   feedContainer.innerHTML = visiblePosts
     .map(p => {
-      const commentsHtml = p.comments.length
-        ? p.comments
-            .map(c => `<p class="text-xs"><b>${c.by}:</b> ${c.text}</p>`)
-            .join("")
+      const commentsHtml = p.comments && p.comments.length
+        ? p.comments.map(c => `<p class="text-xs"><b>${c.by}:</b> ${c.text}</p>`).join("")
         : '<p class="text-xs text-slate-400">No comments yet</p>';
       return `
       <article class="bg-white rounded-2xl shadow overflow-hidden flex flex-col hover:shadow-lg transition">
@@ -109,6 +316,9 @@ function renderFeed() {
             <div class="flex items-center justify-between text-xs">
               <button data-like="${p.id}" class="px-2 py-1 rounded-full border text-[11px]">
                 ❤️ Like (${p.likes})
+              </button>
+              <button data-chat="${p.id}" class="px-2 py-1 rounded-full border text-[11px]">
+                💬 Chat
               </button>
             </div>
             <div class="border-t pt-1">
@@ -133,57 +343,127 @@ function renderAdmin() {
     adminList.innerHTML = `<p class="text-sm text-slate-500">You are not admin.</p>`;
     return;
   }
-  if (!posts.length) {
-    adminList.innerHTML = `<p class="text-sm text-slate-500">No posts yet.</p>`;
-    return;
-  }
-  adminList.innerHTML = posts
-    .map(p => `
-    <div class="bg-white rounded-xl shadow p-3 flex items-center justify-between text-sm">
-      <div>
-        <p class="font-semibold">${p.title}</p>
-        <p class="text-xs text-slate-500">
-          By ${p.user} • Likes: ${p.likes} • Comments: ${p.comments.length}
-        </p>
-        <p class="text-[11px] mt-1">
-          Credits: ${p.credits || 0} • Price: ₹${p.price || 0}
-        </p>
-        <p class="text-[11px] mt-1">Status:
-          <span class="px-2 py-0.5 rounded-full text-[10px] ${
-            p.status === "removed" ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-700"
-          }">${p.status || "active"}</span>
-        </p>
+
+  const userListHtml = registeredUsers.length
+    ? registeredUsers
+        .map(
+          u => `
+      <tr class="text-xs">
+        <td class="border px-2 py-1">${u.id}</td>
+        <td class="border px-2 py-1">${u.name}</td>
+        <td class="border px-2 py-1">${u.email || "-"}</td>
+        <td class="border px-2 py-1">${u.role}</td>
+      </tr>`
+        )
+        .join("")
+    : `<tr><td colspan="4" class="text-xs text-center text-slate-500 py-2">No registered users yet.</td></tr>`;
+
+  const postListHtml = posts.length
+    ? posts
+        .map(
+          p => `
+      <div class="bg-white rounded-xl shadow p-3 flex items-center justify-between text-sm">
+        <div>
+          <p class="font-semibold">${p.title}</p>
+          <p class="text-xs text-slate-500">
+            By ${p.user} • Likes: ${p.likes} • Comments: ${p.comments.length}
+          </p>
+          <p class="text-[11px] mt-1">
+            Credits: ${p.credits || 0} • Price: ₹${p.price || 0}
+          </p>
+          <p class="text-[11px] mt-1">Status:
+            <span class="px-2 py-0.5 rounded-full text-[10px] ${
+              p.status === "removed"
+                ? "bg-red-100 text-red-600"
+                : "bg-emerald-100 text-emerald-700"
+            }">${p.status || "active"}</span>
+          </p>
+        </div>
+        <button data-toggle="${p.id}" class="text-xs px-3 py-1 rounded-full border">
+          ${p.status === "removed" ? "Restore" : "Remove"}
+        </button>
+      </div>`
+        )
+        .join("")
+    : `<p class="text-sm text-slate-500">No posts yet.</p>`;
+
+  adminList.innerHTML = `
+    <div class="bg-white rounded-2xl shadow p-3 mb-3">
+      <h3 class="text-sm font-semibold mb-2">Registered Users (visible to admin)</h3>
+      <div class="overflow-x-auto">
+        <table class="min-w-full border text-xs">
+          <thead class="bg-slate-100">
+            <tr>
+              <th class="border px-2 py-1 text-left">ID</th>
+              <th class="border px-2 py-1 text-left">Name</th>
+              <th class="border px-2 py-1 text-left">Email</th>
+              <th class="border px-2 py-1 text-left">Role</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${userListHtml}
+          </tbody>
+        </table>
       </div>
-      <button data-toggle="${p.id}" class="text-xs px-3 py-1 rounded-full border">
-        ${p.status === "removed" ? "Restore" : "Remove"}
-      </button>
     </div>
-  `)
-    .join("");
+    <div class="space-y-3">
+      <h3 class="text-sm font-semibold mb-1">Post Moderation</h3>
+      ${postListHtml}
+    </div>
+  `;
 }
 
-// ---------- nav switching ----------
+// =========================
+// NAVIGATION
+// =========================
+
 document.querySelectorAll(".nav-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     const target = btn.dataset.section;
-    document.querySelectorAll(".section").forEach(sec => sec.classList.add("hidden"));
-    document.getElementById(`section-${target}`).classList.remove("hidden");
+    if (!target) return;
+
+    const isProtected = btn.classList.contains("protected-nav");
+    if (isProtected && !currentUser) {
+      requireLogin();
+      return;
+    }
+
+    showSection(target);
     if (target === "admin") renderAdmin();
+    if (target === "feed") renderFeed();
+    if (target === "inbox") renderInbox();
   });
 });
 
-// ---------- filters ----------
-priceFilter.addEventListener("change", renderFeed);
-creditsFilter.addEventListener("change", renderFeed);
+// Hero buttons
+if (heroLoginBtn) {
+  heroLoginBtn.addEventListener("click", () => {
+    document.getElementById("loginModal").classList.remove("hidden");
+  });
+}
+if (heroExploreBtn) {
+  heroExploreBtn.addEventListener("click", () => {
+    if (!requireLogin()) return;
+    showSection("feed");
+    renderFeed();
+  });
+}
 
-// ---------- jump from upload to calculator ----------
+// Filters
+if (priceFilter) priceFilter.addEventListener("change", renderFeed);
+if (creditsFilter) creditsFilter.addEventListener("change", renderFeed);
+
+// Calculator link from upload
 document.getElementById("gotoCalcLink").addEventListener("click", () => {
-  document.querySelectorAll(".section").forEach(sec => sec.classList.add("hidden"));
-  document.getElementById("section-calculator").classList.remove("hidden");
+  if (!requireLogin()) return;
+  showSection("calculator");
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
-// ---------- login modal ----------
+// =========================
+// LOGIN MODAL & TABS
+// =========================
+
 document.getElementById("loginBtn").addEventListener("click", () => {
   document.getElementById("loginModal").classList.remove("hidden");
 });
@@ -191,46 +471,136 @@ document.getElementById("closeLogin").addEventListener("click", () => {
   document.getElementById("loginModal").classList.add("hidden");
 });
 
-// --- Login with backend (max 50 users stored on server) ---
-document.getElementById("loginForm").addEventListener("submit", async e => {
+if (tabRegister && tabLogin && registerForm && loginForm) {
+  tabRegister.addEventListener("click", () => {
+    tabRegister.classList.add("bg-slate-900", "text-white", "font-medium");
+    tabRegister.classList.remove("bg-slate-100", "text-slate-700");
+    tabLogin.classList.remove("bg-slate-900", "text-white", "font-medium");
+    tabLogin.classList.add("bg-slate-100", "text-slate-700");
+    registerForm.classList.remove("hidden");
+    loginForm.classList.add("hidden");
+  });
+
+  tabLogin.addEventListener("click", () => {
+    tabLogin.classList.add("bg-slate-900", "text-white", "font-medium");
+    tabLogin.classList.remove("bg-slate-100", "text-slate-700");
+    tabRegister.classList.remove("bg-slate-900", "text-white", "font-medium");
+    tabRegister.classList.add("bg-slate-100", "text-slate-700");
+    registerForm.classList.add("hidden");
+    loginForm.classList.remove("hidden");
+  });
+}
+
+// =========================
+// REGISTER (no auto-login)
+// =========================
+
+registerForm.addEventListener("submit", e => {
   e.preventDefault();
-  const name = document.getElementById("loginName").value.trim();
-  const role = document.getElementById("loginRole").value;
-  if (!name) return;
+  const name = document.getElementById("regName").value.trim();
+  const email = document.getElementById("regEmail").value.trim();
+  const requestedRole = document.getElementById("regRole").value;
 
-  try {
-    const res = await fetch("http://localhost:5000/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, role })
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      alert(err.message || "Login failed");
-      return;
-    }
-
-    const data = await res.json(); // {id, name, role}
-    currentUser = { name: data.name, role: data.role };
-  } catch (err) {
-    // fallback: local login if server down
-    alert("Backend not running, using local login only.");
-    currentUser = { name, role };
+  if (!name || !email) return;
+  if (!email.toLowerCase().endsWith("@gmail.com")) {
+    alert("Please enter a valid Gmail address.");
+    return;
   }
+
+  const existing = registeredUsers.find(
+    u => u.name.toLowerCase() === name.toLowerCase()
+  );
+  if (existing) {
+    alert("User already registered. Please login.");
+    tabLogin.click();
+    return;
+  }
+
+  let role = normalizeRole(name, requestedRole);
+  if (requestedRole === "admin" && name.trim().toLowerCase() !== "bajaish") {
+    alert("Only authorised access allowed, try logging in using User role.");
+    role = "user";
+  }
+
+  const newUser = {
+    id: Date.now(),
+    name,
+    email,
+    role,
+    createdAt: Date.now()
+  };
+  registeredUsers.push(newUser);
+  saveState();
+
+  alert("Registration successful. Please login with your username.");
+  tabLogin.click();
+});
+
+// =========================
+// LOGIN (must be registered)
+// =========================
+
+loginForm.addEventListener("submit", e => {
+  e.preventDefault();
+
+  const nameInput = document.getElementById("loginName");
+  const roleSelect = document.getElementById("loginRole");
+
+  const name = nameInput.value.trim();
+  const loginRole = roleSelect.value;
+
+  if (!name) {
+    alert("Please enter a username.");
+    return;
+  }
+
+  const user = registeredUsers.find(
+    u => u.name.toLowerCase() === name.toLowerCase()
+  );
+
+  if (!user) {
+    alert("No user with such username found, try registering first.");
+    return;
+  }
+
+  if (loginRole === "admin" && name.toLowerCase() !== "bajaish") {
+    alert("Only authorised access allowed, try logging in using as user.");
+    return;
+  }
+
+  const role =
+    loginRole === "admin" && name.toLowerCase() === "bajaish" ? "admin" : "user";
+
+  currentUser = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role
+  };
 
   saveState();
   updateAuthUI();
-  document.getElementById("loginModal").classList.add("hidden");
+  document.getElementById("loginModal").classList.add("hidden"); // 👈 login box disappears
+  showSection("feed");
+  renderFeed();
 });
+
+// =========================
+// LOGOUT
+// =========================
 
 document.getElementById("logoutBtn").addEventListener("click", () => {
   currentUser = null;
-  saveState();
+  localStorage.removeItem("cc_currentUser");
+  localStorage.setItem("cc_lastSection", "landing");
   updateAuthUI();
+  showSection("landing");
 });
 
-// ---------- upload post ----------
+// =========================
+// UPLOAD POST
+// =========================
+
 document.getElementById("uploadForm").addEventListener("submit", e => {
   e.preventDefault();
   if (!requireLogin()) return;
@@ -243,7 +613,6 @@ document.getElementById("uploadForm").addEventListener("submit", e => {
   const file = fileInput.files[0];
   if (!file) return;
 
-  // 50 KB limit
   const maxSizeBytes = 50 * 1024;
   if (file.size > maxSizeBytes) {
     alert("Image too large! Please upload an image up to 50 KB only.");
@@ -259,10 +628,13 @@ document.getElementById("uploadForm").addEventListener("submit", e => {
       image: ev.target.result,
       user: currentUser.name,
       likes: 0,
+      likedBy: [], // 👈 for like/unlike per user
       comments: [],
+      chatMessages: [],
       status: "active",
       price,
-      credits
+      credits,
+      createdAt: Date.now()
     };
     posts.unshift(newPost);
     saveState();
@@ -273,16 +645,32 @@ document.getElementById("uploadForm").addEventListener("submit", e => {
   reader.readAsDataURL(file);
 });
 
-// ---------- feed actions (like + comment) ----------
+// =========================
+// FEED ACTIONS (like toggle + comment + chat)
+// =========================
+
 feedContainer.addEventListener("click", e => {
   const likeId = e.target.dataset.like;
   const commentBtnId = e.target.dataset.commentBtn;
+  const chatId = e.target.dataset.chat;
 
   if (likeId) {
     if (!requireLogin()) return;
     const post = posts.find(p => String(p.id) === likeId);
     if (post) {
-      post.likes++;
+      if (!Array.isArray(post.likedBy)) post.likedBy = [];
+      const idx = post.likedBy.indexOf(currentUser.name);
+
+      if (idx === -1) {
+        // like
+        post.likedBy.push(currentUser.name);
+        post.likes = (post.likes || 0) + 1;
+      } else {
+        // unlike
+        post.likedBy.splice(idx, 1);
+        post.likes = Math.max(0, (post.likes || 0) - 1);
+      }
+
       saveState();
       renderFeed();
     }
@@ -300,9 +688,17 @@ feedContainer.addEventListener("click", e => {
     saveState();
     renderFeed();
   }
+
+  if (chatId) {
+    if (!requireLogin()) return;
+    openChatForPost(chatId);
+  }
 });
 
-// ---------- admin actions ----------
+// =========================
+// ADMIN TOGGLE POST
+// =========================
+
 adminList.addEventListener("click", e => {
   const id = e.target.dataset.toggle;
   if (!id) return;
@@ -314,7 +710,129 @@ adminList.addEventListener("click", e => {
   renderAdmin();
 });
 
-// ---------- calculator logic ----------
+// Inbox: open chat from list
+if (inboxList) {
+  inboxList.addEventListener("click", e => {
+    const postId = e.target.dataset.openChat;
+    if (!postId) return;
+    if (!requireLogin()) return;
+    openChatForPost(postId);
+  });
+}
+
+// =========================
+// CHAT LOGIC
+// =========================
+
+function openChatForPost(postId) {
+  const post = posts.find(p => String(p.id) === String(postId));
+  if (!post) return;
+  if (!post.chatMessages) post.chatMessages = [];
+
+  // mark messages from others as seen
+  post.chatMessages.forEach(m => {
+    if (m.from !== currentUser.name) {
+      m.seen = true;
+    }
+  });
+  saveState();
+  updateUnreadIndicator();
+
+  currentChatPostId = post.id;
+  chatPostTitle.textContent = `Chat about: ${post.title}`;
+  renderChatMessages(post);
+  chatModal.classList.remove("hidden");
+}
+
+function renderChatMessages(post) {
+  if (!post.chatMessages || !post.chatMessages.length) {
+    chatMessagesBox.innerHTML =
+      '<p class="text-[11px] text-slate-500 text-center mt-6">No messages yet. Start the conversation.</p>';
+    return;
+  }
+
+  chatMessagesBox.innerHTML = post.chatMessages
+    .map(msg => {
+      const mine = msg.from === currentUser.name;
+      const time = new Date(msg.time).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+      return `
+      <div class="flex ${mine ? "justify-end" : "justify-start"}">
+        <div class="max-w-[75%] px-2 py-1 rounded-lg text-[11px] ${
+          mine ? "bg-emerald-500 text-white" : "bg-white border"
+        }">
+          <div class="font-semibold mb-0.5">${mine ? "You" : msg.from}</div>
+          <div>${msg.text}</div>
+          <div class="flex justify-between items-center mt-0.5 text-[9px] opacity-80">
+            <span>${time}</span>
+            ${mine ? `<span>${msg.seen ? "Seen" : "Sent"}</span>` : ""}
+          </div>
+          ${
+            mine
+              ? `<button data-delmsg="${msg.id}" class="mt-0.5 text-[9px] underline">
+                   Delete for everyone
+                 </button>`
+              : ""
+          }
+        </div>
+      </div>`;
+    })
+    .join("");
+
+  chatMessagesBox.scrollTop = chatMessagesBox.scrollHeight;
+}
+
+document.getElementById("closeChat").addEventListener("click", () => {
+  chatModal.classList.add("hidden");
+  currentChatPostId = null;
+});
+
+chatForm.addEventListener("submit", e => {
+  e.preventDefault();
+  if (!requireLogin()) return;
+  if (!currentChatPostId) return;
+
+  const text = chatInput.value.trim();
+  if (!text) return;
+
+  const post = posts.find(p => String(p.id) === String(currentChatPostId));
+  if (!post) return;
+  if (!post.chatMessages) post.chatMessages = [];
+
+  const message = {
+    id: Date.now(),
+    from: currentUser.name,
+    text,
+    time: Date.now(),
+    seen: false
+  };
+
+  post.chatMessages.push(message);
+  saveState();
+  chatInput.value = "";
+  renderChatMessages(post);
+  updateUnreadIndicator();
+});
+
+chatMessagesBox.addEventListener("click", e => {
+  const msgId = e.target.dataset.delmsg;
+  if (!msgId || !currentChatPostId) return;
+
+  const post = posts.find(p => String(p.id) === String(currentChatPostId));
+  if (!post || !post.chatMessages) return;
+
+  post.chatMessages = post.chatMessages.filter(m => String(m.id) !== String(msgId));
+  saveState();
+  renderChatMessages(post);
+  updateUnreadIndicator();
+});
+
+// =========================
+// CALCULATOR
+// =========================
+
 document.querySelectorAll('input[name="calcMethod"]').forEach(r => {
   r.addEventListener("change", () => {
     const v = document.querySelector('input[name="calcMethod"]:checked').value;
@@ -333,18 +851,16 @@ function showResult(annual, total) {
     `Total Carbon Credits: ${total.toFixed(2)} tons CO₂`;
 }
 
-// Tree-based
 document.getElementById("calcTreesBtn").addEventListener("click", () => {
-  const x = parseFloat(document.getElementById("treeType").value); // kg CO2/tree/year
+  const x = parseFloat(document.getElementById("treeType").value);
   const N = parseFloat(document.getElementById("treeCount").value);
   const t = parseFloat(document.getElementById("treeYears").value);
   if (N <= 0 || t <= 0) return alert("Enter valid tree count and years.");
-  const annual = (N * x) / 1000; // kg -> tons
+  const annual = (N * x) / 1000;
   const total = annual * t;
   showResult(annual, total);
 });
 
-// Land-based
 document.getElementById("calcLandBtn").addEventListener("click", () => {
   const A = parseFloat(document.getElementById("landArea").value);
   const unit = document.getElementById("landUnit").value;
@@ -352,13 +868,27 @@ document.getElementById("calcLandBtn").addEventListener("click", () => {
   if (A <= 0 || t <= 0) return alert("Enter valid area and years.");
 
   let hectares = A;
-  if (unit === "acres") hectares = A * 0.404686; // acres -> hectares
-  const y = 6; // tons CO2 / hectare / year
+  if (unit === "acres") hectares = A * 0.404686;
+  const y = 6;
   const annual = hectares * y;
   const total = annual * t;
   showResult(annual, total);
 });
 
-// ---------- initial ----------
+// =========================
+// INITIAL SETUP
+// =========================
+
 updateAuthUI();
-renderFeed();
+
+let lastSection = localStorage.getItem("cc_lastSection") || "landing";
+const protectedSections = ["feed", "upload", "calculator", "admin", "inbox"];
+
+if (!currentUser && protectedSections.includes(lastSection)) {
+  lastSection = "landing";
+}
+
+showSection(lastSection);
+if (lastSection === "feed") renderFeed();
+if (lastSection === "admin") renderAdmin();
+if (lastSection === "inbox") renderInbox();
