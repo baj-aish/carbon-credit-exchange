@@ -3,58 +3,14 @@ const qs = id => document.getElementById(id);
 const qsa = sel => [...document.querySelectorAll(sel)];
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 
+// your backend
 const API_BASE = "https://carbon-credit-exchange-backend.onrender.com";
-const STORAGE_KEY = "cc_state_v4_global";
-const MAX_AGE = 30 * 24 * 60 * 60 * 1000;
-const now = Date.now();
 
-let state =
-  JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") || {
-    users: [],
-    posts: [],
-    currentUser: null,
-    lastSection: "landing"
-  };
-
-// keep old local data up to 30 days, but don't auto-logout
-state.users = state.users.filter(u => !u.createdAt || now - u.createdAt <= MAX_AGE);
-state.posts = state.posts.filter(p => !p.createdAt || now - p.createdAt <= MAX_AGE);
-
-const save = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-
-// sync helpers: posts are shared globally
-const saveServerPosts = async () => {
-  try {
-    await fetch(API_BASE + "/api/state", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ posts: state.posts })
-    });
-  } catch (e) {
-    console.log("server save error", e);
-  }
-};
-const postsChanged = () => {
-  save();
-  saveServerPosts(); // fire & forget
-};
-
-const loadServerPosts = async () => {
-  try {
-    const res = await fetch(API_BASE + "/api/state");
-    if (!res.ok) return;
-    const data = await res.json();
-    if (Array.isArray(data.posts)) {
-      state.posts = data.posts;
-      save();
-    }
-    renderFeed();
-    renderUserListings();
-    renderInbox();
-    renderAdmin();
-  } catch (e) {
-    console.log("server load error", e);
-  }
+// global state (no localStorage for users/posts)
+let state = {
+  users: [],
+  posts: [],
+  currentUser: null // in-memory only
 };
 
 const requireLogin = () => {
@@ -65,10 +21,35 @@ const requireLogin = () => {
   }
   return true;
 };
+
 const normalizeRole = (name, role) =>
   name.trim().toLowerCase() === "bajaish" && role === "admin" ? "admin" : "user";
 
-// DOM refs
+// sync entire state (users + posts) to backend
+const syncState = () => {
+  fetch(API_BASE + "/api/state", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ users: state.users, posts: state.posts })
+  }).catch(err => console.log("sync error", err));
+};
+
+// load global state from backend
+const loadState = () => {
+  fetch(API_BASE + "/api/state")
+    .then(r => r.json())
+    .then(data => {
+      state.users = Array.isArray(data.users) ? data.users : [];
+      state.posts = Array.isArray(data.posts) ? data.posts : [];
+      renderFeed();
+      renderUserListings();
+      renderInbox();
+      renderAdmin();
+    })
+    .catch(err => console.log("load error", err));
+};
+
+// ===== DOM refs =====
 const userBadge = qs("userBadge");
 const badgeName = qs("badgeName");
 const badgeRole = qs("badgeRole");
@@ -103,11 +84,7 @@ let currentChatPostId = null;
 const showSection = name => {
   qsa(".section").forEach(s => s.classList.add("hidden"));
   const sec = qs("section-" + name);
-  if (sec) {
-    sec.classList.remove("hidden");
-    state.lastSection = name;
-    save();
-  }
+  if (sec) sec.classList.remove("hidden");
 };
 
 // ===== INBOX (for posts + replies) =====
@@ -118,10 +95,9 @@ const getInboxItems = () => {
 
   state.posts.forEach(p => {
     if (!p.chatMessages?.length) return;
-
-    const meInThread = p.user === me || p.chatMessages.some(m => m.from === me);
+    const meInThread =
+      p.user === me || p.chatMessages.some(m => m.from === me);
     if (!meInThread) return;
-
     p.chatMessages.forEach(m => {
       if (m.from === me) return;
       items.push({
@@ -142,7 +118,9 @@ const updateUnreadIndicator = () => {
   if (!inboxIndicator) return;
   if (!state.currentUser) return inboxIndicator.classList.add("hidden");
   const unread = getInboxItems().filter(i => !i.seen).length;
-  unread ? inboxIndicator.classList.remove("hidden") : inboxIndicator.classList.add("hidden");
+  unread
+    ? inboxIndicator.classList.remove("hidden")
+    : inboxIndicator.classList.add("hidden");
 };
 
 const renderInbox = () => {
@@ -160,7 +138,9 @@ const renderInbox = () => {
   inboxList.innerHTML = items
     .map(i => {
       const t = new Date(i.time).toLocaleString();
-      const badge = i.seen ? "bg-slate-700 text-slate-200" : "bg-red-500/20 text-red-300";
+      const badge = i.seen
+        ? "bg-slate-700 text-slate-200"
+        : "bg-red-500/20 text-red-300";
       const txt = i.seen ? "Seen" : "Unread";
       return `
       <div class="bg-slate-900 rounded-xl shadow p-3 flex items-center justify-between text-sm border border-slate-700">
@@ -507,7 +487,7 @@ on(registerForm, "submit", e => {
     role = "user";
   }
   state.users.push({ id: Date.now(), name, email, role, createdAt: Date.now() });
-  save();
+  syncState();
   alert("Registration successful. Please login.");
   switchAuthTab("login");
 });
@@ -524,7 +504,6 @@ on(loginForm, "submit", e => {
   const role =
     loginRole === "admin" && name.toLowerCase() === "bajaish" ? "admin" : "user";
   state.currentUser = { id: user.id, name: user.name, email: user.email, role };
-  save();
   updateAuthUI();
   qs("loginModal").classList.add("hidden");
   showSection("feed");
@@ -533,8 +512,6 @@ on(loginForm, "submit", e => {
 
 on(qs("logoutBtn"), "click", () => {
   state.currentUser = null;
-  state.lastSection = "landing";
-  save();
   updateAuthUI();
   showSection("landing");
 });
@@ -567,7 +544,7 @@ on(uploadForm, "submit", e => {
       post.price = price;
       post.credits = credits;
       if (img) post.image = img;
-      postsChanged();
+      syncState();
       renderFeed();
       renderUserListings();
       alert("Listing updated.");
@@ -587,7 +564,7 @@ on(uploadForm, "submit", e => {
         credits,
         createdAt: Date.now()
       });
-      postsChanged();
+      syncState();
       renderFeed();
       renderUserListings();
       alert("Listing uploaded.");
@@ -642,7 +619,7 @@ on(feedContainer, "click", e => {
       post.likedBy.splice(idx, 1);
       post.likes = Math.max(0, (post.likes || 0) - 1);
     }
-    postsChanged();
+    syncState();
     renderFeed();
   }
 
@@ -658,7 +635,7 @@ on(feedContainer, "click", e => {
     post.comments ||= [];
     post.comments.push({ by: state.currentUser.name, text });
     input.value = "";
-    postsChanged();
+    syncState();
     renderFeed();
   }
 
@@ -668,14 +645,14 @@ on(feedContainer, "click", e => {
   }
 });
 
-// ===== ADMIN POST TOGGLE =====
+// ===== ADMIN TOGGLE =====
 on(adminList, "click", e => {
   const id = e.target.dataset.toggle;
   if (!id) return;
   const post = state.posts.find(p => String(p.id) === String(id));
   if (!post) return;
   post.status = post.status === "removed" ? "active" : "removed";
-  postsChanged();
+  syncState();
   renderFeed();
   renderAdmin();
 });
@@ -696,7 +673,7 @@ const openChatForPost = postId => {
   post.chatMessages.forEach(m => {
     if (m.from !== state.currentUser.name) m.seen = true;
   });
-  postsChanged();
+  syncState();
   updateUnreadIndicator();
   currentChatPostId = post.id;
   chatPostTitle.textContent = `Chat about: ${post.title}`;
@@ -762,7 +739,7 @@ on(chatForm, "submit", e => {
     time: Date.now(),
     seen: false
   });
-  postsChanged();
+  syncState();
   chatInput.value = "";
   renderChatMessages(post);
   updateUnreadIndicator();
@@ -774,7 +751,7 @@ on(chatMessagesBox, "click", e => {
   const post = state.posts.find(p => String(p.id) === String(currentChatPostId));
   if (!post?.chatMessages) return;
   post.chatMessages = post.chatMessages.filter(m => String(m.id) !== String(id));
-  postsChanged();
+  syncState();
   renderChatMessages(post);
   updateUnreadIndicator();
 });
@@ -820,16 +797,5 @@ on(qs("calcLandBtn"), "click", () => {
 
 // ===== INITIAL LOAD =====
 updateAuthUI();
-let startSection = state.lastSection || "landing";
-const protectedSections = ["feed", "upload", "calculator", "admin", "inbox"];
-if (!state.currentUser && protectedSections.includes(startSection))
-  startSection = "landing";
-
-showSection(startSection);
-if (startSection === "feed") renderFeed();
-if (startSection === "admin") renderAdmin();
-if (startSection === "inbox") renderInbox();
-if (startSection === "upload") setListingMode("your");
-
-// finally, load shared posts from backend
-loadServerPosts();
+showSection("landing");
+loadState();
