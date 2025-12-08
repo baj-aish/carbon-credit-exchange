@@ -10,9 +10,8 @@
   <!-- Navbar -->
 <header class="bg-slate-950 border-b border-slate-800">
   <div class="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-2">
-    <!-- Row 1: Logo + Title -->
+    <!-- Row 1: Logo + Title (full width) -->
     <div class="flex items-center gap-3">
-      <!-- logo circle -->
       <div class="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center text-slate-950 font-bold text-lg">
         C
       </div>
@@ -22,16 +21,19 @@
       </div>
     </div>
 
-    <!-- Row 2: Navigation buttons -->
-    <div class="flex items-center justify-between flex-wrap gap-2">
-      <!-- left side: main nav -->
-      <div class="flex items-center gap-2 flex-wrap">
+    <!-- Row 2: Left = Home, Right = rest of nav + user/auth -->
+    <div class="flex items-center justify-between gap-2 flex-wrap">
+      <!-- LEFT: only Home -->
+      <div class="flex items-center gap-2">
         <button
           class="nav-btn border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm"
           data-section="landing">
           Home
         </button>
+      </div>
 
+      <!-- RIGHT: Inbox, Marketplace, Post Listing, Calculator, Admin, badge, login/logout -->
+      <div class="flex items-center gap-2 flex-wrap justify-end">
         <button
           class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm"
           data-section="inbox">
@@ -63,16 +65,15 @@
           data-section="admin">
           Admin
         </button>
-      </div>
 
-      <!-- right side: login / logout / user badge -->
-      <div class="flex items-center gap-2">
+        <!-- user badge -->
         <div id="userBadge" class="hidden text-xs px-3 py-1.5 rounded-full bg-slate-800 border border-slate-600 text-slate-100">
           <span id="badgeName" class="font-semibold"></span>
           <span class="mx-1 text-slate-400">•</span>
           <span id="badgeRole" class="uppercase text-[10px] tracking-wide"></span>
         </div>
 
+        <!-- auth buttons -->
         <button id="loginBtn"
           class="px-3 py-1.5 rounded-full bg-emerald-500 text-slate-950 text-sm">
           Login / Sign Up
@@ -85,6 +86,7 @@
     </div>
   </div>
 </header>
+
 
   <main class="max-w-6xl mx-auto px-4 py-4 sm:py-6 space-y-4">
     <!-- User badge -->
@@ -497,5 +499,6 @@
   <script src="app.js" defer></script>
 </body>
 </html>
+
 
 
