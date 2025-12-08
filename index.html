@@ -8,83 +8,47 @@
 </head>
 <body class="bg-slate-950 text-slate-50 min-h-screen">
   <!-- Navbar -->
-<header class="bg-slate-950 border-b border-slate-800">
-  <div class="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-2">
-    <!-- Row 1: Logo + Title -->
-    <div class="flex items-center gap-3">
-      <!-- logo circle -->
-      <div class="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center text-slate-950 font-bold text-lg">
-        C
-      </div>
-      <div class="flex flex-col leading-tight">
-        <span class="font-semibold text-slate-100 text-base">Carbon Credit Hub</span>
-        <span class="text-[11px] text-slate-400">Plant. Measure. Trade.</span>
-      </div>
-    </div>
-
-    <!-- Row 2: Navigation buttons -->
-    <div class="flex items-center justify-between flex-wrap gap-2">
-      <!-- left side: main nav -->
-      <div class="flex items-center gap-2 flex-wrap">
-        <button
-          class="nav-btn border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm"
-          data-section="landing">
-          Home
-        </button>
-
-        <button
-          class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm"
-          data-section="inbox">
-          Inbox
-          <span id="inboxIndicator" class="hidden ml-1 w-2 h-2 rounded-full bg-red-500"></span>
-        </button>
-
-        <button
-          class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm"
-          data-section="feed">
-          Marketplace
-        </button>
-
-        <button
-          class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm"
-          data-section="upload">
-          Post Listing
-        </button>
-
-        <button
-          class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm"
-          data-section="calculator">
-          Calculator
-        </button>
-
-        <button
-          id="adminTab"
-          class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm hidden"
-          data-section="admin">
-          Admin
-        </button>
-      </div>
-
-      <!-- right side: login / logout / user badge -->
+  <header class="bg-slate-900/95 backdrop-blur shadow sticky top-0 z-20">
+    <div class="max-w-6xl mx-auto flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-2">
-        <div id="userBadge" class="hidden text-xs px-3 py-1.5 rounded-full bg-slate-800 border border-slate-600 text-slate-100">
-          <span id="badgeName" class="font-semibold"></span>
-          <span class="mx-1 text-slate-400">•</span>
-          <span id="badgeRole" class="uppercase text-[10px] tracking-wide"></span>
+        <div class="w-8 h-8 rounded-xl bg-emerald-400 flex items-center justify-center">
+          <span class="text-slate-900 font-extrabold text-lg">C</span>
         </div>
+        <div class="flex flex-col leading-tight">
+          <span class="font-semibold text-white text-sm sm:text-base">Carbon Credit Hub</span>
+          <span class="text-[11px] text-emerald-200 hidden sm:block">Plant. Measure. Trade Responsibly.</span>
+        </div>
+      </div>
+
+      <nav class="flex items-center gap-3 text-xs sm:text-sm">
+        <button data-section="landing" class="nav-btn text-emerald-300 font-medium">Home</button>
+
+        <button data-section="inbox"
+                class="nav-btn protected-nav hidden text-slate-200 flex items-center gap-1">
+          Inbox
+          <span id="inboxIndicator" class="hidden w-2 h-2 rounded-full bg-red-500"></span>
+        </button>
+
+        <button data-section="feed"
+                class="nav-btn protected-nav hidden text-slate-200">Marketplace</button>
+        <button data-section="upload"
+                class="nav-btn protected-nav hidden text-slate-200">Post Listing</button>
+        <button data-section="calculator"
+                class="nav-btn protected-nav hidden text-slate-200">Calculator</button>
+        <button data-section="admin"
+                class="nav-btn protected-nav hidden text-slate-200" id="adminTab">Admin</button>
 
         <button id="loginBtn"
-          class="px-3 py-1.5 rounded-full bg-emerald-500 text-slate-950 text-sm">
-          Login / Sign Up
+                class="px-3 py-1 rounded-full bg-emerald-400 text-slate-900 text-xs sm:text-sm font-semibold">
+          Login / Register
         </button>
         <button id="logoutBtn"
-          class="px-3 py-1.5 rounded-full bg-red-500 text-white text-sm hidden">
+                class="hidden px-3 py-1 rounded-full bg-red-500 text-white text-xs sm:text-sm">
           Logout
         </button>
-      </div>
+      </nav>
     </div>
-  </div>
-</header>
+  </header>
 
   <main class="max-w-6xl mx-auto px-4 py-4 sm:py-6 space-y-4">
     <!-- User badge -->
@@ -233,89 +197,65 @@
       <div id="inboxList" class="space-y-3"></div>
     </section>
 
-       <!-- Post Listing -->
+    <!-- Upload -->
     <section id="section-upload" class="section hidden">
-      <h2 class="text-xl sm:text-2xl font-semibold mb-3">Post Listing</h2>
-      <div class="bg-slate-900 rounded-2xl shadow p-4 sm:p-5 max-w-2xl space-y-4 border border-slate-700">
-        <!-- Tabs: Your listings / Create new -->
-        <div class="flex mb-3 border border-slate-700 rounded-full overflow-hidden text-xs">
-          <button id="yourListingsTab"
-                  class="flex-1 py-1.5 bg-slate-800 text-white font-medium">
-            Your listings
-          </button>
-          <button id="createListingTab"
-                  class="flex-1 py-1.5 bg-slate-900 text-slate-300">
-            Create new listing
-          </button>
+      <h2 class="text-xl sm:text-2xl font-semibold mb-3">Upload Plantation Listing</h2>
+      <div class="bg-slate-900 rounded-2xl shadow p-4 sm:p-5 max-w-2xl space-y-4">
+        <div class="text-xs text-slate-300 bg-slate-800 border border-dashed border-slate-600 rounded-xl px-3 py-2">
+          <p>🔐 You must be logged in to upload.</p>
+          <p class="mt-1 text-red-400 font-medium">
+            ⚠️ Only images up to <b>50 KB</b> are allowed. Larger files will be rejected.
+          </p>
         </div>
 
-        <!-- Your listings list -->
-        <div id="userListings" class="space-y-3 text-sm">
-          <!-- filled by JS -->
-        </div>
-
-        <!-- Create / edit listing form (hidden when "Your listings" tab is active) -->
-        <div id="uploadWrapper" class="space-y-4 hidden">
-          <div class="text-xs text-slate-300 bg-slate-800 border border-dashed border-slate-600 rounded-xl px-3 py-2">
-            <p>🔐 You must be logged in to upload.</p>
-            <p class="mt-1 text-red-400 font-medium">
-              ⚠️ Only images up to <b>50 KB</b> are allowed. Larger files will be rejected.
-            </p>
+        <form id="uploadForm" class="space-y-3 text-sm">
+          <div class="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-medium mb-1">Title</label>
+              <input required id="postTitle" class="w-full border border-slate-600 bg-slate-900 rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">Price (₹)</label>
+              <input required id="postPrice" type="number" min="0"
+                     class="w-full border border-slate-600 bg-slate-900 rounded-lg px-3 py-2 text-sm" />
+            </div>
           </div>
 
-          <form id="uploadForm" class="space-y-3 text-sm">
-            <div class="grid sm:grid-cols-2 gap-3">
-              <div>
-                <label class="block text-sm font-medium mb-1">Title</label>
-                <input required id="postTitle"
-                       class="w-full border border-slate-600 bg-slate-900 rounded-lg px-3 py-2 text-sm" />
-              </div>
-              <div>
-                <label class="block text-sm font-medium mb-1">Price (₹)</label>
-                <input required id="postPrice" type="number" min="0"
-                       class="w-full border border-slate-600 bg-slate-900 rounded-lg px-3 py-2 text-sm" />
-              </div>
-            </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Description</label>
+            <textarea required id="postDesc" rows="3"
+                      class="w-full border border-slate-600 bg-slate-900 rounded-lg px-3 py-2 text-sm"></textarea>
+          </div>
 
+          <div class="grid sm:grid-cols-2 gap-3 items-end">
             <div>
-              <label class="block text-sm font-medium mb-1">Description</label>
-              <textarea required id="postDesc" rows="3"
-                        class="w-full border border-slate-600 bg-slate-900 rounded-lg px-3 py-2 text-sm"></textarea>
+              <label class="block text-sm font-medium mb-1">Carbon Credits Offered</label>
+              <input required id="postCredits" type="number" min="1" step="0.1"
+                     class="w-full border border-slate-600 bg-slate-900 rounded-lg px-3 py-2 text-sm" />
             </div>
-
-            <div class="grid sm:grid-cols-2 gap-3 items-end">
-              <div>
-                <label class="block text-sm font-medium mb-1">Carbon Credits Offered</label>
-                <input required id="postCredits" type="number" min="1" step="0.1"
-                       class="w-full border border-slate-600 bg-slate-900 rounded-lg px-3 py-2 text-sm" />
-              </div>
-              <div class="text-[11px] sm:text-xs">
-                <p class="font-medium mb-1">Don’t know total carbon credits?</p>
-                <button type="button" id="gotoCalcLink"
-                        class="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-emerald-500 text-emerald-200">
-                  Calculate it here
-                </button>
-              </div>
+            <div class="text-[11px] sm:text-xs">
+              <p class="font-medium mb-1">Don’t know total carbon credits?</p>
+              <button type="button" id="gotoCalcLink"
+                      class="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-emerald-500 text-emerald-200">
+                Calculate it here
+              </button>
             </div>
+          </div>
 
-            <div>
-              <label class="block text-sm font-medium mb-1">Image (max 50 KB)</label>
-              <input id="postImage" type="file" accept="image/*"
-                     class="w-full text-sm text-slate-200" />
-              <p class="text-[11px] text-slate-400 mt-1">
-                Leave empty while editing if you want to keep the existing image.
-              </p>
-            </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Image (max 50 KB)</label>
+            <input required id="postImage" type="file" accept="image/*"
+                   class="w-full text-sm text-slate-200" />
+          </div>
 
-            <button id="uploadFormBtn" type="submit"
-              class="w-full mt-2 rounded-lg bg-gradient-to-r from-blue-600 to-emerald-500 text-white py-2 text-sm font-medium">
-              Upload Listing
-            </button>
-          </form>
-        </div>
+          <button
+            type="submit"
+            class="w-full mt-2 rounded-lg bg-gradient-to-r from-blue-600 to-emerald-500 text-white py-2 text-sm font-medium">
+            Upload Listing
+          </button>
+        </form>
       </div>
     </section>
-
 
     <!-- Calculator -->
     <section id="section-calculator" class="section hidden">
@@ -497,4 +437,3 @@
   <script src="app.js" defer></script>
 </body>
 </html>
-
