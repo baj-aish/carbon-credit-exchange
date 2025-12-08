@@ -1,84 +1,118 @@
-// ===== helpers =====
-const qs = id => document.getElementById(id);
-const qsa = sel => [...document.querySelectorAll(sel)];
+// ===== helpers & constants =====
+const $ = id => document.getElementById(id);
+const $$ = sel => [...document.querySelectorAll(sel)];
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 
 const API_BASE = "https://carbon-credit-exchange-backend.onrender.com";
 const SESSION_KEY = "ccx_session_v1";
 const LAST_SECTION_KEY = "ccx_last_section_v1";
-const PROTECTED_SECTIONS = ["feed", "upload", "calculator", "admin", "inbox"];
+const PROTECTED = ["feed", "upload", "calculator", "admin", "inbox"];
 
-// highlight active nav item (underline + dark bg)
-const setActiveNav = section => {
-  qsa(".nav-btn").forEach(btn => {
-    const target = btn.dataset.section;
-    const isActive = target === section;
-
-    // underline
-    btn.classList.toggle("border-b-2", isActive);
-    btn.classList.toggle("border-b-emerald-400", isActive);
-    btn.classList.toggle("border-b-transparent", !isActive);
-
-    // background + text
-    const isSpecial = PROTECTED_SECTIONS.includes(target);
-    btn.classList.toggle("bg-slate-900", !isActive);
-    btn.classList.toggle("bg-slate-800", isActive && isSpecial);
-    btn.classList.toggle("text-white", isActive);
-  });
-};
-
-
-// global state (users + posts live on backend)
-let state = {
-  users: [],
-  posts: [],
-  currentUser: null
-};
-
+// global state (backend holds users+posts; browser only remembers session + last section)
+let state = { users: [], posts: [], currentUser: null };
 let editPostId = null;
 let currentChatPostId = null;
 let adminViewChat = false;
 
-// ===== session helpers (only keep who is logged in on this device) =====
-const saveSession = () => {
-  if (state.currentUser) {
-    localStorage.setItem(
-      SESSION_KEY,
-      JSON.stringify({
-        name: state.currentUser.name,
-        role: state.currentUser.role
-      })
-    );
-  } else {
-    localStorage.removeItem(SESSION_KEY);
+// ===== DOM refs =====
+const userBadge = $("userBadge"), badgeName = $("badgeName"), badgeRole = $("badgeRole");
+const adminTab = $("adminTab"), inboxIndicator = $("inboxIndicator"), inboxList = $("inboxList");
+const feedContainer = $("feedContainer"), emptyFeedMsg = $("emptyFeedMsg"), feedFiltersBox = $("feedFilters");
+const priceFilter = $("priceFilter"), creditsFilter = $("creditsFilter");
+const welcomeLine = $("welcomeLine"), welcomeName = $("welcomeName");
+const heroLoginBtn = $("heroLoginBtn"), heroExploreBtn = $("heroExploreBtn");
+const chatModal = $("chatModal"), chatMessagesBox = $("chatMessages"), chatPostTitle = $("chatPostTitle");
+const chatForm = $("chatForm"), chatInput = $("chatInput");
+const adminList = $("adminList");
+const yourListingsTab = $("yourListingsTab"), createListingTab = $("createListingTab");
+const userListingsBox = $("userListings"), uploadWrapper = $("uploadWrapper");
+const uploadForm = $("uploadForm"), uploadFormBtn = $("uploadFormBtn");
+
+// ===== nav highlighting & sections =====
+const setActiveNav = section => {
+  $$(".nav-btn").forEach(btn => {
+    const target = btn.dataset.section;
+    const active = target === section;
+    const special = PROTECTED.includes(target);
+    btn.classList.toggle("border-b-2", active);
+    btn.classList.toggle("border-b-emerald-400", active);
+    btn.classList.toggle("border-b-transparent", !active);
+    btn.classList.toggle("bg-slate-800", active && special);
+    btn.classList.toggle("bg-slate-900", !active || !special);
+    btn.classList.toggle("text-white", active);
+  });
+};
+
+const showSection = name => {
+  $$(".section").forEach(s => s.classList.add("hidden"));
+  const sec = $("section-" + name);
+  if (sec) sec.classList.remove("hidden");
+  localStorage.setItem(LAST_SECTION_KEY, name);
+  setActiveNav(name);
+};
+
+const requireLogin = () => {
+  if (!state.currentUser) {
+    alert("Please login first.");
+    $("loginModal").classList.remove("hidden");
+    return false;
   }
+  return true;
 };
 
 const normalizeRole = (name, role) =>
   name.trim().toLowerCase() === "bajaish" && role === "admin" ? "admin" : "user";
 
-// ===== backend sync =====
+// ===== backend sync & polling =====
+const applyRemoteState = data => {
+  state.users = Array.isArray(data.users) ? data.users : [];
+  state.posts = Array.isArray(data.posts) ? data.posts : [];
+  renderAll();
+};
+
 const syncState = () => {
   fetch(API_BASE + "/api/state", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ users: state.users, posts: state.posts })
-  }).catch(err => console.log("sync error", err));
+  }).catch(console.log);
 };
 
-const applyRemoteState = data => {
-  state.users = Array.isArray(data.users) ? data.users : [];
-  state.posts = Array.isArray(data.posts) ? data.posts : [];
-  renderFeed();
-  renderUserListings();
-  renderInbox();
-  renderAdmin();
-  if (!chatModal.classList.contains("hidden") && currentChatPostId) {
-    const p = state.posts.find(
-      x => String(x.id) === String(currentChatPostId)
+const loadState = () => {
+  fetch(API_BASE + "/api/state")
+    .then(r => r.json())
+    .then(d => {
+      applyRemoteState(d);
+      restoreSession();
+      const last = localStorage.getItem(LAST_SECTION_KEY) || "landing";
+      if (!state.currentUser && PROTECTED.includes(last)) showSection("landing");
+      else showSection(last);
+    })
+    .catch(console.log);
+};
+
+const refreshFromServer = () => {
+  fetch(API_BASE + "/api/state")
+    .then(r => r.json())
+    .then(d => {
+      applyRemoteState(d);
+      // keep open chat updated
+      if (!chatModal.classList.contains("hidden") && currentChatPostId) {
+        const p = state.posts.find(x => String(x.id) === String(currentChatPostId));
+        if (p) renderChatMessages(p);
+      }
+    })
+    .catch(console.log);
+};
+
+// ===== session =====
+const saveSession = () => {
+  if (state.currentUser) {
+    localStorage.setItem(
+      SESSION_KEY,
+      JSON.stringify({ name: state.currentUser.name, role: state.currentUser.role })
     );
-    if (p) renderChatMessages(p);
-  }
+  } else localStorage.removeItem(SESSION_KEY);
 };
 
 const restoreSession = () => {
@@ -87,110 +121,23 @@ const restoreSession = () => {
   try {
     const s = JSON.parse(raw);
     if (!s.name) return;
-    const u = state.users.find(
-      x => x.name.toLowerCase() === s.name.toLowerCase()
-    );
+    const u = state.users.find(x => x.name.toLowerCase() === s.name.toLowerCase());
     if (!u) return;
-    state.currentUser = {
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      role: s.role || u.role
-    };
+    state.currentUser = { id: u.id, name: u.name, email: u.email, role: s.role || u.role };
     updateAuthUI();
   } catch (e) {
-    console.log("session restore error", e);
+    console.log("session error", e);
   }
 };
 
-const loadState = () => {
-  fetch(API_BASE + "/api/state")
-    .then(r => r.json())
-    .then(data => {
-      applyRemoteState(data);   // sets users/posts + renders
-      restoreSession();         // restores currentUser from local session
-
-      // decide which section to show after data + session are ready
-      const last = localStorage.getItem(LAST_SECTION_KEY) || "landing";
-      if (!state.currentUser && PROTECTED_SECTIONS.includes(last)) {
-        showSection("landing");         // not logged in → send to landing
-      } else {
-        showSection(last);              // stay where you were
-      }
-    })
-    .catch(err => console.log("load error", err));
-};
-
-
-const refreshFromServer = () => {
-  fetch(API_BASE + "/api/state")
-    .then(r => r.json())
-    .then(applyRemoteState)
-    .catch(err => console.log("refresh error", err));
-};
-
-// ===== DOM refs =====
-const userBadge = qs("userBadge");
-const badgeName = qs("badgeName");
-const badgeRole = qs("badgeRole");
-const adminTab = qs("adminTab");
-const inboxIndicator = qs("inboxIndicator");
-const inboxList = qs("inboxList");
-const feedContainer = qs("feedContainer");
-const emptyFeedMsg = qs("emptyFeedMsg");
-const feedFiltersBox = qs("feedFilters");
-const priceFilter = qs("priceFilter");
-const creditsFilter = qs("creditsFilter");
-const welcomeLine = qs("welcomeLine");
-const welcomeName = qs("welcomeName");
-const heroLoginBtn = qs("heroLoginBtn");
-const heroExploreBtn = qs("heroExploreBtn");
-const chatModal = qs("chatModal");
-const chatMessagesBox = qs("chatMessages");
-const chatPostTitle = qs("chatPostTitle");
-const chatForm = qs("chatForm");
-const chatInput = qs("chatInput");
-const adminList = qs("adminList");
-const yourListingsTab = qs("yourListingsTab");
-const createListingTab = qs("createListingTab");
-const userListingsBox = qs("userListings");
-const uploadWrapper = qs("uploadWrapper");
-const uploadForm = qs("uploadForm");
-const uploadFormBtn = qs("uploadFormBtn");
-
-// ===== misc helpers =====
-const showSection = name => {
-  qsa(".section").forEach(s => s.classList.add("hidden"));
-  const sec = qs("section-" + name);
-  if (sec) sec.classList.remove("hidden");
-
-  // remember last section
-  localStorage.setItem(LAST_SECTION_KEY, name);
-
-  // update nav highlight
-  setActiveNav(name);
-};
-
-
-const requireLogin = () => {
-  if (!state.currentUser) {
-    alert("Please login first.");
-    qs("loginModal").classList.remove("hidden");
-    return false;
-  }
-  return true;
-};
-
-// ===== INBOX =====
+// ===== inbox =====
 const getInboxItems = () => {
   if (!state.currentUser) return [];
   const me = state.currentUser.name;
   const items = [];
-
   state.posts.forEach(p => {
     if (!p.chatMessages?.length) return;
-    const meInThread =
-      p.user === me || p.chatMessages.some(m => m.from === me);
+    const meInThread = p.user === me || p.chatMessages.some(m => m.from === me);
     if (!meInThread) return;
     p.chatMessages.forEach(m => {
       if (m.from === me) return;
@@ -204,7 +151,6 @@ const getInboxItems = () => {
       });
     });
   });
-
   return items.sort((a, b) => (b.time || 0) - (a.time || 0));
 };
 
@@ -212,16 +158,13 @@ const updateUnreadIndicator = () => {
   if (!inboxIndicator) return;
   if (!state.currentUser) return inboxIndicator.classList.add("hidden");
   const unread = getInboxItems().filter(i => !i.seen).length;
-  unread
-    ? inboxIndicator.classList.remove("hidden")
-    : inboxIndicator.classList.add("hidden");
+  unread ? inboxIndicator.classList.remove("hidden") : inboxIndicator.classList.add("hidden");
 };
 
 const renderInbox = () => {
   if (!inboxList) return;
   if (!state.currentUser) {
-    inboxList.innerHTML =
-      `<p class="text-sm text-slate-300">Please login to see your inbox.</p>`;
+    inboxList.innerHTML = `<p class="text-sm text-slate-300">Please login to see your inbox.</p>`;
     return updateUnreadIndicator();
   }
   const items = getInboxItems();
@@ -232,9 +175,7 @@ const renderInbox = () => {
   inboxList.innerHTML = items
     .map(i => {
       const t = new Date(i.time).toLocaleString();
-      const badge = i.seen
-        ? "bg-slate-700 text-slate-200"
-        : "bg-red-500/20 text-red-300";
+      const badge = i.seen ? "bg-slate-700 text-slate-200" : "bg-red-500/20 text-red-300";
       const txt = i.seen ? "Seen" : "Unread";
       return `
       <div class="bg-slate-900 rounded-xl shadow p-3 flex items-center justify-between text-sm border border-slate-700">
@@ -246,9 +187,7 @@ const renderInbox = () => {
         </div>
         <div class="flex flex-col items-end gap-1">
           <span class="text-[10px] px-2 py-0.5 rounded-full ${badge}">${txt}</span>
-          <button data-open-chat="${i.postId}" class="text-[11px] underline">
-            Open chat
-          </button>
+          <button data-open-chat="${i.postId}" class="text-[11px] underline">Open chat</button>
         </div>
       </div>`;
     })
@@ -256,12 +195,10 @@ const renderInbox = () => {
   updateUnreadIndicator();
 };
 
-// ===== AUTH UI =====
+// ===== auth UI =====
 const updateAuthUI = () => {
-  const loginBtn = qs("loginBtn");
-  const logoutBtn = qs("logoutBtn");
+  const loginBtn = $("loginBtn"), logoutBtn = $("logoutBtn");
   const u = state.currentUser;
-
   if (u) {
     loginBtn.classList.add("hidden");
     logoutBtn.classList.remove("hidden");
@@ -273,11 +210,9 @@ const updateAuthUI = () => {
       welcomeName.textContent = u.name;
       welcomeLine.classList.remove("hidden");
     }
-    qsa(".protected-nav").forEach(b => b.classList.remove("hidden"));
-    u.role === "admin"
-      ? adminTab.classList.remove("hidden")
-      : adminTab.classList.add("hidden");
+    $$(".protected-nav").forEach(b => b.classList.remove("hidden"));
     feedFiltersBox?.classList.remove("hidden");
+    u.role === "admin" ? adminTab.classList.remove("hidden") : adminTab.classList.add("hidden");
   } else {
     loginBtn.classList.remove("hidden");
     logoutBtn.classList.add("hidden");
@@ -287,17 +222,16 @@ const updateAuthUI = () => {
     welcomeLine?.classList.add("hidden");
     adminTab.classList.add("hidden");
     feedFiltersBox?.classList.add("hidden");
-    qsa(".protected-nav").forEach(b => b.classList.add("hidden"));
+    $$(".protected-nav").forEach(b => b.classList.add("hidden"));
   }
   updateUnreadIndicator();
 };
 
-// ===== FEED / ADMIN =====
-const getFilteredPosts = () => {
+// ===== feed & admin render =====
+const filteredPosts = () => {
   let arr = state.posts.filter(p => p.status !== "removed");
   const cf = creditsFilter?.value || "all";
   const pf = priceFilter?.value || "none";
-
   if (cf !== "all") {
     arr = arr.filter(p => {
       const c = Number(p.credits || 0);
@@ -312,7 +246,6 @@ const getFilteredPosts = () => {
   }
   if (pf === "low-high") arr = [...arr].sort((a, b) => (a.price || 0) - (b.price || 0));
   if (pf === "high-low") arr = [...arr].sort((a, b) => (b.price || 0) - (a.price || 0));
-
   if (state.currentUser) {
     const me = state.currentUser.name;
     const mine = arr.filter(p => p.user === me);
@@ -323,7 +256,8 @@ const getFilteredPosts = () => {
 };
 
 const renderFeed = () => {
-  const posts = getFilteredPosts();
+  if (!feedContainer) return;
+  const posts = filteredPosts();
   if (!posts.length) {
     feedContainer.innerHTML = "";
     emptyFeedMsg.classList.remove("hidden");
@@ -335,14 +269,13 @@ const renderFeed = () => {
       const commentsHtml = p.comments?.length
         ? p.comments.map(c => `<p class="text-xs"><b>${c.by}:</b> ${c.text}</p>`).join("")
         : '<p class="text-xs text-slate-400">No comments yet</p>';
-      let ownerText;
-      if (state.currentUser && p.user === state.currentUser.name) {
-        const d = p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "";
-        ownerText = `Post created by you${d ? " • " + d : ""}`;
-      } else ownerText = `By ${p.user}`;
+      const ownerText =
+        state.currentUser && p.user === state.currentUser.name
+          ? `Post created by you${p.createdAt ? " • " + new Date(p.createdAt).toLocaleDateString() : ""}`
+          : `By ${p.user}`;
       return `
       <article class="bg-slate-900 rounded-2xl shadow overflow-hidden flex flex-col border border-slate-700">
-        <img src="${p.image}" class="w-full h-44 object-cover" alt="post image">
+        <img src="${p.image}" class="w-full h-44 object-cover" alt="post">
         <div class="p-3 flex-1 flex flex-col">
           <h3 class="font-semibold text-sm mb-1 line-clamp-2">${p.title}</h3>
           <p class="text-xs text-slate-300 mb-1 line-clamp-3">${p.desc}</p>
@@ -355,10 +288,12 @@ const renderFeed = () => {
           <p class="text-[11px] text-slate-400 mb-2">${ownerText}</p>
           <div class="mt-auto space-y-2">
             <div class="flex items-center justify-between text-xs">
-              <button data-like="${p.id}" class="px-2 py-1 rounded-full border border-slate-600 text-[11px]">
+              <button data-like="${p.id}"
+                class="px-2 py-1 rounded-full border border-slate-600 text-[11px]">
                 ❤️ Like (${p.likes || 0})
               </button>
-              <button data-chat="${p.id}" class="px-2 py-1 rounded-full border border-slate-600 text-[11px]">
+              <button data-chat="${p.id}"
+                class="px-2 py-1 rounded-full border border-slate-600 text-[11px]">
                 💬 Chat
               </button>
             </div>
@@ -382,6 +317,7 @@ const renderFeed = () => {
 };
 
 const renderAdmin = () => {
+  if (!adminList) return;
   const u = state.currentUser;
   if (!u || u.role !== "admin") {
     adminList.innerHTML = `<p class="text-sm text-slate-300">You are not admin.</p>`;
@@ -464,7 +400,7 @@ const renderAdmin = () => {
     </div>`;
 };
 
-// ===== YOUR LISTINGS / EDIT =====
+// ===== user listings =====
 const renderUserListings = () => {
   if (!userListingsBox) return;
   if (!state.currentUser) {
@@ -500,7 +436,6 @@ const renderUserListings = () => {
 };
 
 const setListingMode = mode => {
-  if (!yourListingsTab || !createListingTab || !userListingsBox || !uploadWrapper) return;
   const your = mode === "your";
   yourListingsTab.classList.toggle("bg-slate-800", your);
   yourListingsTab.classList.toggle("bg-slate-900", !your);
@@ -518,12 +453,120 @@ const setListingMode = mode => {
   } else {
     uploadForm?.reset();
     editPostId = null;
-    if (uploadFormBtn) uploadFormBtn.textContent = "Upload Listing";
+    uploadFormBtn.textContent = "Upload Listing";
   }
 };
 
-// ===== NAV + HERO =====
-qsa(".nav-btn").forEach(btn =>
+// ===== chat =====
+const renderChatMessages = post => {
+  if (!post.chatMessages?.length) {
+    chatMessagesBox.innerHTML =
+      '<p class="text-[11px] text-slate-400 text-center mt-6">No messages yet. Start the conversation.</p>';
+    return;
+  }
+  chatMessagesBox.innerHTML = post.chatMessages
+    .map(m => {
+      const mine = state.currentUser && m.from === state.currentUser.name;
+      const time = new Date(m.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return `
+      <div class="flex ${mine ? "justify-end" : "justify-start"}">
+        <div class="max-w-[75%] px-2 py-1 rounded-lg text-[11px] ${
+          mine ? "bg-emerald-600 text-white" : "bg-slate-800 border border-slate-700"
+        }">
+          <div class="font-semibold mb-0.5">${mine ? "You" : m.from}</div>
+          <div>${m.text}</div>
+          <div class="flex justify-between items-center mt-0.5 text-[9px] opacity-80">
+            <span>${time}</span>
+            ${mine ? `<span>${m.seen ? "Seen" : "Sent"}</span>` : ""}
+          </div>
+          ${
+            mine && !adminViewChat
+              ? `<button data-delmsg="${m.id}" class="mt-0.5 text-[9px] underline">
+                 Delete for everyone
+               </button>`
+              : ""
+          }
+        </div>
+      </div>`;
+    })
+    .join("");
+  chatMessagesBox.scrollTop = chatMessagesBox.scrollHeight;
+};
+
+const openChatForPost = postId => {
+  const post = state.posts.find(p => String(p.id) === String(postId));
+  if (!post) return;
+  adminViewChat = false;
+  chatForm.classList.remove("hidden");
+  post.chatMessages ||= [];
+  if (state.currentUser) {
+    post.chatMessages.forEach(m => {
+      if (m.from !== state.currentUser.name) m.seen = true;
+    });
+    syncState();
+  }
+  currentChatPostId = post.id;
+  chatPostTitle.textContent = `Chat about: ${post.title}`;
+  renderChatMessages(post);
+  chatModal.classList.remove("hidden");
+};
+
+const openAdminChatView = post => {
+  adminViewChat = true;
+  chatForm.classList.add("hidden");
+  const participants = new Set();
+  participants.add(post.user);
+  (post.chatMessages || []).forEach(m => participants.add(m.from));
+  const names = [...participants];
+  chatPostTitle.textContent =
+    names.length === 2
+      ? `Chat between ${names[0]} and ${names[1]}`
+      : `Chat on "${post.title}" between ${names.join(", ")}`;
+  currentChatPostId = post.id;
+  renderChatMessages(post);
+  chatModal.classList.remove("hidden");
+};
+
+// ===== calculator =====
+$$('input[name="calcMethod"]').forEach(r =>
+  on(r, "change", () => {
+    const v = document.querySelector('input[name="calcMethod"]:checked').value;
+    $("treeForm").classList.toggle("hidden", v !== "trees");
+    $("landForm").classList.toggle("hidden", v !== "land");
+    $("calcResult").classList.add("hidden");
+  })
+);
+
+const showResult = (annual, total) => {
+  $("calcResult").classList.remove("hidden");
+  $("annualCredits").textContent =
+    `Annual Carbon Credits: ${annual.toFixed(2)} tons CO₂ / year`;
+  $("totalCredits").textContent =
+    `Total Carbon Credits: ${total.toFixed(2)} tons CO₂`;
+};
+
+on($("calcTreesBtn"), "click", () => {
+  const x = parseFloat($("treeType").value);
+  const N = parseFloat($("treeCount").value);
+  const t = parseFloat($("treeYears").value);
+  if (N <= 0 || t <= 0) return alert("Enter valid tree count and years.");
+  const annual = (N * x) / 1000;
+  showResult(annual, annual * t);
+});
+
+on($("calcLandBtn"), "click", () => {
+  const A = parseFloat($("landArea").value);
+  const unit = $("landUnit").value;
+  const t = parseFloat($("landYears").value);
+  if (A <= 0 || t <= 0) return alert("Enter valid area and years.");
+  let hectares = A;
+  if (unit === "acres") hectares *= 0.404686;
+  const annual = hectares * 6;
+  showResult(annual, annual * t);
+});
+
+// ===== nav events =====
+$$(".nav-btn").forEach(btn =>
   on(btn, "click", () => {
     const target = btn.dataset.section;
     if (!target) return;
@@ -536,30 +579,27 @@ qsa(".nav-btn").forEach(btn =>
   })
 );
 
-on(heroLoginBtn, "click", () => qs("loginModal").classList.remove("hidden"));
+on(heroLoginBtn, "click", () => $("loginModal").classList.remove("hidden"));
 on(heroExploreBtn, "click", () => {
   if (!requireLogin()) return;
   showSection("feed");
   renderFeed();
 });
-
 on(priceFilter, "change", renderFeed);
 on(creditsFilter, "change", renderFeed);
-
-on(qs("gotoCalcLink"), "click", () => {
+on($("gotoCalcLink"), "click", () => {
   if (!requireLogin()) return;
   showSection("calculator");
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
-// ===== LOGIN / REGISTER =====
-on(qs("loginBtn"), "click", () => qs("loginModal").classList.remove("hidden"));
-on(qs("closeLogin"), "click", () => qs("loginModal").classList.add("hidden"));
+// ===== auth forms =====
+on($("loginBtn"), "click", () => $("loginModal").classList.remove("hidden"));
+on($("closeLogin"), "click", () => $("loginModal").classList.add("hidden"));
 
-const tabRegister = qs("tabRegister");
-const tabLogin = qs("tabLogin");
-const registerForm = qs("registerForm");
-const loginForm = qs("loginForm");
+const tabRegister = $("tabRegister"), tabLogin = $("tabLogin");
+const registerForm = $("registerForm"), loginForm = $("loginForm");
+
 const switchAuthTab = mode => {
   const reg = mode === "register";
   registerForm.classList.toggle("hidden", !reg);
@@ -569,14 +609,15 @@ const switchAuthTab = mode => {
   tabLogin.classList.toggle("bg-slate-800", !reg);
   tabLogin.classList.toggle("bg-slate-900", reg);
 };
+
 on(tabRegister, "click", () => switchAuthTab("register"));
 on(tabLogin, "click", () => switchAuthTab("login"));
 
 on(registerForm, "submit", e => {
   e.preventDefault();
-  const name = qs("regName").value.trim();
-  const email = qs("regEmail").value.trim();
-  const requestedRole = qs("regRole").value;
+  const name = $("regName").value.trim();
+  const email = $("regEmail").value.trim();
+  const requestedRole = $("regRole").value;
   if (!name || !email) return;
   if (!email.toLowerCase().endsWith("@gmail.com"))
     return alert("Please enter a valid Gmail address.");
@@ -597,8 +638,8 @@ on(registerForm, "submit", e => {
 
 on(loginForm, "submit", e => {
   e.preventDefault();
-  const name = qs("loginName").value.trim();
-  const loginRole = qs("loginRole").value;
+  const name = $("loginName").value.trim();
+  const loginRole = $("loginRole").value;
   if (!name) return alert("Enter a username.");
   const user = state.users.find(u => u.name.toLowerCase() === name.toLowerCase());
   if (!user) return alert("No user with such username found, try registering first.");
@@ -609,34 +650,30 @@ on(loginForm, "submit", e => {
   state.currentUser = { id: user.id, name: user.name, email: user.email, role };
   saveSession();
   updateAuthUI();
-  qs("loginModal").classList.add("hidden");
+  $("loginModal").classList.add("hidden");
   showSection("feed");
   renderFeed();
 });
 
-on(qs("logoutBtn"), "click", () => {
+on($("logoutBtn"), "click", () => {
   state.currentUser = null;
   saveSession();
   updateAuthUI();
   showSection("landing");
 });
 
-// ===== POST LISTING =====
-on(yourListingsTab, "click", () => {
-  if (requireLogin()) setListingMode("your");
-});
-on(createListingTab, "click", () => {
-  if (requireLogin()) setListingMode("create");
-});
+// ===== post listing events =====
+on(yourListingsTab, "click", () => { if (requireLogin()) setListingMode("your"); });
+on(createListingTab, "click", () => { if (requireLogin()) setListingMode("create"); });
 
 on(uploadForm, "submit", e => {
   e.preventDefault();
   if (!requireLogin()) return;
-  const title = qs("postTitle").value.trim();
-  const desc = qs("postDesc").value.trim();
-  const price = parseFloat(qs("postPrice").value) || 0;
-  const credits = parseFloat(qs("postCredits").value) || 0;
-  const file = qs("postImage").files[0];
+  const title = $("postTitle").value.trim();
+  const desc = $("postDesc").value.trim();
+  const price = parseFloat($("postPrice").value) || 0;
+  const credits = parseFloat($("postCredits").value) || 0;
+  const file = $("postImage").files[0];
   const isEdit = !!editPostId;
   if (!title || !desc) return;
 
@@ -680,8 +717,7 @@ on(uploadForm, "submit", e => {
   };
 
   if (file) {
-    if (file.size > 50 * 1024)
-      return alert("Image too large! Only up to 50 KB allowed.");
+    if (file.size > 50 * 1024) return alert("Image too large! Only up to 50 KB allowed.");
     const r = new FileReader();
     r.onload = ev => finish(ev.target.result);
     r.readAsDataURL(file);
@@ -698,14 +734,14 @@ on(userListingsBox, "click", e => {
   if (!post) return;
   editPostId = post.id;
   setListingMode("create");
-  qs("postTitle").value = post.title;
-  qs("postDesc").value = post.desc;
-  qs("postPrice").value = post.price;
-  qs("postCredits").value = post.credits;
+  $("postTitle").value = post.title;
+  $("postDesc").value = post.desc;
+  $("postPrice").value = post.price;
+  $("postCredits").value = post.credits;
   uploadFormBtn.textContent = "Save changes";
 });
 
-// ===== FEED EVENTS =====
+// feed like/comment/chat
 on(feedContainer, "click", e => {
   const likeId = e.target.dataset.like;
   const commentId = e.target.dataset.commentBtn;
@@ -732,9 +768,7 @@ on(feedContainer, "click", e => {
     if (!requireLogin()) return;
     const post = state.posts.find(p => String(p.id) === String(commentId));
     if (!post) return;
-    const input = document.querySelector(
-      `[data-comment-input="${commentId}"]`
-    );
+    const input = document.querySelector(`[data-comment-input="${commentId}"]`);
     const text = input.value.trim();
     if (!text) return;
     post.comments ||= [];
@@ -750,7 +784,7 @@ on(feedContainer, "click", e => {
   }
 });
 
-// ===== ADMIN EVENTS (remove user, toggle post, view chat) =====
+// admin actions
 on(adminList, "click", e => {
   const toggleId = e.target.dataset.toggle;
   const delUserId = e.target.dataset.deluser;
@@ -775,29 +809,11 @@ on(adminList, "click", e => {
   if (viewChatId) {
     const post = state.posts.find(p => String(p.id) === String(viewChatId));
     if (!post) return;
-    adminViewChat = true;
-    chatForm.classList.add("hidden");
-
-    const participants = new Set();
-    participants.add(post.user);
-    (post.chatMessages || []).forEach(m => participants.add(m.from));
-    const names = [...participants];
-
-    if (names.length === 2) {
-      chatPostTitle.textContent = `Chat between ${names[0]} and ${names[1]}`;
-    } else {
-      chatPostTitle.textContent = `Chat on "${post.title}" between ${names.join(
-        ", "
-      )}`;
-    }
-
-    currentChatPostId = post.id;
-    renderChatMessages(post);
-    chatModal.classList.remove("hidden");
+    openAdminChatView(post);
   }
 });
 
-// inbox → open chat (normal user)
+// inbox open chat
 on(inboxList, "click", e => {
   const id = e.target.dataset.openChat;
   if (!id) return;
@@ -805,62 +821,8 @@ on(inboxList, "click", e => {
   openChatForPost(id);
 });
 
-// ===== CHAT =====
-const openChatForPost = postId => {
-  const post = state.posts.find(p => String(p.id) === String(postId));
-  if (!post) return;
-  adminViewChat = false;
-  chatForm.classList.remove("hidden");
-  post.chatMessages ||= [];
-  // mark incoming as seen for this user
-  if (state.currentUser) {
-    post.chatMessages.forEach(m => {
-      if (m.from !== state.currentUser.name) m.seen = true;
-    });
-    syncState();
-  }
-  currentChatPostId = post.id;
-  chatPostTitle.textContent = `Chat about: ${post.title}`;
-  renderChatMessages(post);
-  chatModal.classList.remove("hidden");
-};
-
-const renderChatMessages = post => {
-  if (!post.chatMessages?.length) {
-    chatMessagesBox.innerHTML =
-      '<p class="text-[11px] text-slate-400 text-center mt-6">No messages yet. Start the conversation.</p>';
-    return;
-  }
-  chatMessagesBox.innerHTML = post.chatMessages
-    .map(m => {
-      const mine = state.currentUser && m.from === state.currentUser.name;
-      const time = new Date(m.time).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit"
-      });
-      return `
-      <div class="flex ${mine ? "justify-end" : "justify-start"}">
-        <div class="max-w-[75%] px-2 py-1 rounded-lg text-[11px] ${
-          mine ? "bg-emerald-600 text-white" : "bg-slate-800 border border-slate-700"
-        }">
-          <div class="font-semibold mb-0.5">${mine ? "You" : m.from}</div>
-          <div>${m.text}</div>
-          <div class="flex justify-between items-center mt-0.5 text-[9px] opacity-80">
-            <span>${time}</span>
-            ${
-              mine
-                ? `<span>${m.seen ? "Seen" : "Sent"}</span>`
-                : ""
-            }
-          </div>
-        </div>
-      </div>`;
-    })
-    .join("");
-  chatMessagesBox.scrollTop = chatMessagesBox.scrollHeight;
-};
-
-on(qs("closeChat"), "click", () => {
+// chat events
+on($("closeChat"), "click", () => {
   chatModal.classList.add("hidden");
   currentChatPostId = null;
   adminViewChat = false;
@@ -869,7 +831,7 @@ on(qs("closeChat"), "click", () => {
 
 on(chatForm, "submit", e => {
   e.preventDefault();
-  if (adminViewChat) return; // admin read-only view
+  if (adminViewChat) return;
   if (!requireLogin() || !currentChatPostId) return;
   const text = chatInput.value.trim();
   if (!text) return;
@@ -889,48 +851,27 @@ on(chatForm, "submit", e => {
   updateUnreadIndicator();
 });
 
-// ===== CALCULATOR =====
-qsa('input[name="calcMethod"]').forEach(r =>
-  on(r, "change", () => {
-    const v = document.querySelector('input[name="calcMethod"]:checked').value;
-    qs("treeForm").classList.toggle("hidden", v !== "trees");
-    qs("landForm").classList.toggle("hidden", v !== "land");
-    qs("calcResult").classList.add("hidden");
-  })
-);
+on(chatMessagesBox, "click", e => {
+  const id = e.target.dataset.delmsg;
+  if (!id || !currentChatPostId || adminViewChat) return;
+  const post = state.posts.find(p => String(p.id) === String(currentChatPostId));
+  if (!post?.chatMessages) return;
+  post.chatMessages = post.chatMessages.filter(m => String(m.id) !== String(id));
+  syncState();
+  renderChatMessages(post);
+  updateUnreadIndicator();
+});
 
-const showResult = (annual, total) => {
-  const box = qs("calcResult");
-  box.classList.remove("hidden");
-  qs("annualCredits").textContent =
-    `Annual Carbon Credits: ${annual.toFixed(2)} tons CO₂ / year`;
-  qs("totalCredits").textContent =
-    `Total Carbon Credits: ${total.toFixed(2)} tons CO₂`;
+// ===== renderAll helper =====
+const renderAll = () => {
+  updateAuthUI();
+  renderFeed();
+  renderUserListings();
+  renderInbox();
+  renderAdmin();
 };
 
-on(qs("calcTreesBtn"), "click", () => {
-  const x = parseFloat(qs("treeType").value);
-  const N = parseFloat(qs("treeCount").value);
-  const t = parseFloat(qs("treeYears").value);
-  if (N <= 0 || t <= 0) return alert("Enter valid tree count and years.");
-  const annual = (N * x) / 1000;
-  showResult(annual, annual * t);
-});
-
-on(qs("calcLandBtn"), "click", () => {
-  const A = parseFloat(qs("landArea").value);
-  const unit = qs("landUnit").value;
-  const t = parseFloat(qs("landYears").value);
-  if (A <= 0 || t <= 0) return alert("Enter valid area and years.");
-  let hectares = A;
-  if (unit === "acres") hectares *= 0.404686;
-  const annual = hectares * 6;
-  showResult(annual, annual * t);
-});
-
-// ===== INITIAL LOAD + polling for near-realtime chat =====
+// ===== initial =====
 updateAuthUI();
-loadState();                  // loadState will decide which section to show
+loadState();
 setInterval(refreshFromServer, 4000);
-
-
