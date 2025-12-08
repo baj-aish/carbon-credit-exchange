@@ -1,7 +1,3 @@
-// =======================
-// Carbon Credit Backend
-// =======================
-
 const express = require("express");
 const cors = require("cors");
 const app = express();
@@ -9,28 +5,42 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// In-memory DB (persist until Render restarts)
+// ================================
+// GLOBAL IN-MEMORY STATE
+// ================================
 let state = {
   users: [],
   posts: []
 };
 
-// Health check
+// ================================
+// ROOT CHECK
+// ================================
 app.get("/", (req, res) => {
   res.send("Carbon credit backend running");
 });
 
-// Read entire state
+// ================================
+// GET FULL STATE
+// ================================
 app.get("/api/state", (req, res) => {
   res.json(state);
 });
 
-// Write entire state (frontend sync)
+// ================================
+// UPDATE FULL STATE
+// (Used by frontend for sync)
+// ================================
 app.post("/api/state", (req, res) => {
   const body = req.body || {};
 
-  if (Array.isArray(body.users)) state.users = body.users;
-  if (Array.isArray(body.posts)) state.posts = body.posts;
+  if (Array.isArray(body.users)) {
+    state.users = body.users;
+  }
+
+  if (Array.isArray(body.posts)) {
+    state.posts = body.posts;
+  }
 
   res.json({
     ok: true,
@@ -39,8 +49,10 @@ app.post("/api/state", (req, res) => {
   });
 });
 
-// Server start
+// ================================
+// SERVER START
+// ================================
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log("Backend running on", PORT);
+  console.log("Backend listening on", PORT);
 });
