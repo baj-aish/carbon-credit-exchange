@@ -7,6 +7,7 @@ const API_BASE = "https://carbon-credit-exchange-backend.onrender.com";
 const SESSION_KEY = "ccx_session_v1";
 const LAST_SECTION_KEY = "ccx_last_section_v1";
 const PROTECTED_SECTIONS = ["feed", "upload", "calculator", "admin", "inbox"];
+const BACKUP_KEY = "ccx_backup_state_v1";
 
 // highlight active nav item (underline + dark bg)
 const setActiveNav = section => {
@@ -58,13 +59,24 @@ const normalizeRole = (name, role) =>
   name.trim().toLowerCase() === "bajaish" && role === "admin" ? "admin" : "user";
 
 // ===== backend sync =====
+// ===== backend sync =====
 const syncState = () => {
+  const payload = { users: state.users, posts: state.posts };
+
+  // keep a local backup so we can restore if backend memory resets
+  try {
+    localStorage.setItem(BACKUP_KEY, JSON.stringify(payload));
+  } catch (e) {
+    console.log("backup save error", e);
+  }
+
   fetch(API_BASE + "/api/state", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ users: state.users, posts: state.posts })
+    body: JSON.stringify(payload)
   }).catch(err => console.log("sync error", err));
 };
+
 
 const applyRemoteState = data => {
   state.users = Array.isArray(data.users) ? data.users : [];
@@ -107,19 +119,44 @@ const loadState = () => {
   fetch(API_BASE + "/api/state")
     .then(r => r.json())
     .then(data => {
-      applyRemoteState(data);   // sets users/posts + renders
-      restoreSession();         // restores currentUser from local session
+      let remoteUsers = Array.isArray(data.users) ? data.users : [];
+      let remotePosts = Array.isArray(data.posts) ? data.posts : [];
+
+      // If backend is empty but this browser has a backup, restore from backup
+      if (!remoteUsers.length && !remotePosts.length) {
+        try {
+          const backupRaw = localStorage.getItem(BACKUP_KEY);
+          if (backupRaw) {
+            const backup = JSON.parse(backupRaw);
+            if (Array.isArray(backup.users)) remoteUsers = backup.users;
+            if (Array.isArray(backup.posts)) remotePosts = backup.posts;
+
+            // push backup back to backend (fire-and-forget)
+            fetch(API_BASE + "/api/state", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ users: remoteUsers, posts: remotePosts })
+            }).catch(() => {});
+          }
+        } catch (e) {
+          console.log("backup restore error", e);
+        }
+      }
+
+      applyRemoteState({ users: remoteUsers, posts: remotePosts });
+      restoreSession();
 
       // decide which section to show after data + session are ready
       const last = localStorage.getItem(LAST_SECTION_KEY) || "landing";
       if (!state.currentUser && PROTECTED_SECTIONS.includes(last)) {
-        showSection("landing");         // not logged in → send to landing
+        showSection("landing");
       } else {
-        showSection(last);              // stay where you were
+        showSection(last);
       }
     })
     .catch(err => console.log("load error", err));
 };
+
 
 
 const refreshFromServer = () => {
@@ -960,5 +997,6 @@ on(qs("calcLandBtn"), "click", () => {
 updateAuthUI();
 loadState();                  // loadState will decide which section to show
 setInterval(refreshFromServer, 4000);
+
 
 
