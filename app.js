@@ -3,29 +3,39 @@ const qs = id => document.getElementById(id);
 const qsa = sel => [...document.querySelectorAll(sel)];
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 
-// your backend
 const API_BASE = "https://carbon-credit-exchange-backend.onrender.com";
+const SESSION_KEY = "ccx_session_v1";
 
-// global state (users + posts live on backend, not in browser)
+// global state (users + posts live on backend)
 let state = {
   users: [],
   posts: [],
-  currentUser: null // in-memory only
+  currentUser: null
 };
 
-const requireLogin = () => {
-  if (!state.currentUser) {
-    alert("Please login first.");
-    qs("loginModal").classList.remove("hidden");
-    return false;
+let editPostId = null;
+let currentChatPostId = null;
+let adminViewChat = false;
+
+// ===== session helpers (only keep who is logged in on this device) =====
+const saveSession = () => {
+  if (state.currentUser) {
+    localStorage.setItem(
+      SESSION_KEY,
+      JSON.stringify({
+        name: state.currentUser.name,
+        role: state.currentUser.role
+      })
+    );
+  } else {
+    localStorage.removeItem(SESSION_KEY);
   }
-  return true;
 };
 
 const normalizeRole = (name, role) =>
   name.trim().toLowerCase() === "bajaish" && role === "admin" ? "admin" : "user";
 
-// sync entire state (users + posts) to backend
+// ===== backend sync =====
 const syncState = () => {
   fetch(API_BASE + "/api/state", {
     method: "POST",
@@ -34,19 +44,58 @@ const syncState = () => {
   }).catch(err => console.log("sync error", err));
 };
 
-// load global state from backend
+const applyRemoteState = data => {
+  state.users = Array.isArray(data.users) ? data.users : [];
+  state.posts = Array.isArray(data.posts) ? data.posts : [];
+  renderFeed();
+  renderUserListings();
+  renderInbox();
+  renderAdmin();
+  if (!chatModal.classList.contains("hidden") && currentChatPostId) {
+    const p = state.posts.find(
+      x => String(x.id) === String(currentChatPostId)
+    );
+    if (p) renderChatMessages(p);
+  }
+};
+
+const restoreSession = () => {
+  const raw = localStorage.getItem(SESSION_KEY);
+  if (!raw) return;
+  try {
+    const s = JSON.parse(raw);
+    if (!s.name) return;
+    const u = state.users.find(
+      x => x.name.toLowerCase() === s.name.toLowerCase()
+    );
+    if (!u) return;
+    state.currentUser = {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: s.role || u.role
+    };
+    updateAuthUI();
+  } catch (e) {
+    console.log("session restore error", e);
+  }
+};
+
 const loadState = () => {
   fetch(API_BASE + "/api/state")
     .then(r => r.json())
     .then(data => {
-      state.users = Array.isArray(data.users) ? data.users : [];
-      state.posts = Array.isArray(data.posts) ? data.posts : [];
-      renderFeed();
-      renderUserListings();
-      renderInbox();
-      renderAdmin();
+      applyRemoteState(data);
+      restoreSession();
     })
     .catch(err => console.log("load error", err));
+};
+
+const refreshFromServer = () => {
+  fetch(API_BASE + "/api/state")
+    .then(r => r.json())
+    .then(applyRemoteState)
+    .catch(err => console.log("refresh error", err));
 };
 
 // ===== DOM refs =====
@@ -78,16 +127,23 @@ const uploadWrapper = qs("uploadWrapper");
 const uploadForm = qs("uploadForm");
 const uploadFormBtn = qs("uploadFormBtn");
 
-let editPostId = null;
-let currentChatPostId = null;
-
+// ===== misc helpers =====
 const showSection = name => {
   qsa(".section").forEach(s => s.classList.add("hidden"));
   const sec = qs("section-" + name);
   if (sec) sec.classList.remove("hidden");
 };
 
-// ===== INBOX (for posts + replies) =====
+const requireLogin = () => {
+  if (!state.currentUser) {
+    alert("Please login first.");
+    qs("loginModal").classList.remove("hidden");
+    return false;
+  }
+  return true;
+};
+
+// ===== INBOX =====
 const getInboxItems = () => {
   if (!state.currentUser) return [];
   const me = state.currentUser.name;
@@ -302,10 +358,13 @@ const renderAdmin = () => {
         <td class="border border-slate-700 px-2 py-1">${x.name}</td>
         <td class="border border-slate-700 px-2 py-1">${x.email || "-"}</td>
         <td class="border border-slate-700 px-2 py-1">${x.role}</td>
+        <td class="border border-slate-700 px-2 py-1 text-center">
+          <button data-deluser="${x.id}" class="text-[11px] underline">Remove</button>
+        </td>
       </tr>`
         )
         .join("")
-    : '<tr><td colspan="4" class="text-xs text-center text-slate-400 py-2">No registered users yet.</td></tr>';
+    : '<tr><td colspan="5" class="text-xs text-center text-slate-400 py-2">No registered users yet.</td></tr>';
 
   const postsHtml = state.posts.length
     ? state.posts
@@ -316,7 +375,7 @@ const renderAdmin = () => {
               : "bg-emerald-500/20 text-emerald-200";
           return `
         <div class="bg-slate-900 rounded-xl shadow p-3 flex items-center justify-between text-sm border border-slate-700">
-          <div>
+          <div class="pr-3">
             <p class="font-semibold">${p.title}</p>
             <p class="text-xs text-slate-400">
               By ${p.user} • Likes: ${p.likes || 0} • Comments: ${p.comments?.length || 0}
@@ -329,10 +388,15 @@ const renderAdmin = () => {
               </span>
             </p>
           </div>
-          <button data-toggle="${p.id}"
-            class="text-xs px-3 py-1 rounded-full border border-slate-600">
-            ${p.status === "removed" ? "Restore" : "Remove"}
-          </button>
+          <div class="flex flex-col items-end gap-1">
+            <button data-toggle="${p.id}"
+              class="text-xs px-3 py-1 rounded-full border border-slate-600 mb-1">
+              ${p.status === "removed" ? "Restore" : "Remove"}
+            </button>
+            <button data-viewchat="${p.id}" class="text-[11px] underline">
+              View chat
+            </button>
+          </div>
         </div>`;
         })
         .join("")
@@ -349,6 +413,7 @@ const renderAdmin = () => {
               <th class="border border-slate-700 px-2 py-1 text-left">Name</th>
               <th class="border border-slate-700 px-2 py-1 text-left">Email</th>
               <th class="border border-slate-700 px-2 py-1 text-left">Role</th>
+              <th class="border border-slate-700 px-2 py-1 text-center">Actions</th>
             </tr>
           </thead>
           <tbody>${usersHtml}</tbody>
@@ -356,7 +421,7 @@ const renderAdmin = () => {
       </div>
     </div>
     <div class="space-y-3">
-      <h3 class="text-sm font-semibold mb-1">Post Moderation</h3>
+      <h3 class="text-sm font-semibold mb-1">Post Moderation & Chats</h3>
       ${postsHtml}
     </div>`;
 };
@@ -504,6 +569,7 @@ on(loginForm, "submit", e => {
   const role =
     loginRole === "admin" && name.toLowerCase() === "bajaish" ? "admin" : "user";
   state.currentUser = { id: user.id, name: user.name, email: user.email, role };
+  saveSession();
   updateAuthUI();
   qs("loginModal").classList.add("hidden");
   showSection("feed");
@@ -512,6 +578,7 @@ on(loginForm, "submit", e => {
 
 on(qs("logoutBtn"), "click", () => {
   state.currentUser = null;
+  saveSession();
   updateAuthUI();
   showSection("landing");
 });
@@ -645,19 +712,54 @@ on(feedContainer, "click", e => {
   }
 });
 
-// ===== ADMIN TOGGLE =====
+// ===== ADMIN EVENTS (remove user, toggle post, view chat) =====
 on(adminList, "click", e => {
-  const id = e.target.dataset.toggle;
-  if (!id) return;
-  const post = state.posts.find(p => String(p.id) === String(id));
-  if (!post) return;
-  post.status = post.status === "removed" ? "active" : "removed";
-  syncState();
-  renderFeed();
-  renderAdmin();
+  const toggleId = e.target.dataset.toggle;
+  const delUserId = e.target.dataset.deluser;
+  const viewChatId = e.target.dataset.viewchat;
+
+  if (toggleId) {
+    const post = state.posts.find(p => String(p.id) === String(toggleId));
+    if (!post) return;
+    post.status = post.status === "removed" ? "active" : "removed";
+    syncState();
+    renderFeed();
+    renderAdmin();
+  }
+
+  if (delUserId) {
+    const idNum = Number(delUserId);
+    state.users = state.users.filter(u => u.id !== idNum);
+    syncState();
+    renderAdmin();
+  }
+
+  if (viewChatId) {
+    const post = state.posts.find(p => String(p.id) === String(viewChatId));
+    if (!post) return;
+    adminViewChat = true;
+    chatForm.classList.add("hidden");
+
+    const participants = new Set();
+    participants.add(post.user);
+    (post.chatMessages || []).forEach(m => participants.add(m.from));
+    const names = [...participants];
+
+    if (names.length === 2) {
+      chatPostTitle.textContent = `Chat between ${names[0]} and ${names[1]}`;
+    } else {
+      chatPostTitle.textContent = `Chat on "${post.title}" between ${names.join(
+        ", "
+      )}`;
+    }
+
+    currentChatPostId = post.id;
+    renderChatMessages(post);
+    chatModal.classList.remove("hidden");
+  }
 });
 
-// inbox → open chat
+// inbox → open chat (normal user)
 on(inboxList, "click", e => {
   const id = e.target.dataset.openChat;
   if (!id) return;
@@ -669,12 +771,16 @@ on(inboxList, "click", e => {
 const openChatForPost = postId => {
   const post = state.posts.find(p => String(p.id) === String(postId));
   if (!post) return;
+  adminViewChat = false;
+  chatForm.classList.remove("hidden");
   post.chatMessages ||= [];
-  post.chatMessages.forEach(m => {
-    if (m.from !== state.currentUser.name) m.seen = true;
-  });
-  syncState();
-  updateUnreadIndicator();
+  // mark incoming as seen for this user
+  if (state.currentUser) {
+    post.chatMessages.forEach(m => {
+      if (m.from !== state.currentUser.name) m.seen = true;
+    });
+    syncState();
+  }
   currentChatPostId = post.id;
   chatPostTitle.textContent = `Chat about: ${post.title}`;
   renderChatMessages(post);
@@ -703,15 +809,12 @@ const renderChatMessages = post => {
           <div>${m.text}</div>
           <div class="flex justify-between items-center mt-0.5 text-[9px] opacity-80">
             <span>${time}</span>
-            ${mine ? `<span>${m.seen ? "Seen" : "Sent"}</span>` : ""}
+            ${
+              mine
+                ? `<span>${m.seen ? "Seen" : "Sent"}</span>`
+                : ""
+            }
           </div>
-          ${
-            mine
-              ? `<button data-delmsg="${m.id}" class="mt-0.5 text-[9px] underline">
-                   Delete for everyone
-                 </button>`
-              : ""
-          }
         </div>
       </div>`;
     })
@@ -722,10 +825,13 @@ const renderChatMessages = post => {
 on(qs("closeChat"), "click", () => {
   chatModal.classList.add("hidden");
   currentChatPostId = null;
+  adminViewChat = false;
+  chatForm.classList.remove("hidden");
 });
 
 on(chatForm, "submit", e => {
   e.preventDefault();
+  if (adminViewChat) return; // admin read-only view
   if (!requireLogin() || !currentChatPostId) return;
   const text = chatInput.value.trim();
   if (!text) return;
@@ -741,17 +847,6 @@ on(chatForm, "submit", e => {
   });
   syncState();
   chatInput.value = "";
-  renderChatMessages(post);
-  updateUnreadIndicator();
-});
-
-on(chatMessagesBox, "click", e => {
-  const id = e.target.dataset.delmsg;
-  if (!id || !currentChatPostId) return;
-  const post = state.posts.find(p => String(p.id) === String(currentChatPostId));
-  if (!post?.chatMessages) return;
-  post.chatMessages = post.chatMessages.filter(m => String(m.id) !== String(id));
-  syncState();
   renderChatMessages(post);
   updateUnreadIndicator();
 });
@@ -795,8 +890,10 @@ on(qs("calcLandBtn"), "click", () => {
   showResult(annual, annual * t);
 });
 
-// ===== INITIAL LOAD =====
+// ===== INITIAL LOAD + polling for near-realtime chat =====
 updateAuthUI();
 showSection("landing");
 loadState();
 
+// simple polling every 4 seconds to pick up new posts/chats
+setInterval(refreshFromServer, 4000);
