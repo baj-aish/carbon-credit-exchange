@@ -5,28 +5,6 @@ const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 
 const API_BASE = "https://carbon-credit-exchange-backend.onrender.com";
 const SESSION_KEY = "ccx_session_v1";
-const LAST_SECTION_KEY = "ccx_last_section_v1";
-const PROTECTED_SECTIONS = ["feed", "upload", "calculator", "admin", "inbox"];
-
-// highlight active nav item (underline + dark bg)
-const setActiveNav = section => {
-  qsa(".nav-btn").forEach(btn => {
-    const target = btn.dataset.section;
-    const isActive = target === section;
-
-    // underline
-    btn.classList.toggle("border-b-2", isActive);
-    btn.classList.toggle("border-b-emerald-400", isActive);
-    btn.classList.toggle("border-b-transparent", !isActive);
-
-    // background + text
-    const isSpecial = PROTECTED_SECTIONS.includes(target);
-    btn.classList.toggle("bg-slate-900", !isActive);
-    btn.classList.toggle("bg-slate-800", isActive && isSpecial);
-    btn.classList.toggle("text-white", isActive);
-  });
-};
-
 
 // global state (users + posts live on backend)
 let state = {
@@ -107,20 +85,11 @@ const loadState = () => {
   fetch(API_BASE + "/api/state")
     .then(r => r.json())
     .then(data => {
-      applyRemoteState(data);   // sets users/posts + renders
-      restoreSession();         // restores currentUser from local session
-
-      // decide which section to show after data + session are ready
-      const last = localStorage.getItem(LAST_SECTION_KEY) || "landing";
-      if (!state.currentUser && PROTECTED_SECTIONS.includes(last)) {
-        showSection("landing");         // not logged in → send to landing
-      } else {
-        showSection(last);              // stay where you were
-      }
+      applyRemoteState(data);
+      restoreSession();
     })
     .catch(err => console.log("load error", err));
 };
-
 
 const refreshFromServer = () => {
   fetch(API_BASE + "/api/state")
@@ -163,14 +132,7 @@ const showSection = name => {
   qsa(".section").forEach(s => s.classList.add("hidden"));
   const sec = qs("section-" + name);
   if (sec) sec.classList.remove("hidden");
-
-  // remember last section
-  localStorage.setItem(LAST_SECTION_KEY, name);
-
-  // update nav highlight
-  setActiveNav(name);
 };
-
 
 const requireLogin = () => {
   if (!state.currentUser) {
@@ -930,5 +892,8 @@ on(qs("calcLandBtn"), "click", () => {
 
 // ===== INITIAL LOAD + polling for near-realtime chat =====
 updateAuthUI();
-loadState();                  // loadState will decide which section to show
+showSection("landing");
+loadState();
+
+// simple polling every 4 seconds to pick up new posts/chats
 setInterval(refreshFromServer, 4000);
