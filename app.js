@@ -50,6 +50,12 @@ const chatPostTitle = qs("chatPostTitle");
 const chatForm = qs("chatForm");
 const chatInput = qs("chatInput");
 const adminList = qs("adminList");
+const yourListingsTab = qs("yourListingsTab");
+const createListingTab = qs("createListingTab");
+const userListingsBox = qs("userListings");
+const uploadWrapper = qs("uploadWrapper");
+
+let editPostId = null; // id of post currently being edited (if any)
 
 let currentChatPostId = null;
 
@@ -206,8 +212,18 @@ const getFilteredPosts = () => {
   }
   if (pf === "low-high") arr = [...arr].sort((a, b) => (a.price || 0) - (b.price || 0));
   if (pf === "high-low") arr = [...arr].sort((a, b) => (b.price || 0) - (a.price || 0));
+
+  // put your own posts at the top
+  if (state.currentUser) {
+    const me = state.currentUser.name;
+    const mine = arr.filter(p => p.user === me);
+    const others = arr.filter(p => p.user !== me);
+    arr = [...mine, ...others];
+  }
+
   return arr;
 };
+
 
 const renderFeed = () => {
   const posts = getFilteredPosts();
@@ -234,7 +250,14 @@ const renderFeed = () => {
             </span>
             <span class="font-semibold text-emerald-200">₹${p.price || 0}</span>
           </div>
-          <p class="text-[11px] text-slate-400 mb-2">By ${p.user}</p>
+                    <p class="text-[11px] text-slate-400 mb-2">
+            ${
+              state.currentUser && p.user === state.currentUser.name
+                ? `Post created by you${p.createdAt ? " • " + new Date(p.createdAt).toLocaleDateString() : ""}`
+                : `By ${p.user}`
+            }
+          </p>
+
           <div class="mt-auto space-y-2">
             <div class="flex items-center justify-between text-xs">
               <button data-like="${p.id}" class="px-2 py-1 rounded-full border border-slate-600 text-[11px]">
@@ -264,6 +287,68 @@ const renderFeed = () => {
 };
 
 const renderAdmin = () => {
+  const renderUserListings = () => {
+  if (!userListingsBox) return;
+  if (!state.currentUser) {
+    userListingsBox.innerHTML =
+      `<p class="text-sm text-slate-300">Please login to see your listings.</p>`;
+    return;
+  }
+
+  const me = state.currentUser.name;
+  const myPosts = state.posts.filter(p => p.user === me);
+
+  if (!myPosts.length) {
+    userListingsBox.innerHTML =
+      `<p class="text-sm text-slate-300">You have not created any listings yet.</p>`;
+    return;
+  }
+
+  userListingsBox.innerHTML = myPosts
+    .map(p => {
+      const date = p.createdAt ? new Date(p.createdAt).toLocaleString() : "";
+      return `
+        <div class="bg-slate-900 rounded-xl shadow p-3 border border-slate-700 flex items-center justify-between text-sm">
+          <div class="pr-3">
+            <p class="font-semibold text-xs">${p.title}</p>
+            <p class="text-[11px] text-slate-400">Credits: ${p.credits || 0} • Price: ₹${p.price || 0}</p>
+            <p class="text-[11px] text-slate-500 mt-1">${date}</p>
+          </div>
+          <button class="text-[11px] underline" data-edit-post="${p.id}">
+            Edit
+          </button>
+        </div>`;
+    })
+    .join("");
+};
+
+const setListingMode = mode => {
+  const yourActive = mode === "your";
+
+  yourListingsTab.classList.toggle("bg-slate-800", yourActive);
+  yourListingsTab.classList.toggle("bg-slate-900", !yourActive);
+  yourListingsTab.classList.toggle("text-white", yourActive);
+  yourListingsTab.classList.toggle("text-slate-300", !yourActive);
+
+  createListingTab.classList.toggle("bg-slate-800", !yourActive);
+  createListingTab.classList.toggle("bg-slate-900", yourActive);
+  createListingTab.classList.toggle("text-white", !yourActive);
+  createListingTab.classList.toggle("text-slate-300", yourActive);
+
+  userListingsBox.classList.toggle("hidden", !yourActive);
+  uploadWrapper.classList.toggle("hidden", yourActive);
+
+  if (yourActive) {
+    editPostId = null;
+    renderUserListings();
+  } else {
+    // create mode: reset form
+    qs("uploadForm").reset();
+    editPostId = null;
+    qs("uploadFormBtn").textContent = "Upload Listing";
+  }
+};
+
   const u = state.currentUser;
   if (!u || u.role !== "admin") {
     adminList.innerHTML = `<p class="text-sm text-slate-300">You are not admin.</p>`;
@@ -348,8 +433,10 @@ qsa(".nav-btn").forEach(btn => {
     if (target === "feed") renderFeed();
     if (target === "admin") renderAdmin();
     if (target === "inbox") renderInbox();
+    if (target === "upload") setListingMode("your");
   });
 });
+
 
 heroLoginBtn?.addEventListener("click", () => {
   qs("loginModal").classList.remove("hidden");
@@ -359,6 +446,16 @@ heroExploreBtn?.addEventListener("click", () => {
   showSection("feed");
   renderFeed();
 });
+yourListingsTab.addEventListener("click", () => {
+  if (!requireLogin()) return;
+  setListingMode("your");
+});
+
+createListingTab.addEventListener("click", () => {
+  if (!requireLogin()) return;
+  setListingMode("create");
+});
+
 
 priceFilter?.addEventListener("change", renderFeed);
 creditsFilter?.addEventListener("change", renderFeed);
@@ -474,35 +571,88 @@ qs("uploadForm").addEventListener("submit", e => {
   const price = parseFloat(qs("postPrice").value) || 0;
   const credits = parseFloat(qs("postCredits").value) || 0;
   const file = qs("postImage").files[0];
-  if (!file) return;
+  const isEdit = !!editPostId;
 
-  const maxBytes = 50 * 1024;
-  if (file.size > maxBytes) return alert("Image too large! Only up to 50 KB allowed.");
+  if (!title || !desc) return;
 
-  const reader = new FileReader();
-  reader.onload = ev => {
-    state.posts.unshift({
-      id: Date.now(),
-      title,
-      desc,
-      image: ev.target.result,
-      user: state.currentUser.name,
-      likes: 0,
-      likedBy: [],
-      comments: [],
-      chatMessages: [],
-      status: "active",
-      price,
-      credits,
-      createdAt: Date.now()
-    });
-    save();
-    renderFeed();
+  const handleSave = imgData => {
+    if (isEdit) {
+      const post = state.posts.find(p => String(p.id) === String(editPostId));
+      if (!post) return;
+      post.title = title;
+      post.desc = desc;
+      post.price = price;
+      post.credits = credits;
+      if (imgData) post.image = imgData; // only replace image if new one uploaded
+      save();
+      renderFeed();
+      renderUserListings();
+      alert("Listing updated.");
+    } else {
+      state.posts.unshift({
+        id: Date.now(),
+        title,
+        desc,
+        image: imgData,
+        user: state.currentUser.name,
+        likes: 0,
+        likedBy: [],
+        comments: [],
+        chatMessages: [],
+        status: "active",
+        price,
+        credits,
+        createdAt: Date.now()
+      });
+      save();
+      renderFeed();
+      renderUserListings();
+      alert("Listing uploaded.");
+    }
     e.target.reset();
-    alert("Listing uploaded.");
+    editPostId = null;
+    qs("uploadFormBtn").textContent = "Upload Listing";
   };
-  reader.readAsDataURL(file);
+
+  if (file) {
+    const maxBytes = 50 * 1024;
+    if (file.size > maxBytes) {
+      alert("Image too large! Only up to 50 KB allowed.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = ev => handleSave(ev.target.result);
+    reader.readAsDataURL(file);
+  } else {
+    // editing without changing image
+    if (!isEdit) {
+      alert("Please choose an image for a new listing.");
+      return;
+    }
+    handleSave(null);
+  }
 });
+
+//- userlistings box
+userListingsBox.addEventListener("click", e => {
+  const id = e.target.dataset.editPost;
+  if (!id) return;
+  if (!requireLogin()) return;
+
+  const post = state.posts.find(p => String(p.id) === String(id));
+  if (!post) return;
+
+  editPostId = post.id;
+  // switch to create/edit view
+  setListingMode("create");
+
+  qs("postTitle").value = post.title;
+  qs("postDesc").value = post.desc;
+  qs("postPrice").value = post.price;
+  qs("postCredits").value = post.credits;
+  qs("uploadFormBtn").textContent = "Save changes";
+});
+
 
 // ---- feed actions (like toggle / comment / open chat) ----
 feedContainer.addEventListener("click", e => {
@@ -701,9 +851,9 @@ qs("calcLandBtn").addEventListener("click", () => {
 updateAuthUI();
 let startSection = state.lastSection || "landing";
 const protectedSections = ["feed", "upload", "calculator", "admin", "inbox"];
-if (!state.currentUser && protectedSections.includes(startSection)) startSection = "landing";
-
+...
 showSection(startSection);
 if (startSection === "feed") renderFeed();
 if (startSection === "admin") renderAdmin();
 if (startSection === "inbox") renderInbox();
+if (startSection === "upload") setListingMode("your");
