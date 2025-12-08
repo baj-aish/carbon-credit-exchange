@@ -5,43 +5,23 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ================================
-// GLOBAL IN-MEMORY STATE
-// ================================
-let state = {
-  users: [],
-  posts: []
-};
+// global in-memory store for all users + posts + chats
+let state = { users: [], posts: [] };
 
-// ================================
-// ROOT CHECK
-// ================================
 app.get("/", (req, res) => {
   res.send("Carbon credit backend running");
 });
 
-// ================================
-// GET FULL STATE
-// ================================
+// anyone can read global state
 app.get("/api/state", (req, res) => {
   res.json(state);
 });
 
-// ================================
-// UPDATE FULL STATE
-// (Used by frontend for sync)
-// ================================
+// frontend overwrites users + posts
 app.post("/api/state", (req, res) => {
   const body = req.body || {};
-
-  if (Array.isArray(body.users)) {
-    state.users = body.users;
-  }
-
-  if (Array.isArray(body.posts)) {
-    state.posts = body.posts;
-  }
-
+  if (Array.isArray(body.users)) state.users = body.users;
+  if (Array.isArray(body.posts)) state.posts = body.posts;
   res.json({
     ok: true,
     users: state.users.length,
@@ -49,9 +29,6 @@ app.post("/api/state", (req, res) => {
   });
 });
 
-// ================================
-// SERVER START
-// ================================
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log("Backend listening on", PORT);
