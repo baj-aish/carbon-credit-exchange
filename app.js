@@ -6,7 +6,7 @@ const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 // your backend
 const API_BASE = "https://carbon-credit-exchange-backend.onrender.com";
 
-// global state (no localStorage for users/posts)
+// global state (users + posts live on backend, not in browser)
 let state = {
   users: [],
   posts: [],
@@ -799,3 +799,4 @@ on(qs("calcLandBtn"), "click", () => {
 updateAuthUI();
 showSection("landing");
 loadState();
+
