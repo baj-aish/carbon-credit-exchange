@@ -1,4 +1,4 @@
-// small helpers
+// helpers
 const qs = id => document.getElementById(id);
 const qsa = sel => [...document.querySelectorAll(sel)];
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
@@ -7,19 +7,17 @@ const STORAGE_KEY = "cc_state_v3_compact";
 const MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 const now = Date.now();
 
-let state = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") || {
-  users: [],
-  posts: [],
-  currentUser: null,
-  lastSection: "landing"
-};
+let state =
+  JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") || {
+    users: [],
+    posts: [],
+    currentUser: null,
+    lastSection: "landing"
+  };
 
+// keep data up to 30 days, but DON'T auto-logout
 state.users = state.users.filter(u => !u.createdAt || now - u.createdAt <= MAX_AGE);
 state.posts = state.posts.filter(p => !p.createdAt || now - p.createdAt <= MAX_AGE);
-if (state.currentUser) {
-  const ok = state.users.find(u => u.id === state.currentUser.id && u.name === state.currentUser.name);
-  if (!ok) state.currentUser = null;
-}
 
 const save = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 const requireLogin = () => {
@@ -33,6 +31,7 @@ const requireLogin = () => {
 const normalizeRole = (name, role) =>
   name.trim().toLowerCase() === "bajaish" && role === "admin" ? "admin" : "user";
 
+// DOM refs
 const userBadge = qs("userBadge");
 const badgeName = qs("badgeName");
 const badgeRole = qs("badgeRole");
@@ -74,15 +73,24 @@ const showSection = name => {
   }
 };
 
-// ---- INBOX ----
+// ----- INBOX (now for posts + replies) -----
 const getInboxItems = () => {
   if (!state.currentUser) return [];
   const me = state.currentUser.name;
   const items = [];
+
   state.posts.forEach(p => {
-    if (p.user !== me || !p.chatMessages) return;
+    if (!p.chatMessages?.length) return;
+
+    // you should see:
+    // 1) messages on your own posts
+    // 2) replies in chats where you have written at least one message
+    const meInThread =
+      p.user === me || p.chatMessages.some(m => m.from === me);
+    if (!meInThread) return;
+
     p.chatMessages.forEach(m => {
-      if (m.from === me) return;
+      if (m.from === me) return; // only incoming messages
       items.push({
         postId: p.id,
         postTitle: p.title,
@@ -93,6 +101,7 @@ const getInboxItems = () => {
       });
     });
   });
+
   return items.sort((a, b) => (b.time || 0) - (a.time || 0));
 };
 
@@ -107,19 +116,24 @@ const updateUnreadIndicator = () => {
 const renderInbox = () => {
   if (!inboxList) return;
   if (!state.currentUser) {
-    inboxList.innerHTML = `<p class="text-sm text-slate-300">Please login to see your inbox.</p>`;
+    inboxList.innerHTML =
+      `<p class="text-sm text-slate-300">Please login to see your inbox.</p>`;
     return updateUnreadIndicator();
   }
   const items = getInboxItems();
   if (!items.length) {
-    inboxList.innerHTML = `<p class="text-sm text-slate-300">No messages received on your listings yet.</p>`;
+    inboxList.innerHTML =
+      `<p class="text-sm text-slate-300">No messages yet.</p>`;
     return updateUnreadIndicator();
   }
-  inboxList.innerHTML = items.map(i => {
-    const t = new Date(i.time).toLocaleString();
-    const badge = i.seen ? "bg-slate-700 text-slate-200" : "bg-red-500/20 text-red-300";
-    const txt = i.seen ? "Seen" : "Unread";
-    return `
+  inboxList.innerHTML = items
+    .map(i => {
+      const t = new Date(i.time).toLocaleString();
+      const badge = i.seen
+        ? "bg-slate-700 text-slate-200"
+        : "bg-red-500/20 text-red-300";
+      const txt = i.seen ? "Seen" : "Unread";
+      return `
       <div class="bg-slate-900 rounded-xl shadow p-3 flex items-center justify-between text-sm border border-slate-700">
         <div class="pr-3">
           <p class="font-semibold text-xs">From ${i.from}</p>
@@ -129,14 +143,17 @@ const renderInbox = () => {
         </div>
         <div class="flex flex-col items-end gap-1">
           <span class="text-[10px] px-2 py-0.5 rounded-full ${badge}">${txt}</span>
-          <button data-open-chat="${i.postId}" class="text-[11px] underline">Open chat</button>
+          <button data-open-chat="${i.postId}" class="text-[11px] underline">
+            Open chat
+          </button>
         </div>
       </div>`;
-  }).join("");
+    })
+    .join("");
   updateUnreadIndicator();
 };
 
-// ---- AUTH UI ----
+// ----- AUTH UI -----
 const updateAuthUI = () => {
   const loginBtn = qs("loginBtn");
   const logoutBtn = qs("logoutBtn");
@@ -148,14 +165,15 @@ const updateAuthUI = () => {
     userBadge.classList.remove("hidden");
     badgeName.textContent = u.name;
     badgeRole.textContent = u.role;
-
     heroLoginBtn?.classList.add("hidden");
     if (welcomeLine && welcomeName) {
       welcomeName.textContent = u.name;
       welcomeLine.classList.remove("hidden");
     }
     qsa(".protected-nav").forEach(b => b.classList.remove("hidden"));
-    u.role === "admin" ? adminTab.classList.remove("hidden") : adminTab.classList.add("hidden");
+    u.role === "admin"
+      ? adminTab.classList.remove("hidden")
+      : adminTab.classList.add("hidden");
     feedFiltersBox?.classList.remove("hidden");
   } else {
     loginBtn.classList.remove("hidden");
@@ -171,7 +189,7 @@ const updateAuthUI = () => {
   updateUnreadIndicator();
 };
 
-// ---- FEED / ADMIN ----
+// ----- FEED / ADMIN -----
 const getFilteredPosts = () => {
   let arr = state.posts.filter(p => p.status !== "removed");
   const cf = creditsFilter?.value || "all";
@@ -209,27 +227,28 @@ const renderFeed = () => {
     return;
   }
   emptyFeedMsg.classList.add("hidden");
-  feedContainer.innerHTML = posts.map(p => {
-    const commentsHtml = p.comments?.length
-      ? p.comments.map(c => `<p class="text-xs"><b>${c.by}:</b> ${c.text}</p>`).join("")
-      : '<p class="text-xs text-slate-400">No comments yet</p>';
-
-    let ownerText;
-    if (state.currentUser && p.user === state.currentUser.name) {
-      const d = p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "";
-      ownerText = `Post created by you${d ? " • " + d : ""}`;
-    } else {
-      ownerText = `By ${p.user}`;
-    }
-
-    return `
+  feedContainer.innerHTML = posts
+    .map(p => {
+      const commentsHtml = p.comments?.length
+        ? p.comments
+            .map(c => `<p class="text-xs"><b>${c.by}:</b> ${c.text}</p>`)
+            .join("")
+        : '<p class="text-xs text-slate-400">No comments yet</p>';
+      let ownerText;
+      if (state.currentUser && p.user === state.currentUser.name) {
+        const d = p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "";
+        ownerText = `Post created by you${d ? " • " + d : ""}`;
+      } else ownerText = `By ${p.user}`;
+      return `
       <article class="bg-slate-900 rounded-2xl shadow overflow-hidden flex flex-col border border-slate-700">
         <img src="${p.image}" class="w-full h-44 object-cover" alt="post image">
         <div class="p-3 flex-1 flex flex-col">
           <h3 class="font-semibold text-sm mb-1 line-clamp-2">${p.title}</h3>
           <p class="text-xs text-slate-300 mb-1 line-clamp-3">${p.desc}</p>
           <div class="flex items-center justify-between text-[11px] mb-2">
-            <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300">${p.credits || 0} credits</span>
+            <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300">
+              ${p.credits || 0} credits
+            </span>
             <span class="font-semibold text-emerald-200">₹${p.price || 0}</span>
           </div>
           <p class="text-[11px] text-slate-400 mb-2">${ownerText}</p>
@@ -248,14 +267,17 @@ const renderFeed = () => {
                   class="flex-1 border border-slate-700 bg-slate-950 rounded-lg px-2 py-1 text-[11px]"
                   placeholder="Add comment..." />
                 <button data-comment-btn="${p.id}"
-                  class="px-2 text-[11px] border border-slate-600 rounded-lg">Post</button>
+                  class="px-2 text-[11px] border border-slate-600 rounded-lg">
+                  Post
+                </button>
               </div>
               <div class="space-y-0.5">${commentsHtml}</div>
             </div>
           </div>
         </div>
       </article>`;
-  }).join("");
+    })
+    .join("");
 };
 
 const renderAdmin = () => {
@@ -264,23 +286,28 @@ const renderAdmin = () => {
     adminList.innerHTML = `<p class="text-sm text-slate-300">You are not admin.</p>`;
     return;
   }
-
   const usersHtml = state.users.length
-    ? state.users.map(x => `
-        <tr class="text-xs">
-          <td class="border border-slate-700 px-2 py-1">${x.id}</td>
-          <td class="border border-slate-700 px-2 py-1">${x.name}</td>
-          <td class="border border-slate-700 px-2 py-1">${x.email || "-"}</td>
-          <td class="border border-slate-700 px-2 py-1">${x.role}</td>
-        </tr>`).join("")
+    ? state.users
+        .map(
+          x => `
+      <tr class="text-xs">
+        <td class="border border-slate-700 px-2 py-1">${x.id}</td>
+        <td class="border border-slate-700 px-2 py-1">${x.name}</td>
+        <td class="border border-slate-700 px-2 py-1">${x.email || "-"}</td>
+        <td class="border border-slate-700 px-2 py-1">${x.role}</td>
+      </tr>`
+        )
+        .join("")
     : '<tr><td colspan="4" class="text-xs text-center text-slate-400 py-2">No registered users yet.</td></tr>';
 
   const postsHtml = state.posts.length
-    ? state.posts.map(p => {
-        const badge = p.status === "removed"
-          ? "bg-red-500/20 text-red-300"
-          : "bg-emerald-500/20 text-emerald-200";
-        return `
+    ? state.posts
+        .map(p => {
+          const badge =
+            p.status === "removed"
+              ? "bg-red-500/20 text-red-300"
+              : "bg-emerald-500/20 text-emerald-200";
+          return `
         <div class="bg-slate-900 rounded-xl shadow p-3 flex items-center justify-between text-sm border border-slate-700">
           <div>
             <p class="font-semibold">${p.title}</p>
@@ -295,11 +322,13 @@ const renderAdmin = () => {
               </span>
             </p>
           </div>
-          <button data-toggle="${p.id}" class="text-xs px-3 py-1 rounded-full border border-slate-600">
+          <button data-toggle="${p.id}"
+            class="text-xs px-3 py-1 rounded-full border border-slate-600">
             ${p.status === "removed" ? "Restore" : "Remove"}
           </button>
         </div>`;
-      }).join("")
+        })
+        .join("")
     : '<p class="text-sm text-slate-300">No posts yet.</p>';
 
   adminList.innerHTML = `
@@ -325,50 +354,54 @@ const renderAdmin = () => {
     </div>`;
 };
 
-// ---- YOUR LISTINGS / EDIT ----
+// ----- YOUR LISTINGS / EDIT -----
 const renderUserListings = () => {
   if (!userListingsBox) return;
   if (!state.currentUser) {
-    userListingsBox.innerHTML = `<p class="text-sm text-slate-300">Please login to see your listings.</p>`;
+    userListingsBox.innerHTML =
+      `<p class="text-sm text-slate-300">Please login to see your listings.</p>`;
     return;
   }
   const me = state.currentUser.name;
   const myPosts = state.posts.filter(p => p.user === me);
   if (!myPosts.length) {
-    userListingsBox.innerHTML = `<p class="text-sm text-slate-300">You have not created any listings yet.</p>`;
+    userListingsBox.innerHTML =
+      `<p class="text-sm text-slate-300">You have not created any listings yet.</p>`;
     return;
   }
-  userListingsBox.innerHTML = myPosts.map(p => {
-    const d = p.createdAt ? new Date(p.createdAt).toLocaleString() : "";
-    return `
+  userListingsBox.innerHTML = myPosts
+    .map(p => {
+      const d = p.createdAt ? new Date(p.createdAt).toLocaleString() : "";
+      return `
       <div class="bg-slate-900 rounded-xl shadow p-3 border border-slate-700 flex items-center justify-between text-sm">
         <div class="pr-3">
           <p class="font-semibold text-xs">${p.title}</p>
-          <p class="text-[11px] text-slate-400">Credits: ${p.credits || 0} • Price: ₹${p.price || 0}</p>
+          <p class="text-[11px] text-slate-400">
+            Credits: ${p.credits || 0} • Price: ₹${p.price || 0}
+          </p>
           <p class="text-[11px] text-slate-500 mt-1">${d}</p>
         </div>
-        <button class="text-[11px] underline" data-edit-post="${p.id}">Edit</button>
+        <button class="text-[11px] underline" data-edit-post="${p.id}">
+          Edit
+        </button>
       </div>`;
-  }).join("");
+    })
+    .join("");
 };
 
 const setListingMode = mode => {
   if (!yourListingsTab || !createListingTab || !userListingsBox || !uploadWrapper) return;
   const your = mode === "your";
-
   yourListingsTab.classList.toggle("bg-slate-800", your);
   yourListingsTab.classList.toggle("bg-slate-900", !your);
   yourListingsTab.classList.toggle("text-white", your);
   yourListingsTab.classList.toggle("text-slate-300", !your);
-
   createListingTab.classList.toggle("bg-slate-800", !your);
   createListingTab.classList.toggle("bg-slate-900", your);
   createListingTab.classList.toggle("text-white", !your);
   createListingTab.classList.toggle("text-slate-300", your);
-
   userListingsBox.classList.toggle("hidden", !your);
   uploadWrapper.classList.toggle("hidden", your);
-
   if (your) {
     editPostId = null;
     renderUserListings();
@@ -379,7 +412,7 @@ const setListingMode = mode => {
   }
 };
 
-// ---- NAVIGATION & HERO ----
+// ----- NAV + HERO -----
 qsa(".nav-btn").forEach(btn =>
   on(btn, "click", () => {
     const target = btn.dataset.section;
@@ -409,7 +442,7 @@ on(qs("gotoCalcLink"), "click", () => {
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
-// ---- LOGIN MODAL / TABS ----
+// ----- LOGIN / REGISTER -----
 on(qs("loginBtn"), "click", () => qs("loginModal").classList.remove("hidden"));
 on(qs("closeLogin"), "click", () => qs("loginModal").classList.add("hidden"));
 
@@ -417,7 +450,6 @@ const tabRegister = qs("tabRegister");
 const tabLogin = qs("tabLogin");
 const registerForm = qs("registerForm");
 const loginForm = qs("loginForm");
-
 const switchAuthTab = mode => {
   const reg = mode === "register";
   registerForm.classList.toggle("hidden", !reg);
@@ -427,7 +459,6 @@ const switchAuthTab = mode => {
   tabLogin.classList.toggle("bg-slate-800", !reg);
   tabLogin.classList.toggle("bg-slate-900", reg);
 };
-
 on(tabRegister, "click", () => switchAuthTab("register"));
 on(tabLogin, "click", () => switchAuthTab("login"));
 
@@ -437,14 +468,16 @@ on(registerForm, "submit", e => {
   const email = qs("regEmail").value.trim();
   const requestedRole = qs("regRole").value;
   if (!name || !email) return;
-  if (!email.toLowerCase().endsWith("@gmail.com")) return alert("Please enter a valid Gmail address.");
+  if (!email.toLowerCase().endsWith("@gmail.com"))
+    return alert("Please enter a valid Gmail address.");
   if (state.users.some(u => u.name.toLowerCase() === name.toLowerCase())) {
     alert("User already registered. Please login.");
     return switchAuthTab("login");
   }
   let role = normalizeRole(name, requestedRole);
   if (requestedRole === "admin" && role !== "admin") {
-    alert("Only authorised access allowed, try using User role."); role = "user";
+    alert("Only authorised access allowed, try using User role.");
+    role = "user";
   }
   state.users.push({ id: Date.now(), name, email, role, createdAt: Date.now() });
   save();
@@ -461,7 +494,8 @@ on(loginForm, "submit", e => {
   if (!user) return alert("No user with such username found, try registering first.");
   if (loginRole === "admin" && name.toLowerCase() !== "bajaish")
     return alert("Only authorised access allowed, try logging in as User.");
-  const role = loginRole === "admin" && name.toLowerCase() === "bajaish" ? "admin" : "user";
+  const role =
+    loginRole === "admin" && name.toLowerCase() === "bajaish" ? "admin" : "user";
   state.currentUser = { id: user.id, name: user.name, email: user.email, role };
   save();
   updateAuthUI();
@@ -478,14 +512,17 @@ on(qs("logoutBtn"), "click", () => {
   showSection("landing");
 });
 
-// ---- POST LISTING TABS + FORM ----
-on(yourListingsTab, "click", () => { if (requireLogin()) setListingMode("your"); });
-on(createListingTab, "click", () => { if (requireLogin()) setListingMode("create"); });
+// ----- POST LISTING -----
+on(yourListingsTab, "click", () => {
+  if (requireLogin()) setListingMode("your");
+});
+on(createListingTab, "click", () => {
+  if (requireLogin()) setListingMode("create");
+});
 
 on(uploadForm, "submit", e => {
   e.preventDefault();
   if (!requireLogin()) return;
-
   const title = qs("postTitle").value.trim();
   const desc = qs("postDesc").value.trim();
   const price = parseFloat(qs("postPrice").value) || 0;
@@ -534,7 +571,8 @@ on(uploadForm, "submit", e => {
   };
 
   if (file) {
-    if (file.size > 50 * 1024) return alert("Image too large! Only up to 50 KB allowed.");
+    if (file.size > 50 * 1024)
+      return alert("Image too large! Only up to 50 KB allowed.");
     const r = new FileReader();
     r.onload = ev => finish(ev.target.result);
     r.readAsDataURL(file);
@@ -558,7 +596,7 @@ on(userListingsBox, "click", e => {
   uploadFormBtn.textContent = "Save changes";
 });
 
-// ---- FEED EVENTS ----
+// ----- FEED EVENTS -----
 on(feedContainer, "click", e => {
   const likeId = e.target.dataset.like;
   const commentId = e.target.dataset.commentBtn;
@@ -585,7 +623,9 @@ on(feedContainer, "click", e => {
     if (!requireLogin()) return;
     const post = state.posts.find(p => String(p.id) === String(commentId));
     if (!post) return;
-    const input = document.querySelector(`[data-comment-input="${commentId}"]`);
+    const input = document.querySelector(
+      `[data-comment-input="${commentId}"]`
+    );
     const text = input.value.trim();
     if (!text) return;
     post.comments ||= [];
@@ -601,7 +641,7 @@ on(feedContainer, "click", e => {
   }
 });
 
-// ---- ADMIN POST TOGGLE ----
+// ----- ADMIN TOGGLE -----
 on(adminList, "click", e => {
   const id = e.target.dataset.toggle;
   if (!id) return;
@@ -613,7 +653,7 @@ on(adminList, "click", e => {
   renderAdmin();
 });
 
-// inbox open chat
+// inbox → open chat
 on(inboxList, "click", e => {
   const id = e.target.dataset.openChat;
   if (!id) return;
@@ -621,12 +661,15 @@ on(inboxList, "click", e => {
   openChatForPost(id);
 });
 
-// ---- CHAT ----
+// ----- CHAT -----
 const openChatForPost = postId => {
   const post = state.posts.find(p => String(p.id) === String(postId));
   if (!post) return;
   post.chatMessages ||= [];
-  post.chatMessages.forEach(m => { if (m.from !== state.currentUser.name) m.seen = true; });
+  // mark incoming messages as seen for this user
+  post.chatMessages.forEach(m => {
+    if (m.from !== state.currentUser.name) m.seen = true;
+  });
   save();
   updateUnreadIndicator();
   currentChatPostId = post.id;
@@ -641,10 +684,14 @@ const renderChatMessages = post => {
       '<p class="text-[11px] text-slate-400 text-center mt-6">No messages yet. Start the conversation.</p>';
     return;
   }
-  chatMessagesBox.innerHTML = post.chatMessages.map(m => {
-    const mine = state.currentUser && m.from === state.currentUser.name;
-    const time = new Date(m.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    return `
+  chatMessagesBox.innerHTML = post.chatMessages
+    .map(m => {
+      const mine = state.currentUser && m.from === state.currentUser.name;
+      const time = new Date(m.time).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+      return `
       <div class="flex ${mine ? "justify-end" : "justify-start"}">
         <div class="max-w-[75%] px-2 py-1 rounded-lg text-[11px] ${
           mine ? "bg-emerald-600 text-white" : "bg-slate-800 border border-slate-700"
@@ -664,7 +711,8 @@ const renderChatMessages = post => {
           }
         </div>
       </div>`;
-  }).join("");
+    })
+    .join("");
   chatMessagesBox.scrollTop = chatMessagesBox.scrollHeight;
 };
 
@@ -705,7 +753,7 @@ on(chatMessagesBox, "click", e => {
   updateUnreadIndicator();
 });
 
-// ---- CALCULATOR ----
+// ----- CALCULATOR -----
 qsa('input[name="calcMethod"]').forEach(r =>
   on(r, "change", () => {
     const v = document.querySelector('input[name="calcMethod"]:checked').value;
@@ -744,11 +792,12 @@ on(qs("calcLandBtn"), "click", () => {
   showResult(annual, annual * t);
 });
 
-// ---- INITIAL LOAD ----
+// ----- INITIAL LOAD -----
 updateAuthUI();
 let startSection = state.lastSection || "landing";
 const protectedSections = ["feed", "upload", "calculator", "admin", "inbox"];
-if (!state.currentUser && protectedSections.includes(startSection)) startSection = "landing";
+if (!state.currentUser && protectedSections.includes(startSection))
+  startSection = "landing";
 
 showSection(startSection);
 if (startSection === "feed") renderFeed();
