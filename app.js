@@ -1,9 +1,10 @@
-// helpers
+// ===== helpers =====
 const qs = id => document.getElementById(id);
 const qsa = sel => [...document.querySelectorAll(sel)];
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 
-const STORAGE_KEY = "cc_state_v3_compact";
+const API_BASE = "https://carbon-credit-exchange-backend.onrender.com";
+const STORAGE_KEY = "cc_state_v4_global";
 const MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 const now = Date.now();
 
@@ -15,11 +16,47 @@ let state =
     lastSection: "landing"
   };
 
-// keep data up to 30 days, but DON'T auto-logout
+// keep old local data up to 30 days, but don't auto-logout
 state.users = state.users.filter(u => !u.createdAt || now - u.createdAt <= MAX_AGE);
 state.posts = state.posts.filter(p => !p.createdAt || now - p.createdAt <= MAX_AGE);
 
 const save = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+// sync helpers: posts are shared globally
+const saveServerPosts = async () => {
+  try {
+    await fetch(API_BASE + "/api/state", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ posts: state.posts })
+    });
+  } catch (e) {
+    console.log("server save error", e);
+  }
+};
+const postsChanged = () => {
+  save();
+  saveServerPosts(); // fire & forget
+};
+
+const loadServerPosts = async () => {
+  try {
+    const res = await fetch(API_BASE + "/api/state");
+    if (!res.ok) return;
+    const data = await res.json();
+    if (Array.isArray(data.posts)) {
+      state.posts = data.posts;
+      save();
+    }
+    renderFeed();
+    renderUserListings();
+    renderInbox();
+    renderAdmin();
+  } catch (e) {
+    console.log("server load error", e);
+  }
+};
+
 const requireLogin = () => {
   if (!state.currentUser) {
     alert("Please login first.");
@@ -73,7 +110,7 @@ const showSection = name => {
   }
 };
 
-// ----- INBOX (now for posts + replies) -----
+// ===== INBOX (for posts + replies) =====
 const getInboxItems = () => {
   if (!state.currentUser) return [];
   const me = state.currentUser.name;
@@ -82,15 +119,11 @@ const getInboxItems = () => {
   state.posts.forEach(p => {
     if (!p.chatMessages?.length) return;
 
-    // you should see:
-    // 1) messages on your own posts
-    // 2) replies in chats where you have written at least one message
-    const meInThread =
-      p.user === me || p.chatMessages.some(m => m.from === me);
+    const meInThread = p.user === me || p.chatMessages.some(m => m.from === me);
     if (!meInThread) return;
 
     p.chatMessages.forEach(m => {
-      if (m.from === me) return; // only incoming messages
+      if (m.from === me) return;
       items.push({
         postId: p.id,
         postTitle: p.title,
@@ -109,8 +142,7 @@ const updateUnreadIndicator = () => {
   if (!inboxIndicator) return;
   if (!state.currentUser) return inboxIndicator.classList.add("hidden");
   const unread = getInboxItems().filter(i => !i.seen).length;
-  unread ? inboxIndicator.classList.remove("hidden")
-         : inboxIndicator.classList.add("hidden");
+  unread ? inboxIndicator.classList.remove("hidden") : inboxIndicator.classList.add("hidden");
 };
 
 const renderInbox = () => {
@@ -122,16 +154,13 @@ const renderInbox = () => {
   }
   const items = getInboxItems();
   if (!items.length) {
-    inboxList.innerHTML =
-      `<p class="text-sm text-slate-300">No messages yet.</p>`;
+    inboxList.innerHTML = `<p class="text-sm text-slate-300">No messages yet.</p>`;
     return updateUnreadIndicator();
   }
   inboxList.innerHTML = items
     .map(i => {
       const t = new Date(i.time).toLocaleString();
-      const badge = i.seen
-        ? "bg-slate-700 text-slate-200"
-        : "bg-red-500/20 text-red-300";
+      const badge = i.seen ? "bg-slate-700 text-slate-200" : "bg-red-500/20 text-red-300";
       const txt = i.seen ? "Seen" : "Unread";
       return `
       <div class="bg-slate-900 rounded-xl shadow p-3 flex items-center justify-between text-sm border border-slate-700">
@@ -153,7 +182,7 @@ const renderInbox = () => {
   updateUnreadIndicator();
 };
 
-// ----- AUTH UI -----
+// ===== AUTH UI =====
 const updateAuthUI = () => {
   const loginBtn = qs("loginBtn");
   const logoutBtn = qs("logoutBtn");
@@ -189,7 +218,7 @@ const updateAuthUI = () => {
   updateUnreadIndicator();
 };
 
-// ----- FEED / ADMIN -----
+// ===== FEED / ADMIN =====
 const getFilteredPosts = () => {
   let arr = state.posts.filter(p => p.status !== "removed");
   const cf = creditsFilter?.value || "all";
@@ -230,9 +259,7 @@ const renderFeed = () => {
   feedContainer.innerHTML = posts
     .map(p => {
       const commentsHtml = p.comments?.length
-        ? p.comments
-            .map(c => `<p class="text-xs"><b>${c.by}:</b> ${c.text}</p>`)
-            .join("")
+        ? p.comments.map(c => `<p class="text-xs"><b>${c.by}:</b> ${c.text}</p>`).join("")
         : '<p class="text-xs text-slate-400">No comments yet</p>';
       let ownerText;
       if (state.currentUser && p.user === state.currentUser.name) {
@@ -354,7 +381,7 @@ const renderAdmin = () => {
     </div>`;
 };
 
-// ----- YOUR LISTINGS / EDIT -----
+// ===== YOUR LISTINGS / EDIT =====
 const renderUserListings = () => {
   if (!userListingsBox) return;
   if (!state.currentUser) {
@@ -412,7 +439,7 @@ const setListingMode = mode => {
   }
 };
 
-// ----- NAV + HERO -----
+// ===== NAV + HERO =====
 qsa(".nav-btn").forEach(btn =>
   on(btn, "click", () => {
     const target = btn.dataset.section;
@@ -442,7 +469,7 @@ on(qs("gotoCalcLink"), "click", () => {
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
-// ----- LOGIN / REGISTER -----
+// ===== LOGIN / REGISTER =====
 on(qs("loginBtn"), "click", () => qs("loginModal").classList.remove("hidden"));
 on(qs("closeLogin"), "click", () => qs("loginModal").classList.add("hidden"));
 
@@ -512,7 +539,7 @@ on(qs("logoutBtn"), "click", () => {
   showSection("landing");
 });
 
-// ----- POST LISTING -----
+// ===== POST LISTING =====
 on(yourListingsTab, "click", () => {
   if (requireLogin()) setListingMode("your");
 });
@@ -540,7 +567,7 @@ on(uploadForm, "submit", e => {
       post.price = price;
       post.credits = credits;
       if (img) post.image = img;
-      save();
+      postsChanged();
       renderFeed();
       renderUserListings();
       alert("Listing updated.");
@@ -560,7 +587,7 @@ on(uploadForm, "submit", e => {
         credits,
         createdAt: Date.now()
       });
-      save();
+      postsChanged();
       renderFeed();
       renderUserListings();
       alert("Listing uploaded.");
@@ -596,7 +623,7 @@ on(userListingsBox, "click", e => {
   uploadFormBtn.textContent = "Save changes";
 });
 
-// ----- FEED EVENTS -----
+// ===== FEED EVENTS =====
 on(feedContainer, "click", e => {
   const likeId = e.target.dataset.like;
   const commentId = e.target.dataset.commentBtn;
@@ -615,7 +642,7 @@ on(feedContainer, "click", e => {
       post.likedBy.splice(idx, 1);
       post.likes = Math.max(0, (post.likes || 0) - 1);
     }
-    save();
+    postsChanged();
     renderFeed();
   }
 
@@ -631,7 +658,7 @@ on(feedContainer, "click", e => {
     post.comments ||= [];
     post.comments.push({ by: state.currentUser.name, text });
     input.value = "";
-    save();
+    postsChanged();
     renderFeed();
   }
 
@@ -641,14 +668,14 @@ on(feedContainer, "click", e => {
   }
 });
 
-// ----- ADMIN TOGGLE -----
+// ===== ADMIN POST TOGGLE =====
 on(adminList, "click", e => {
   const id = e.target.dataset.toggle;
   if (!id) return;
   const post = state.posts.find(p => String(p.id) === String(id));
   if (!post) return;
   post.status = post.status === "removed" ? "active" : "removed";
-  save();
+  postsChanged();
   renderFeed();
   renderAdmin();
 });
@@ -661,16 +688,15 @@ on(inboxList, "click", e => {
   openChatForPost(id);
 });
 
-// ----- CHAT -----
+// ===== CHAT =====
 const openChatForPost = postId => {
   const post = state.posts.find(p => String(p.id) === String(postId));
   if (!post) return;
   post.chatMessages ||= [];
-  // mark incoming messages as seen for this user
   post.chatMessages.forEach(m => {
     if (m.from !== state.currentUser.name) m.seen = true;
   });
-  save();
+  postsChanged();
   updateUnreadIndicator();
   currentChatPostId = post.id;
   chatPostTitle.textContent = `Chat about: ${post.title}`;
@@ -736,7 +762,7 @@ on(chatForm, "submit", e => {
     time: Date.now(),
     seen: false
   });
-  save();
+  postsChanged();
   chatInput.value = "";
   renderChatMessages(post);
   updateUnreadIndicator();
@@ -748,12 +774,12 @@ on(chatMessagesBox, "click", e => {
   const post = state.posts.find(p => String(p.id) === String(currentChatPostId));
   if (!post?.chatMessages) return;
   post.chatMessages = post.chatMessages.filter(m => String(m.id) !== String(id));
-  save();
+  postsChanged();
   renderChatMessages(post);
   updateUnreadIndicator();
 });
 
-// ----- CALCULATOR -----
+// ===== CALCULATOR =====
 qsa('input[name="calcMethod"]').forEach(r =>
   on(r, "change", () => {
     const v = document.querySelector('input[name="calcMethod"]:checked').value;
@@ -792,7 +818,7 @@ on(qs("calcLandBtn"), "click", () => {
   showResult(annual, annual * t);
 });
 
-// ----- INITIAL LOAD -----
+// ===== INITIAL LOAD =====
 updateAuthUI();
 let startSection = state.lastSection || "landing";
 const protectedSections = ["feed", "upload", "calculator", "admin", "inbox"];
@@ -804,3 +830,6 @@ if (startSection === "feed") renderFeed();
 if (startSection === "admin") renderAdmin();
 if (startSection === "inbox") renderInbox();
 if (startSection === "upload") setListingMode("your");
+
+// finally, load shared posts from backend
+loadServerPosts();
