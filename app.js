@@ -3,6 +3,7 @@ const qs = id => document.getElementById(id);
 const qsa = sel => [...document.querySelectorAll(sel)];
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 
+
 const API_BASE = "https://carbon-credit-exchange-backend.onrender.com";
 const SESSION_KEY = "ccx_session_v1";
 const LAST_SECTION_KEY = "ccx_last_section_v1";
@@ -372,14 +373,18 @@ const getFilteredPosts = () => {
       return true;
     });
   }
-  if (pf === "low-high") arr = [...arr].sort((a, b) => (a.price || 0) - (b.price || 0));
-  if (pf === "high-low") arr = [...arr].sort((a, b) => (b.price || 0) - (a.price || 0));
+ if (pf === "low-high")
+  arr = [...arr].sort((a, b) => (a.price || 0) - (b.price || 0));
+if (pf === "high-low")
+  arr = [...arr].sort((a, b) => (b.price || 0) - (a.price || 0));
 
-  if (state.currentUser) {
-    const me = state.currentUser.name;
-    const mine = arr.filter(p => p.user === me);
-    const others = arr.filter(p => p.user !== me);
-    arr = [...mine, ...others];
+if (state.currentUser) {
+  const me = state.currentUser.name;
+  const mine = arr.filter(p => p.user === me);
+  const others = arr.filter(p => p.user !== me);
+  arr = [...mine, ...others];
+}
+
   }
   return arr;
 };
@@ -843,8 +848,8 @@ on(adminList, "click", e => {
     const participants = new Set();
     participants.add(post.user);
     (post.chatMessages || []).forEach(m => participants.add(m.from));
-    const names = [...participants];
-
+   const names = [...participants];
+   
     if (names.length === 2) {
       chatPostTitle.textContent = `Chat between ${names[0]} and ${names[1]}`;
     } else {
@@ -997,6 +1002,7 @@ on(qs("calcLandBtn"), "click", () => {
 updateAuthUI();
 loadState();                  // loadState will decide which section to show
 setInterval(refreshFromServer, 4000);
+
 
 
 
