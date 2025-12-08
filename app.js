@@ -1,808 +1,935 @@
-// app.js
-
-// ---------- Helpers ----------
-const qs = (id) => document.getElementById(id);
-const qsa = (sel) => Array.from(document.querySelectorAll(sel));
+// ===== helpers =====
+const qs = id => document.getElementById(id);
+const qsa = sel => [...document.querySelectorAll(sel)];
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 
-const API_BASE = "https://carbon-credit-exchange-backend.onrender.com"; // <-- PUT YOUR RENDER URL HERE
-
+const API_BASE = "https://carbon-credit-exchange-backend.onrender.com";
 const SESSION_KEY = "ccx_session_v1";
 const LAST_SECTION_KEY = "ccx_last_section_v1";
+const PROTECTED_SECTIONS = ["feed", "upload", "calculator", "admin", "inbox"];
 
+// highlight active nav item (underline + dark bg)
+const setActiveNav = section => {
+  qsa(".nav-btn").forEach(btn => {
+    const target = btn.dataset.section;
+    const isActive = target === section;
+
+    // underline
+    btn.classList.toggle("border-b-2", isActive);
+    btn.classList.toggle("border-b-emerald-400", isActive);
+    btn.classList.toggle("border-b-transparent", !isActive);
+
+    // background + text
+    const isSpecial = PROTECTED_SECTIONS.includes(target);
+    btn.classList.toggle("bg-slate-900", !isActive);
+    btn.classList.toggle("bg-slate-800", isActive && isSpecial);
+    btn.classList.toggle("text-white", isActive);
+  });
+};
+
+
+// global state (users + posts live on backend)
 let state = {
   users: [],
   posts: [],
-  currentUser: null,
+  currentUser: null
 };
 
+let editPostId = null;
 let currentChatPostId = null;
+let adminViewChat = false;
 
-// ---------- Error banner (fix 17) ----------
-const showError = (msg) => {
-  const box = qs("errorBanner");
-  if (!box) {
-    alert(msg);
-    return;
-  }
-  box.textContent = msg;
-  box.classList.remove("hidden");
-  setTimeout(() => box.classList.add("hidden"), 5000);
-};
-
-// ---------- Fetch helpers ----------
-async function apiGet(path) {
-  const res = await fetch(API_BASE + path);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
-
-async function apiPost(path, body) {
-  const res = await fetch(API_BASE + path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body || {}),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
-
-async function apiDelete(path) {
-  const res = await fetch(API_BASE + path, { method: "DELETE" });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
-
-// ---------- Session + last section (6, 8) ----------
-function saveSession() {
-  if (!state.currentUser) {
-    localStorage.removeItem(SESSION_KEY);
-  } else {
+// ===== session helpers (only keep who is logged in on this device) =====
+const saveSession = () => {
+  if (state.currentUser) {
     localStorage.setItem(
       SESSION_KEY,
       JSON.stringify({
-        id: state.currentUser.id,
         name: state.currentUser.name,
+        role: state.currentUser.role
       })
     );
+  } else {
+    localStorage.removeItem(SESSION_KEY);
   }
-}
+};
 
-function restoreSession() {
+const normalizeRole = (name, role) =>
+  name.trim().toLowerCase() === "bajaish" && role === "admin" ? "admin" : "user";
+
+// ===== backend sync =====
+const syncState = () => {
+  fetch(API_BASE + "/api/state", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ users: state.users, posts: state.posts })
+  }).catch(err => console.log("sync error", err));
+};
+
+const applyRemoteState = data => {
+  state.users = Array.isArray(data.users) ? data.users : [];
+  state.posts = Array.isArray(data.posts) ? data.posts : [];
+  renderFeed();
+  renderUserListings();
+  renderInbox();
+  renderAdmin();
+  if (!chatModal.classList.contains("hidden") && currentChatPostId) {
+    const p = state.posts.find(
+      x => String(x.id) === String(currentChatPostId)
+    );
+    if (p) renderChatMessages(p);
+  }
+};
+
+const restoreSession = () => {
   const raw = localStorage.getItem(SESSION_KEY);
   if (!raw) return;
   try {
-    const sess = JSON.parse(raw);
-    if (!sess.name) return;
-    const user = state.users.find(
-      (u) => u.name.toLowerCase() === sess.name.toLowerCase()
+    const s = JSON.parse(raw);
+    if (!s.name) return;
+    const u = state.users.find(
+      x => x.name.toLowerCase() === s.name.toLowerCase()
     );
-    // if backend lost user, session gracefully clears (6, 7)
-    if (user) state.currentUser = user;
-    else localStorage.removeItem(SESSION_KEY);
-  } catch {
-    localStorage.removeItem(SESSION_KEY);
+    if (!u) return;
+    state.currentUser = {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: s.role || u.role
+    };
+    updateAuthUI();
+  } catch (e) {
+    console.log("session restore error", e);
   }
-}
+};
 
-function saveLastSection(id) {
-  localStorage.setItem(LAST_SECTION_KEY, id);
-}
+const loadState = () => {
+  fetch(API_BASE + "/api/state")
+    .then(r => r.json())
+    .then(data => {
+      applyRemoteState(data);   // sets users/posts + renders
+      restoreSession();         // restores currentUser from local session
 
-function restoreLastSection() {
-  const id = localStorage.getItem(LAST_SECTION_KEY);
-  if (!id) return "section-landing";
-  // guard protected sections for logged-out users (8)
-  const protectedIds = [
-    "section-feed",
-    "section-upload",
-    "section-calculator",
-    "section-inbox",
-    "section-admin",
-  ];
-  if (!state.currentUser && protectedIds.includes(id)) {
-    return "section-landing";
-  }
-  return id;
-}
-
-// ---------- Navigation (14, 15) ----------
-function showSection(id) {
-  const sectionEl = qs(id);
-  if (!sectionEl) {
-    console.warn("Section not found:", id);
-    return;
-  }
-  qsa("section[data-section-root]").forEach((s) =>
-    s.classList.add("hidden")
-  );
-  sectionEl.classList.remove("hidden");
-  saveLastSection(id);
-  setActiveNav(id);
-}
-
-function setActiveNav(sectionId) {
-  qsa(".nav-btn").forEach((btn) => {
-    const targetId = btn.dataset.section
-      ? `section-${btn.dataset.section}`
-      : "";
-    if (targetId === sectionId) btn.classList.add("bg-gray-800", "underline");
-    else btn.classList.remove("bg-gray-800", "underline");
-  });
-}
-
-function setupNav() {
-  qsa(".nav-btn").forEach((btn) => {
-    on(btn, "click", () => {
-      const name = btn.dataset.section;
-      if (!name) return;
-      const id = `section-${name}`;
-      if (!state.currentUser && ["feed", "upload", "calculator", "inbox", "admin"].includes(name)) {
-        openLoginModal();
-        return;
+      // decide which section to show after data + session are ready
+      const last = localStorage.getItem(LAST_SECTION_KEY) || "landing";
+      if (!state.currentUser && PROTECTED_SECTIONS.includes(last)) {
+        showSection("landing");         // not logged in → send to landing
+      } else {
+        showSection(last);              // stay where you were
       }
-      showSection(id);
+    })
+    .catch(err => console.log("load error", err));
+};
+
+
+const refreshFromServer = () => {
+  fetch(API_BASE + "/api/state")
+    .then(r => r.json())
+    .then(applyRemoteState)
+    .catch(err => console.log("refresh error", err));
+};
+
+// ===== DOM refs =====
+const userBadge = qs("userBadge");
+const badgeName = qs("badgeName");
+const badgeRole = qs("badgeRole");
+const adminTab = qs("adminTab");
+const inboxIndicator = qs("inboxIndicator");
+const inboxList = qs("inboxList");
+const feedContainer = qs("feedContainer");
+const emptyFeedMsg = qs("emptyFeedMsg");
+const feedFiltersBox = qs("feedFilters");
+const priceFilter = qs("priceFilter");
+const creditsFilter = qs("creditsFilter");
+const welcomeLine = qs("welcomeLine");
+const welcomeName = qs("welcomeName");
+const heroLoginBtn = qs("heroLoginBtn");
+const heroExploreBtn = qs("heroExploreBtn");
+const chatModal = qs("chatModal");
+const chatMessagesBox = qs("chatMessages");
+const chatPostTitle = qs("chatPostTitle");
+const chatForm = qs("chatForm");
+const chatInput = qs("chatInput");
+const adminList = qs("adminList");
+const yourListingsTab = qs("yourListingsTab");
+const createListingTab = qs("createListingTab");
+const userListingsBox = qs("userListings");
+const uploadWrapper = qs("uploadWrapper");
+const uploadForm = qs("uploadForm");
+const uploadFormBtn = qs("uploadFormBtn");
+
+// ===== misc helpers =====
+const showSection = name => {
+  qsa(".section").forEach(s => s.classList.add("hidden"));
+  const sec = qs("section-" + name);
+  if (sec) sec.classList.remove("hidden");
+
+  // remember last section
+  localStorage.setItem(LAST_SECTION_KEY, name);
+
+  // update nav highlight
+  setActiveNav(name);
+};
+
+const requireLogin = () => {
+  if (!state.currentUser) {
+    alert("Please login first.");
+    qs("loginModal").classList.remove("hidden");
+    return false;
+  }
+  return true;
+};
+
+// ===== INBOX =====
+const getInboxItems = () => {
+  if (!state.currentUser) return [];
+  const me = state.currentUser.name;
+  const items = [];
+
+  state.posts.forEach(p => {
+    if (!p.chatMessages?.length) return;
+    const meInThread =
+      p.user === me || p.chatMessages.some(m => m.from === me);
+    if (!meInThread) return;
+    p.chatMessages.forEach(m => {
+      if (m.from === me) return;
+      items.push({
+        postId: p.id,
+        postTitle: p.title,
+        from: m.from,
+        text: m.text,
+        time: m.time || Date.now(),
+        seen: !!m.seen
+      });
     });
   });
 
-  // hero buttons (15: still JS, but robust + reuses nav logic)
-  on(qs("heroLoginBtn"), "click", openLoginModal);
-  on(qs("heroMarketplaceBtn"), "click", () => {
-    if (!state.currentUser) {
-      openLoginModal();
-    } else {
-      showSection("section-feed");
-    }
-  });
-}
+  return items.sort((a, b) => (b.time || 0) - (a.time || 0));
+};
 
-// ---------- Auth UI ----------
-function updateAuthUI() {
-  const userBadge = qs("userBadge");
-  const badgeName = qs("badgeName");
-  const badgeRole = qs("badgeRole");
+const updateUnreadIndicator = () => {
+  if (!inboxIndicator) return;
+  if (!state.currentUser) return inboxIndicator.classList.add("hidden");
+  const unread = getInboxItems().filter(i => !i.seen).length;
+  unread
+    ? inboxIndicator.classList.remove("hidden")
+    : inboxIndicator.classList.add("hidden");
+};
+
+const renderInbox = () => {
+  if (!inboxList) return;
+  if (!state.currentUser) {
+    inboxList.innerHTML =
+      `<p class="text-sm text-slate-300">Please login to see your inbox.</p>`;
+    return updateUnreadIndicator();
+  }
+  const items = getInboxItems();
+  if (!items.length) {
+    inboxList.innerHTML = `<p class="text-sm text-slate-300">No messages yet.</p>`;
+    return updateUnreadIndicator();
+  }
+  inboxList.innerHTML = items
+    .map(i => {
+      const t = new Date(i.time).toLocaleString();
+      const badge = i.seen
+        ? "bg-slate-700 text-slate-200"
+        : "bg-red-500/20 text-red-300";
+      const txt = i.seen ? "Seen" : "Unread";
+      return `
+      <div class="bg-slate-900 rounded-xl shadow p-3 flex items-center justify-between text-sm border border-slate-700">
+        <div class="pr-3">
+          <p class="font-semibold text-xs">From ${i.from}</p>
+          <p class="text-xs text-slate-400">On: ${i.postTitle}</p>
+          <p class="text-[11px] text-slate-200 mt-1 line-clamp-2">${i.text}</p>
+          <p class="text-[10px] mt-1 text-slate-500">${t}</p>
+        </div>
+        <div class="flex flex-col items-end gap-1">
+          <span class="text-[10px] px-2 py-0.5 rounded-full ${badge}">${txt}</span>
+          <button data-open-chat="${i.postId}" class="text-[11px] underline">
+            Open chat
+          </button>
+        </div>
+      </div>`;
+    })
+    .join("");
+  updateUnreadIndicator();
+};
+
+// ===== AUTH UI =====
+const updateAuthUI = () => {
   const loginBtn = qs("loginBtn");
   const logoutBtn = qs("logoutBtn");
+  const u = state.currentUser;
 
-  if (!state.currentUser) {
-    if (userBadge) userBadge.classList.add("hidden");
-    if (loginBtn) loginBtn.classList.remove("hidden");
-    if (logoutBtn) logoutBtn.classList.add("hidden");
+  if (u) {
+    loginBtn.classList.add("hidden");
+    logoutBtn.classList.remove("hidden");
+    userBadge.classList.remove("hidden");
+    badgeName.textContent = u.name;
+    badgeRole.textContent = u.role;
+    heroLoginBtn?.classList.add("hidden");
+    if (welcomeLine && welcomeName) {
+      welcomeName.textContent = u.name;
+      welcomeLine.classList.remove("hidden");
+    }
+    qsa(".protected-nav").forEach(b => b.classList.remove("hidden"));
+    u.role === "admin"
+      ? adminTab.classList.remove("hidden")
+      : adminTab.classList.add("hidden");
+    feedFiltersBox?.classList.remove("hidden");
   } else {
-    if (userBadge) userBadge.classList.remove("hidden");
-    if (badgeName) badgeName.textContent = state.currentUser.name;
-    if (badgeRole) badgeRole.textContent = state.currentUser.role;
-    if (loginBtn) loginBtn.classList.add("hidden");
-    if (logoutBtn) logoutBtn.classList.remove("hidden");
+    loginBtn.classList.remove("hidden");
+    logoutBtn.classList.add("hidden");
+    userBadge.classList.add("hidden");
+    badgeRole.textContent = "";
+    heroLoginBtn?.classList.remove("hidden");
+    welcomeLine?.classList.add("hidden");
+    adminTab.classList.add("hidden");
+    feedFiltersBox?.classList.add("hidden");
+    qsa(".protected-nav").forEach(b => b.classList.add("hidden"));
   }
-
-  const adminNav = qs("navAdmin");
-  if (adminNav) {
-    if (state.currentUser && state.currentUser.role === "admin") {
-      adminNav.classList.remove("hidden");
-    } else {
-      adminNav.classList.add("hidden");
-    }
-  }
-
-  updateUnreadIndicator(); // refresh red dot after auth change (11)
-}
-
-function openLoginModal() {
-  const modal = qs("loginModal");
-  if (modal) modal.classList.remove("hidden");
-}
-
-function closeLoginModal() {
-  const modal = qs("loginModal");
-  if (modal) modal.classList.add("hidden");
-}
-
-function setupAuth() {
-  on(qs("loginBtn"), "click", openLoginModal);
-  on(qs("loginCloseBtn"), "click", closeLoginModal);
-
-  on(qs("logoutBtn"), "click", () => {
-    state.currentUser = null;
-    saveSession();
-    updateAuthUI();
-    showSection("section-landing");
-  });
-
-  // register
-  on(qs("registerForm"), "submit", async (e) => {
-    e.preventDefault();
-    const name = qs("regName").value.trim();
-    const email = qs("regEmail").value.trim();
-    const role = qs("regRole").value;
-
-    try {
-      const user = await apiPost("/api/register", { name, email, role });
-      state.users.push(user);
-      state.currentUser = user;
-      saveSession();
-      updateAuthUI();
-      closeLoginModal();
-      showSection("section-feed");
-    } catch (err) {
-      showError(err.message || "Registration failed");
-    }
-  });
-
-  // login
-  on(qs("loginForm"), "submit", async (e) => {
-    e.preventDefault();
-    const name = qs("loginName").value.trim();
-    const loginRole = qs("loginRole").value;
-    try {
-      const user = await apiPost("/api/login", { name, loginRole });
-      state.currentUser = user;
-      saveSession();
-      updateAuthUI();
-      closeLoginModal();
-      showSection(restoreLastSection());
-    } catch (err) {
-      showError(err.message || "Login failed");
-    }
-  });
-}
-
-// ---------- Rendering: feed / listings ----------
-function renderFeed() {
-  const container = qs("feedGrid");
-  if (!container) return;
-  const sc = window.scrollY; // preserve scroll (18)
-
-  const posts = state.posts
-    .filter((p) => p.status !== "removed")
-    .slice()
-    .sort((a, b) => b.createdAt - a.createdAt);
-
-  container.innerHTML = "";
-  if (!posts.length) {
-    container.innerHTML = `<p class="text-gray-400">No posts yet.</p>`;
-    window.scrollTo(0, sc);
-    return;
-  }
-
-  posts.forEach((p) => {
-    const liked =
-      state.currentUser &&
-      p.likedBy.some(
-        (n) => n.toLowerCase() === state.currentUser.name.toLowerCase()
-      );
-    const isOwner =
-      state.currentUser &&
-      p.user.toLowerCase() === state.currentUser.name.toLowerCase();
-
-    const card = document.createElement("div");
-    card.className =
-      "bg-gray-800 rounded-xl p-4 flex flex-col gap-2 shadow-md";
-
-    card.innerHTML = `
-      <div class="flex justify-between items-center">
-        <h3 class="font-semibold text-lg">${p.title}</h3>
-        <span class="text-xs text-gray-400">by ${p.user}</span>
-      </div>
-      ${
-        p.image
-          ? `<img src="${p.image}" alt="" class="w-full h-40 object-cover rounded-lg">`
-          : ""
-      }
-      <p class="text-sm text-gray-200">${p.description || ""}</p>
-      <div class="text-xs text-gray-400 flex gap-4">
-        <span>Price: ${p.price ?? "-"}</span>
-        <span>Credits: ${p.credits ?? "-"}</span>
-        <span>Status: ${p.status}</span>
-      </div>
-      <div class="flex justify-between items-center mt-2">
-        <button class="like-btn text-sm px-2 py-1 rounded ${
-          liked ? "bg-green-600" : "bg-gray-700"
-        }" data-id="${p.id}">
-          ❤️ ${p.likes}
-        </button>
-        <button class="chat-btn text-sm px-2 py-1 rounded bg-blue-600" data-id="${
-          p.id
-        }">Chat</button>
-      </div>
-      <div class="mt-2">
-        <h4 class="font-semibold text-sm mb-1">Comments</h4>
-        <div class="space-y-1 text-xs text-gray-200">
-          ${
-            p.comments && p.comments.length
-              ? p.comments
-                  .map(
-                    (c) =>
-                      `<div><span class="font-semibold">${c.user}:</span> ${c.text}</div>`
-                  )
-                  .join("")
-              : `<div class="text-gray-500">No comments yet.</div>`
-          }
-        </div>
-        ${
-          state.currentUser
-            ? `
-          <form class="comment-form mt-2 flex gap-2" data-id="${p.id}">
-            <input class="flex-1 bg-gray-900 border border-gray-700 text-xs px-2 py-1 rounded" placeholder="Write a comment...">
-            <button class="text-xs px-2 py-1 bg-green-600 rounded">Send</button>
-          </form>`
-            : `<div class="text-xs text-gray-500 mt-1">Login to comment.</div>`
-        }
-      </div>
-    `;
-
-    container.appendChild(card);
-  });
-
-  // bind buttons
-  qsa(".like-btn").forEach((btn) => {
-    on(btn, "click", () => handleLike(btn.dataset.id));
-  });
-  qsa(".comment-form").forEach((form) => {
-    on(form, "submit", (e) => {
-      e.preventDefault();
-      const input = form.querySelector("input");
-      handleComment(form.dataset.id, input.value.trim());
-      input.value = "";
-    });
-  });
-  qsa(".chat-btn").forEach((btn) => {
-    on(btn, "click", () => openChatForPost(btn.dataset.id));
-  });
-
-  window.scrollTo(0, sc);
-}
-
-// ---------- Like / comment (18) ----------
-async function handleLike(postId) {
-  if (!state.currentUser) return openLoginModal();
-  try {
-    const updated = await apiPost(`/api/posts/${postId}/like`, {
-      userName: state.currentUser.name,
-    });
-    mergePost(updated);
-    renderFeed();
-    renderInbox();
-  } catch (err) {
-    showError(err.message || "Failed to like");
-  }
-}
-
-async function handleComment(postId, text) {
-  if (!state.currentUser) return openLoginModal();
-  if (!text) return;
-  try {
-    const updated = await apiPost(`/api/posts/${postId}/comment`, {
-      userName: state.currentUser.name,
-      text,
-    });
-    mergePost(updated);
-    renderFeed();
-  } catch (err) {
-    showError(err.message || "Failed to comment");
-  }
-}
-
-function mergePost(updated) {
-  const idx = state.posts.findIndex((p) => p.id === updated.id);
-  if (idx >= 0) state.posts[idx] = updated;
-  else state.posts.push(updated);
-}
-
-// ---------- Upload / own listings ----------
-function setupUpload() {
-  on(qs("uploadForm"), "submit", async (e) => {
-    e.preventDefault();
-    if (!state.currentUser) return openLoginModal();
-
-    const title = qs("postTitle").value.trim();
-    const desc = qs("postDesc").value.trim();
-    const price = Number(qs("postPrice").value || 0);
-    const credits = Number(qs("postCredits").value || 0);
-    const imgInput = qs("postImage");
-
-    if (!title) return showError("Title is required");
-
-    let imageData = null;
-    if (imgInput && imgInput.files && imgInput.files[0]) {
-      const file = imgInput.files[0];
-      if (file.size > 50 * 1024) {
-        showError("Image must be under 50KB");
-        return;
-      }
-      imageData = await readFileAsDataURL(file);
-    }
-
-    try {
-      const post = await apiPost("/api/posts", {
-        title,
-        description: desc,
-        image: imageData,
-        price,
-        credits,
-        userName: state.currentUser.name,
-      });
-      mergePost(post);
-      renderFeed();
-      renderInbox();
-      e.target.reset();
-      showSection("section-feed");
-    } catch (err) {
-      showError(err.message || "Failed to create post");
-    }
-  });
-}
-
-function readFileAsDataURL(file) {
-  return new Promise((res, rej) => {
-    const reader = new FileReader();
-    reader.onload = () => res(reader.result);
-    reader.onerror = () => rej(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
-// ---------- Chat + inbox (9, 10, 11, 12) ----------
-function openChatForPost(postId) {
-  if (!state.currentUser) return openLoginModal();
-  currentChatPostId = postId;
-  const modal = qs("chatModal");
-  const titleEl = qs("chatPostTitle");
-  const msgsEl = qs("chatMessages");
-
-  const post = state.posts.find((p) => p.id === postId);
-  if (!post || !modal || !msgsEl) return;
-
-  if (titleEl) titleEl.textContent = post.title;
-
-  // Optimistically mark messages to me as seen (10, 11)
-  const me = state.currentUser.name.toLowerCase();
-  post.chatMessages.forEach((m) => {
-    if (m.to.toLowerCase() === me) m.seen = true;
-  });
   updateUnreadIndicator();
-  renderChatMessages(post);
+};
 
-  modal.classList.remove("hidden");
+// ===== FEED / ADMIN =====
+const getFilteredPosts = () => {
+  let arr = state.posts.filter(p => p.status !== "removed");
+  const cf = creditsFilter?.value || "all";
+  const pf = priceFilter?.value || "none";
 
-  // persist seen status
-  apiPost(`/api/posts/${postId}/seen`, { userName: state.currentUser.name })
-    .then((updated) => {
-      mergePost(updated);
-      renderInbox();
-      renderChatMessages(updated);
-    })
-    .catch(() => {});
-}
-
-function closeChat() {
-  const modal = qs("chatModal");
-  if (modal) modal.classList.add("hidden");
-  currentChatPostId = null;
-}
-
-function renderChatMessages(post) {
-  const msgsEl = qs("chatMessages");
-  if (!msgsEl) return;
-  msgsEl.innerHTML = "";
-
-  const me = state.currentUser ? state.currentUser.name.toLowerCase() : "";
-  post.chatMessages
-    .slice()
-    .sort((a, b) => a.createdAt - b.createdAt)
-    .forEach((m) => {
-      const mine = m.from.toLowerCase() === me;
-      const line = document.createElement("div");
-      line.className = `flex mb-1 ${
-        mine ? "justify-end" : "justify-start"
-      } text-xs`;
-      line.innerHTML = `
-        <div class="${
-          mine ? "bg-green-700" : "bg-gray-700"
-        } px-2 py-1 rounded max-w-xs">
-          <div class="font-semibold">${m.from}</div>
-          <div>${m.text}</div>
-          ${
-            mine
-              ? `<div class="text-[10px] text-gray-300 text-right">${
-                  m.seen ? "Seen" : "Sent"
-                }</div>`
-              : ""
-          }
-        </div>
-      `;
-      msgsEl.appendChild(line);
+  if (cf !== "all") {
+    arr = arr.filter(p => {
+      const c = Number(p.credits || 0);
+      if (cf === "1-10") return c >= 1 && c <= 10;
+      if (cf === "10-20") return c > 10 && c <= 20;
+      if (cf === "20-30") return c > 20 && c <= 30;
+      if (cf === "30-40") return c > 30 && c <= 40;
+      if (cf === "40-50") return c > 40 && c <= 50;
+      if (cf === "50+") return c > 50;
+      return true;
     });
+  }
+  if (pf === "low-high") arr = [...arr].sort((a, b) => (a.price || 0) - (b.price || 0));
+  if (pf === "high-low") arr = [...arr].sort((a, b) => (b.price || 0) - (a.price || 0));
 
-  msgsEl.scrollTop = msgsEl.scrollHeight;
-}
-
-function setupChat() {
-  on(qs("chatCloseBtn"), "click", closeChat);
-
-  on(qs("chatForm"), "submit", async (e) => {
-    e.preventDefault();
-    if (!state.currentUser || !currentChatPostId) return;
-    const input = qs("chatInput");
-    const text = input.value.trim();
-    if (!text) return;
-
-    const post = state.posts.find((p) => p.id === currentChatPostId);
-    if (!post) return;
-
+  if (state.currentUser) {
     const me = state.currentUser.name;
-    const other =
-      post.user.toLowerCase() === me.toLowerCase()
-        ? "Buyer"
-        : post.user; // heuristic; can be improved
+    const mine = arr.filter(p => p.user === me);
+    const others = arr.filter(p => p.user !== me);
+    arr = [...mine, ...others];
+  }
+  return arr;
+};
 
-    // optimistic local append (10, 12, 18)
-    const localMsg = {
-      id: `local-${Date.now()}`,
-      from: me,
-      to: other,
-      text,
-      createdAt: Date.now(),
-      seen: false,
-    };
-    post.chatMessages.push(localMsg);
-    renderChatMessages(post);
-    input.value = "";
-
-    try {
-      const updated = await apiPost(`/api/posts/${post.id}/chat`, {
-        from: me,
-        to: other,
-        text,
-      });
-      mergePost(updated);
-      renderChatMessages(updated);
-      renderInbox();
-    } catch (err) {
-      showError(err.message || "Failed to send message");
-    }
-  });
-}
-
-// Inbox grouping by conversation (9)
-function getInboxThreads() {
-  if (!state.currentUser) return [];
-  const me = state.currentUser.name.toLowerCase();
-  const map = new Map();
-
-  state.posts.forEach((post) => {
-    post.chatMessages.forEach((m) => {
-      if (
-        m.to.toLowerCase() === me ||
-        m.from.toLowerCase() === me
-      ) {
-        const other =
-          m.from.toLowerCase() === me ? m.to : m.from;
-        const key = `${post.id}|${other.toLowerCase()}`;
-        const existing = map.get(key) || {
-          postId: post.id,
-          postTitle: post.title,
-          otherUser: other,
-          lastMessage: null,
-          lastTime: 0,
-          unreadCount: 0,
-        };
-
-        if (!existing.lastMessage || m.createdAt > existing.lastTime) {
-          existing.lastMessage = m.text;
-          existing.lastTime = m.createdAt;
-        }
-        if (m.to.toLowerCase() === me && !m.seen) {
-          existing.unreadCount += 1;
-        }
-        map.set(key, existing);
-      }
-    });
-  });
-
-  return Array.from(map.values()).sort((a, b) => b.lastTime - a.lastTime);
-}
-
-function renderInbox() {
-  const list = qs("inboxList");
-  if (!list) return;
-  if (!state.currentUser) {
-    list.innerHTML =
-      '<p class="text-gray-400 text-sm">Login to see messages.</p>';
+const renderFeed = () => {
+  const posts = getFilteredPosts();
+  if (!posts.length) {
+    feedContainer.innerHTML = "";
+    emptyFeedMsg.classList.remove("hidden");
     return;
   }
-
-  const threads = getInboxThreads();
-  list.innerHTML = "";
-
-  if (!threads.length) {
-    list.innerHTML =
-      '<p class="text-gray-400 text-sm">No conversations yet.</p>';
-  } else {
-    threads.forEach((t) => {
-      const row = document.createElement("button");
-      row.className =
-        "w-full text-left p-3 flex justify-between items-center bg-gray-800 hover:bg-gray-700 rounded mb-2";
-      row.innerHTML = `
-        <div>
-          <div class="font-semibold text-sm">${t.postTitle}</div>
-          <div class="text-xs text-gray-400">with ${t.otherUser}</div>
-          <div class="text-xs text-gray-300 truncate max-w-xs">
-            ${t.lastMessage || ""}
+  emptyFeedMsg.classList.add("hidden");
+  feedContainer.innerHTML = posts
+    .map(p => {
+      const commentsHtml = p.comments?.length
+        ? p.comments.map(c => `<p class="text-xs"><b>${c.by}:</b> ${c.text}</p>`).join("")
+        : '<p class="text-xs text-slate-400">No comments yet</p>';
+      let ownerText;
+      if (state.currentUser && p.user === state.currentUser.name) {
+        const d = p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "";
+        ownerText = `Post created by you${d ? " • " + d : ""}`;
+      } else ownerText = `By ${p.user}`;
+      return `
+      <article class="bg-slate-900 rounded-2xl shadow overflow-hidden flex flex-col border border-slate-700">
+        <img src="${p.image}" class="w-full h-44 object-cover" alt="post image">
+        <div class="p-3 flex-1 flex flex-col">
+          <h3 class="font-semibold text-sm mb-1 line-clamp-2">${p.title}</h3>
+          <p class="text-xs text-slate-300 mb-1 line-clamp-3">${p.desc}</p>
+          <div class="flex items-center justify-between text-[11px] mb-2">
+            <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300">
+              ${p.credits || 0} credits
+            </span>
+            <span class="font-semibold text-emerald-200">₹${p.price || 0}</span>
+          </div>
+          <p class="text-[11px] text-slate-400 mb-2">${ownerText}</p>
+          <div class="mt-auto space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <button data-like="${p.id}" class="px-2 py-1 rounded-full border border-slate-600 text-[11px]">
+                ❤️ Like (${p.likes || 0})
+              </button>
+              <button data-chat="${p.id}" class="px-2 py-1 rounded-full border border-slate-600 text-[11px]">
+                💬 Chat
+              </button>
+            </div>
+            <div class="border-t border-slate-700 pt-1">
+              <div class="flex gap-1 mb-1">
+                <input data-comment-input="${p.id}"
+                  class="flex-1 border border-slate-700 bg-slate-950 rounded-lg px-2 py-1 text-[11px]"
+                  placeholder="Add comment..." />
+                <button data-comment-btn="${p.id}"
+                  class="px-2 text-[11px] border border-slate-600 rounded-lg">
+                  Post
+                </button>
+              </div>
+              <div class="space-y-0.5">${commentsHtml}</div>
+            </div>
           </div>
         </div>
-        ${
-          t.unreadCount
-            ? `<span class="ml-2 inline-flex items-center justify-center px-2 py-1 text-xs bg-red-600 rounded-full">${t.unreadCount}</span>`
-            : ""
-        }
-      `;
-      on(row, "click", () => openChatForPost(t.postId));
-      list.appendChild(row);
-    });
+      </article>`;
+    })
+    .join("");
+};
+
+const renderAdmin = () => {
+  const u = state.currentUser;
+  if (!u || u.role !== "admin") {
+    adminList.innerHTML = `<p class="text-sm text-slate-300">You are not admin.</p>`;
+    return;
   }
+  const usersHtml = state.users.length
+    ? state.users
+        .map(
+          x => `
+      <tr class="text-xs">
+        <td class="border border-slate-700 px-2 py-1">${x.id}</td>
+        <td class="border border-slate-700 px-2 py-1">${x.name}</td>
+        <td class="border border-slate-700 px-2 py-1">${x.email || "-"}</td>
+        <td class="border border-slate-700 px-2 py-1">${x.role}</td>
+        <td class="border border-slate-700 px-2 py-1 text-center">
+          <button data-deluser="${x.id}" class="text-[11px] underline">Remove</button>
+        </td>
+      </tr>`
+        )
+        .join("")
+    : '<tr><td colspan="5" class="text-xs text-center text-slate-400 py-2">No registered users yet.</td></tr>';
 
-  updateUnreadIndicator();
-}
+  const postsHtml = state.posts.length
+    ? state.posts
+        .map(p => {
+          const badge =
+            p.status === "removed"
+              ? "bg-red-500/20 text-red-300"
+              : "bg-emerald-500/20 text-emerald-200";
+          return `
+        <div class="bg-slate-900 rounded-xl shadow p-3 flex items-center justify-between text-sm border border-slate-700">
+          <div class="pr-3">
+            <p class="font-semibold">${p.title}</p>
+            <p class="text-xs text-slate-400">
+              By ${p.user} • Likes: ${p.likes || 0} • Comments: ${p.comments?.length || 0}
+            </p>
+            <p class="text-[11px] mt-1">Credits: ${p.credits || 0} • Price: ₹${p.price || 0}</p>
+            <p class="text-[11px] mt-1">
+              Status:
+              <span class="px-2 py-0.5 rounded-full text-[10px] ${badge}">
+                ${p.status || "active"}
+              </span>
+            </p>
+          </div>
+          <div class="flex flex-col items-end gap-1">
+            <button data-toggle="${p.id}"
+              class="text-xs px-3 py-1 rounded-full border border-slate-600 mb-1">
+              ${p.status === "removed" ? "Restore" : "Remove"}
+            </button>
+            <button data-viewchat="${p.id}" class="text-[11px] underline">
+              View chat
+            </button>
+          </div>
+        </div>`;
+        })
+        .join("")
+    : '<p class="text-sm text-slate-300">No posts yet.</p>';
 
-function updateUnreadIndicator() {
-  const indicator = qs("inboxIndicator");
-  if (!indicator) return;
+  adminList.innerHTML = `
+    <div class="bg-slate-900 rounded-2xl shadow p-3 mb-3 border border-slate-700">
+      <h3 class="text-sm font-semibold mb-2">Registered Users</h3>
+      <div class="overflow-x-auto">
+        <table class="min-w-full border border-slate-700 text-xs">
+          <thead class="bg-slate-800">
+            <tr>
+              <th class="border border-slate-700 px-2 py-1 text-left">ID</th>
+              <th class="border border-slate-700 px-2 py-1 text-left">Name</th>
+              <th class="border border-slate-700 px-2 py-1 text-left">Email</th>
+              <th class="border border-slate-700 px-2 py-1 text-left">Role</th>
+              <th class="border border-slate-700 px-2 py-1 text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>${usersHtml}</tbody>
+        </table>
+      </div>
+    </div>
+    <div class="space-y-3">
+      <h3 class="text-sm font-semibold mb-1">Post Moderation & Chats</h3>
+      ${postsHtml}
+    </div>`;
+};
+
+// ===== YOUR LISTINGS / EDIT =====
+const renderUserListings = () => {
+  if (!userListingsBox) return;
   if (!state.currentUser) {
-    indicator.classList.add("hidden");
+    userListingsBox.innerHTML =
+      `<p class="text-sm text-slate-300">Please login to see your listings.</p>`;
     return;
   }
-  const threads = getInboxThreads();
-  const totalUnread = threads.reduce((sum, t) => sum + t.unreadCount, 0);
-  if (totalUnread > 0) indicator.classList.remove("hidden");
-  else indicator.classList.add("hidden");
-}
-
-// ---------- Calculator (unchanged logic, just organized) ----------
-function setupCalculator() {
-  on(qs("treeForm"), "submit", (e) => {
-    e.preventDefault();
-    const n = Number(qs("treeCount").value || 0);
-    const type = qs("treeType").value; // small / medium / fast
-    const factor = type === "small" ? 3.5 : type === "medium" ? 12.5 : 22.5;
-    const credits = n * factor;
-    qs("calcResult").textContent = `Estimated credits: ${credits.toFixed(2)}`;
-  });
-
-  on(qs("landForm"), "submit", (e) => {
-    e.preventDefault();
-    const area = Number(qs("landArea").value || 0);
-    const density = Number(qs("treeDensity").value || 0);
-    const type = qs("treeTypeLand").value;
-    const factor = type === "small" ? 3.5 : type === "medium" ? 12.5 : 22.5;
-    const totalTrees = area * density;
-    const credits = totalTrees * factor;
-    qs("calcResult").textContent = `Area credits: ${credits.toFixed(2)}`;
-  });
-}
-
-// ---------- Admin ----------
-function renderAdmin() {
-  const usersTable = qs("adminUsers");
-  const postsTable = qs("adminPosts");
-  if (!usersTable || !postsTable) return;
-
-  if (!state.currentUser || state.currentUser.role !== "admin") {
-    usersTable.innerHTML =
-      '<p class="text-gray-400 text-sm">Admin only.</p>';
-    postsTable.innerHTML = "";
+  const me = state.currentUser.name;
+  const myPosts = state.posts.filter(p => p.user === me);
+  if (!myPosts.length) {
+    userListingsBox.innerHTML =
+      `<p class="text-sm text-slate-300">You have not created any listings yet.</p>`;
     return;
   }
-
-  usersTable.innerHTML = state.users
-    .map(
-      (u) => `
-    <tr>
-      <td class="px-2 py-1 text-xs">${u.name}</td>
-      <td class="px-2 py-1 text-xs">${u.email}</td>
-      <td class="px-2 py-1 text-xs">${u.role}</td>
-      <td class="px-2 py-1 text-right">
-        <button class="text-xs text-red-500 admin-del-user" data-id="${u.id}">Remove</button>
-      </td>
-    </tr>`
-    )
-    .join("");
-
-  postsTable.innerHTML = state.posts
-    .map(
-      (p) => `
-    <tr>
-      <td class="px-2 py-1 text-xs">${p.title}</td>
-      <td class="px-2 py-1 text-xs">${p.user}</td>
-      <td class="px-2 py-1 text-xs">${p.status}</td>
-      <td class="px-2 py-1 text-right">
-        <button class="text-xs text-yellow-400 admin-toggle-post" data-id="${
-          p.id
-        }">
-          ${p.status === "removed" ? "Restore" : "Remove"}
+  userListingsBox.innerHTML = myPosts
+    .map(p => {
+      const d = p.createdAt ? new Date(p.createdAt).toLocaleString() : "";
+      return `
+      <div class="bg-slate-900 rounded-xl shadow p-3 border border-slate-700 flex items-center justify-between text-sm">
+        <div class="pr-3">
+          <p class="font-semibold text-xs">${p.title}</p>
+          <p class="text-[11px] text-slate-400">
+            Credits: ${p.credits || 0} • Price: ₹${p.price || 0}
+          </p>
+          <p class="text-[11px] text-slate-500 mt-1">${d}</p>
+        </div>
+        <button class="text-[11px] underline" data-edit-post="${p.id}">
+          Edit
         </button>
-      </td>
-    </tr>`
-    )
+      </div>`;
+    })
     .join("");
+};
 
-  qsa(".admin-del-user").forEach((btn) => {
-    on(btn, "click", () => adminDeleteUser(btn.dataset.id));
-  });
-  qsa(".admin-toggle-post").forEach((btn) => {
-    on(btn, "click", () => adminTogglePost(btn.dataset.id));
-  });
-}
-
-async function adminDeleteUser(id) {
-  if (!confirm("Remove this user and their posts?")) return;
-  try {
-    await apiDelete(`/api/admin/users/${id}`);
-    // reload state from server
-    await loadStateFromServer();
-  } catch (err) {
-    showError(err.message || "Failed to delete user");
+const setListingMode = mode => {
+  if (!yourListingsTab || !createListingTab || !userListingsBox || !uploadWrapper) return;
+  const your = mode === "your";
+  yourListingsTab.classList.toggle("bg-slate-800", your);
+  yourListingsTab.classList.toggle("bg-slate-900", !your);
+  yourListingsTab.classList.toggle("text-white", your);
+  yourListingsTab.classList.toggle("text-slate-300", !your);
+  createListingTab.classList.toggle("bg-slate-800", !your);
+  createListingTab.classList.toggle("bg-slate-900", your);
+  createListingTab.classList.toggle("text-white", !your);
+  createListingTab.classList.toggle("text-slate-300", your);
+  userListingsBox.classList.toggle("hidden", !your);
+  uploadWrapper.classList.toggle("hidden", your);
+  if (your) {
+    editPostId = null;
+    renderUserListings();
+  } else {
+    uploadForm?.reset();
+    editPostId = null;
+    if (uploadFormBtn) uploadFormBtn.textContent = "Upload Listing";
   }
-}
+};
 
-async function adminTogglePost(id) {
-  const post = state.posts.find((p) => p.id === id);
-  if (!post) return;
-  const nextStatus = post.status === "removed" ? "active" : "removed";
-  try {
-    const updated = await apiPost(`/api/admin/posts/${id}/status`, {
-      status: nextStatus,
-    });
-    mergePost(updated);
-    renderFeed();
-    renderAdmin();
-  } catch (err) {
-    showError(err.message || "Failed to update post");
+// ===== NAV + HERO =====
+qsa(".nav-btn").forEach(btn =>
+  on(btn, "click", () => {
+    const target = btn.dataset.section;
+    if (!target) return;
+    if (btn.classList.contains("protected-nav") && !requireLogin()) return;
+    showSection(target);
+    if (target === "feed") renderFeed();
+    if (target === "admin") renderAdmin();
+    if (target === "inbox") renderInbox();
+    if (target === "upload") setListingMode("your");
+  })
+);
+
+on(heroLoginBtn, "click", () => qs("loginModal").classList.remove("hidden"));
+on(heroExploreBtn, "click", () => {
+  if (!requireLogin()) return;
+  showSection("feed");
+  renderFeed();
+});
+
+on(priceFilter, "change", renderFeed);
+on(creditsFilter, "change", renderFeed);
+
+on(qs("gotoCalcLink"), "click", () => {
+  if (!requireLogin()) return;
+  showSection("calculator");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+
+// ===== LOGIN / REGISTER =====
+on(qs("loginBtn"), "click", () => qs("loginModal").classList.remove("hidden"));
+on(qs("closeLogin"), "click", () => qs("loginModal").classList.add("hidden"));
+
+const tabRegister = qs("tabRegister");
+const tabLogin = qs("tabLogin");
+const registerForm = qs("registerForm");
+const loginForm = qs("loginForm");
+const switchAuthTab = mode => {
+  const reg = mode === "register";
+  registerForm.classList.toggle("hidden", !reg);
+  loginForm.classList.toggle("hidden", reg);
+  tabRegister.classList.toggle("bg-slate-800", reg);
+  tabRegister.classList.toggle("bg-slate-900", !reg);
+  tabLogin.classList.toggle("bg-slate-800", !reg);
+  tabLogin.classList.toggle("bg-slate-900", reg);
+};
+on(tabRegister, "click", () => switchAuthTab("register"));
+on(tabLogin, "click", () => switchAuthTab("login"));
+
+on(registerForm, "submit", e => {
+  e.preventDefault();
+  const name = qs("regName").value.trim();
+  const email = qs("regEmail").value.trim();
+  const requestedRole = qs("regRole").value;
+  if (!name || !email) return;
+  if (!email.toLowerCase().endsWith("@gmail.com"))
+    return alert("Please enter a valid Gmail address.");
+  if (state.users.some(u => u.name.toLowerCase() === name.toLowerCase())) {
+    alert("User already registered. Please login.");
+    return switchAuthTab("login");
   }
-}
+  let role = normalizeRole(name, requestedRole);
+  if (requestedRole === "admin" && role !== "admin") {
+    alert("Only authorised access allowed, try using User role.");
+    role = "user";
+  }
+  state.users.push({ id: Date.now(), name, email, role, createdAt: Date.now() });
+  syncState();
+  alert("Registration successful. Please login.");
+  switchAuthTab("login");
+});
 
-// ---------- State sync / polling (12) ----------
-async function loadStateFromServer() {
-  try {
-    const snapshot = await apiGet("/api/state");
-    state.users = snapshot.users || [];
-    state.posts = snapshot.posts || [];
-    restoreSession();
-    updateAuthUI();
-    renderFeed();
-    renderInbox();
-    renderAdmin();
-    if (currentChatPostId) {
-      const post = state.posts.find((p) => p.id === currentChatPostId);
-      if (post) renderChatMessages(post);
+on(loginForm, "submit", e => {
+  e.preventDefault();
+  const name = qs("loginName").value.trim();
+  const loginRole = qs("loginRole").value;
+  if (!name) return alert("Enter a username.");
+  const user = state.users.find(u => u.name.toLowerCase() === name.toLowerCase());
+  if (!user) return alert("No user with such username found, try registering first.");
+  if (loginRole === "admin" && name.toLowerCase() !== "bajaish")
+    return alert("Only authorised access allowed, try logging in as User.");
+  const role =
+    loginRole === "admin" && name.toLowerCase() === "bajaish" ? "admin" : "user";
+  state.currentUser = { id: user.id, name: user.name, email: user.email, role };
+  saveSession();
+  updateAuthUI();
+  qs("loginModal").classList.add("hidden");
+  showSection("feed");
+  renderFeed();
+});
+
+on(qs("logoutBtn"), "click", () => {
+  state.currentUser = null;
+  saveSession();
+  updateAuthUI();
+  showSection("landing");
+});
+
+// ===== POST LISTING =====
+on(yourListingsTab, "click", () => {
+  if (requireLogin()) setListingMode("your");
+});
+on(createListingTab, "click", () => {
+  if (requireLogin()) setListingMode("create");
+});
+
+on(uploadForm, "submit", e => {
+  e.preventDefault();
+  if (!requireLogin()) return;
+  const title = qs("postTitle").value.trim();
+  const desc = qs("postDesc").value.trim();
+  const price = parseFloat(qs("postPrice").value) || 0;
+  const credits = parseFloat(qs("postCredits").value) || 0;
+  const file = qs("postImage").files[0];
+  const isEdit = !!editPostId;
+  if (!title || !desc) return;
+
+  const finish = img => {
+    if (isEdit) {
+      const post = state.posts.find(p => String(p.id) === String(editPostId));
+      if (!post) return;
+      post.title = title;
+      post.desc = desc;
+      post.price = price;
+      post.credits = credits;
+      if (img) post.image = img;
+      syncState();
+      renderFeed();
+      renderUserListings();
+      alert("Listing updated.");
+    } else {
+      state.posts.unshift({
+        id: Date.now(),
+        title,
+        desc,
+        image: img,
+        user: state.currentUser.name,
+        likes: 0,
+        likedBy: [],
+        comments: [],
+        chatMessages: [],
+        status: "active",
+        price,
+        credits,
+        createdAt: Date.now()
+      });
+      syncState();
+      renderFeed();
+      renderUserListings();
+      alert("Listing uploaded.");
     }
-  } catch (err) {
-    showError("Could not reach server. Check your network / backend.");
-  }
-}
+    uploadForm.reset();
+    editPostId = null;
+    uploadFormBtn.textContent = "Upload Listing";
+  };
 
-// ---------- Init ----------
-function init() {
-  setupNav();
-  setupAuth();
-  setupUpload();
-  setupChat();
-  setupCalculator();
-
-  // start on landing, then load state
-  showSection("section-landing");
-  loadStateFromServer();
-
-  // polling for near real-time updates (12)
-  setInterval(loadStateFromServer, 2000);
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  try {
-    init();
-  } catch (err) {
-    console.error(err);
-    showError("App failed to initialize.");
+  if (file) {
+    if (file.size > 50 * 1024)
+      return alert("Image too large! Only up to 50 KB allowed.");
+    const r = new FileReader();
+    r.onload = ev => finish(ev.target.result);
+    r.readAsDataURL(file);
+  } else {
+    if (!isEdit) return alert("Please choose an image for a new listing.");
+    finish(null);
   }
 });
+
+on(userListingsBox, "click", e => {
+  const id = e.target.dataset.editPost;
+  if (!id || !requireLogin()) return;
+  const post = state.posts.find(p => String(p.id) === String(id));
+  if (!post) return;
+  editPostId = post.id;
+  setListingMode("create");
+  qs("postTitle").value = post.title;
+  qs("postDesc").value = post.desc;
+  qs("postPrice").value = post.price;
+  qs("postCredits").value = post.credits;
+  uploadFormBtn.textContent = "Save changes";
+});
+
+// ===== FEED EVENTS =====
+on(feedContainer, "click", e => {
+  const likeId = e.target.dataset.like;
+  const commentId = e.target.dataset.commentBtn;
+  const chatId = e.target.dataset.chat;
+
+  if (likeId) {
+    if (!requireLogin()) return;
+    const post = state.posts.find(p => String(p.id) === String(likeId));
+    if (!post) return;
+    post.likedBy ||= [];
+    const idx = post.likedBy.indexOf(state.currentUser.name);
+    if (idx === -1) {
+      post.likedBy.push(state.currentUser.name);
+      post.likes = (post.likes || 0) + 1;
+    } else {
+      post.likedBy.splice(idx, 1);
+      post.likes = Math.max(0, (post.likes || 0) - 1);
+    }
+    syncState();
+    renderFeed();
+  }
+
+  if (commentId) {
+    if (!requireLogin()) return;
+    const post = state.posts.find(p => String(p.id) === String(commentId));
+    if (!post) return;
+    const input = document.querySelector(
+      `[data-comment-input="${commentId}"]`
+    );
+    const text = input.value.trim();
+    if (!text) return;
+    post.comments ||= [];
+    post.comments.push({ by: state.currentUser.name, text });
+    input.value = "";
+    syncState();
+    renderFeed();
+  }
+
+  if (chatId) {
+    if (!requireLogin()) return;
+    openChatForPost(chatId);
+  }
+});
+
+// ===== ADMIN EVENTS (remove user, toggle post, view chat) =====
+on(adminList, "click", e => {
+  const toggleId = e.target.dataset.toggle;
+  const delUserId = e.target.dataset.deluser;
+  const viewChatId = e.target.dataset.viewchat;
+
+  if (toggleId) {
+    const post = state.posts.find(p => String(p.id) === String(toggleId));
+    if (!post) return;
+    post.status = post.status === "removed" ? "active" : "removed";
+    syncState();
+    renderFeed();
+    renderAdmin();
+  }
+
+  if (delUserId) {
+    const idNum = Number(delUserId);
+    state.users = state.users.filter(u => u.id !== idNum);
+    syncState();
+    renderAdmin();
+  }
+
+  if (viewChatId) {
+    const post = state.posts.find(p => String(p.id) === String(viewChatId));
+    if (!post) return;
+    adminViewChat = true;
+    chatForm.classList.add("hidden");
+
+    const participants = new Set();
+    participants.add(post.user);
+    (post.chatMessages || []).forEach(m => participants.add(m.from));
+    const names = [...participants];
+
+    if (names.length === 2) {
+      chatPostTitle.textContent = `Chat between ${names[0]} and ${names[1]}`;
+    } else {
+      chatPostTitle.textContent = `Chat on "${post.title}" between ${names.join(
+        ", "
+      )}`;
+    }
+
+    currentChatPostId = post.id;
+    renderChatMessages(post);
+    chatModal.classList.remove("hidden");
+  }
+});
+
+// inbox → open chat (normal user)
+on(inboxList, "click", e => {
+  const id = e.target.dataset.openChat;
+  if (!id) return;
+  if (!requireLogin()) return;
+  openChatForPost(id);
+});
+
+// ===== CHAT =====
+const openChatForPost = postId => {
+  const post = state.posts.find(p => String(p.id) === String(postId));
+  if (!post) return;
+  adminViewChat = false;
+  chatForm.classList.remove("hidden");
+  post.chatMessages ||= [];
+  // mark incoming as seen for this user
+  if (state.currentUser) {
+    post.chatMessages.forEach(m => {
+      if (m.from !== state.currentUser.name) m.seen = true;
+    });
+    syncState();
+  }
+  currentChatPostId = post.id;
+  chatPostTitle.textContent = `Chat about: ${post.title}`;
+  renderChatMessages(post);
+  chatModal.classList.remove("hidden");
+};
+
+const renderChatMessages = post => {
+  if (!post.chatMessages?.length) {
+    chatMessagesBox.innerHTML =
+      '<p class="text-[11px] text-slate-400 text-center mt-6">No messages yet. Start the conversation.</p>';
+    return;
+  }
+  chatMessagesBox.innerHTML = post.chatMessages
+    .map(m => {
+      const mine = state.currentUser && m.from === state.currentUser.name;
+      const time = new Date(m.time).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+      return `
+      <div class="flex ${mine ? "justify-end" : "justify-start"}">
+        <div class="max-w-[75%] px-2 py-1 rounded-lg text-[11px] ${
+          mine ? "bg-emerald-600 text-white" : "bg-slate-800 border border-slate-700"
+        }">
+          <div class="font-semibold mb-0.5">${mine ? "You" : m.from}</div>
+          <div>${m.text}</div>
+          <div class="flex justify-between items-center mt-0.5 text-[9px] opacity-80">
+            <span>${time}</span>
+            ${
+              mine
+                ? `<span>${m.seen ? "Seen" : "Sent"}</span>`
+                : ""
+            }
+          </div>
+        </div>
+      </div>`;
+    })
+    .join("");
+  chatMessagesBox.scrollTop = chatMessagesBox.scrollHeight;
+};
+
+on(qs("closeChat"), "click", () => {
+  chatModal.classList.add("hidden");
+  currentChatPostId = null;
+  adminViewChat = false;
+  chatForm.classList.remove("hidden");
+});
+
+on(chatForm, "submit", e => {
+  e.preventDefault();
+  if (adminViewChat) return; // admin read-only view
+  if (!requireLogin() || !currentChatPostId) return;
+  const text = chatInput.value.trim();
+  if (!text) return;
+  const post = state.posts.find(p => String(p.id) === String(currentChatPostId));
+  if (!post) return;
+  post.chatMessages ||= [];
+  post.chatMessages.push({
+    id: Date.now(),
+    from: state.currentUser.name,
+    text,
+    time: Date.now(),
+    seen: false
+  });
+  syncState();
+  chatInput.value = "";
+  renderChatMessages(post);
+  updateUnreadIndicator();
+});
+
+// ===== CALCULATOR =====
+qsa('input[name="calcMethod"]').forEach(r =>
+  on(r, "change", () => {
+    const v = document.querySelector('input[name="calcMethod"]:checked').value;
+    qs("treeForm").classList.toggle("hidden", v !== "trees");
+    qs("landForm").classList.toggle("hidden", v !== "land");
+    qs("calcResult").classList.add("hidden");
+  })
+);
+
+const showResult = (annual, total) => {
+  const box = qs("calcResult");
+  box.classList.remove("hidden");
+  qs("annualCredits").textContent =
+    `Annual Carbon Credits: ${annual.toFixed(2)} tons CO₂ / year`;
+  qs("totalCredits").textContent =
+    `Total Carbon Credits: ${total.toFixed(2)} tons CO₂`;
+};
+
+on(qs("calcTreesBtn"), "click", () => {
+  const x = parseFloat(qs("treeType").value);
+  const N = parseFloat(qs("treeCount").value);
+  const t = parseFloat(qs("treeYears").value);
+  if (N <= 0 || t <= 0) return alert("Enter valid tree count and years.");
+  const annual = (N * x) / 1000;
+  showResult(annual, annual * t);
+});
+
+on(qs("calcLandBtn"), "click", () => {
+  const A = parseFloat(qs("landArea").value);
+  const unit = qs("landUnit").value;
+  const t = parseFloat(qs("landYears").value);
+  if (A <= 0 || t <= 0) return alert("Enter valid area and years.");
+  let hectares = A;
+  if (unit === "acres") hectares *= 0.404686;
+  const annual = hectares * 6;
+  showResult(annual, annual * t);
+});
+
+// ===== INITIAL LOAD + polling for near-realtime chat =====
+updateAuthUI();
+loadState();                  // loadState will decide which section to show
+setInterval(refreshFromServer, 4000);
+
 
