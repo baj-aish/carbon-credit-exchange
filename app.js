@@ -84,24 +84,43 @@ const applyRemoteState = data => {
 const restoreSession = () => {
   const raw = localStorage.getItem(SESSION_KEY);
   if (!raw) return;
+
   try {
     const s = JSON.parse(raw);
     if (!s.name) return;
-    const u = state.users.find(
+
+    // Try to find user in backend state
+    let u = state.users.find(
       x => x.name.toLowerCase() === s.name.toLowerCase()
     );
-    if (!u) return;
+
+    // If backend restarted and user isn't in state → reinsert the user
+    if (!u) {
+      u = {
+        id: Date.now(),
+        name: s.name,
+        email: s.email || "",
+        role: s.role || "user",
+        createdAt: Date.now()
+      };
+      state.users.push(u);
+      syncState(); // permanently restore user to backend
+    }
+
     state.currentUser = {
       id: u.id,
       name: u.name,
       email: u.email,
       role: s.role || u.role
     };
+
     updateAuthUI();
+
   } catch (e) {
     console.log("session restore error", e);
   }
 };
+
 
 const loadState = () => {
   fetch(API_BASE + "/api/state")
@@ -184,37 +203,49 @@ const requireLogin = () => {
 const getInboxItems = () => {
   if (!state.currentUser) return [];
   const me = state.currentUser.name;
-  const items = [];
+  const conversations = {};
 
   state.posts.forEach(p => {
     if (!p.chatMessages?.length) return;
-    const meInThread =
+
+    // only include threads where user is participant
+    const participated =
       p.user === me || p.chatMessages.some(m => m.from === me);
-    if (!meInThread) return;
-    p.chatMessages.forEach(m => {
-      if (m.from === me) return;
-      items.push({
-        postId: p.id,
-        postTitle: p.title,
-        from: m.from,
-        text: m.text,
-        time: m.time || Date.now(),
-        seen: !!m.seen
-      });
-    });
+    if (!participated) return;
+
+    // find last incoming msg
+    const msgs = p.chatMessages.filter(m => m.from !== me);
+    const lastMsg = msgs[msgs.length - 1];
+
+    if (!lastMsg) return;
+
+    conversations[p.id] = {
+      postId: p.id,
+      postTitle: p.title,
+      from: lastMsg.from,
+      text: lastMsg.text,
+      time: lastMsg.time,
+      seen: lastMsg.seen
+    };
   });
 
-  return items.sort((a, b) => (b.time || 0) - (a.time || 0));
+  return Object.values(conversations).sort((a, b) => b.time - a.time);
 };
 
+
 const updateUnreadIndicator = () => {
-  if (!inboxIndicator) return;
-  if (!state.currentUser) return inboxIndicator.classList.add("hidden");
-  const unread = getInboxItems().filter(i => !i.seen).length;
-  unread
-    ? inboxIndicator.classList.remove("hidden")
-    : inboxIndicator.classList.add("hidden");
+  if (!state.currentUser) {
+    inboxIndicator.classList.add("hidden");
+    return;
+  }
+
+  const items = getInboxItems();
+  const unread = items.filter(i => !i.seen).length;
+
+  if (unread > 0) inboxIndicator.classList.remove("hidden");
+  else inboxIndicator.classList.add("hidden");
 };
+
 
 const renderInbox = () => {
   if (!inboxList) return;
@@ -598,20 +629,52 @@ on(loginForm, "submit", e => {
   e.preventDefault();
   const name = qs("loginName").value.trim();
   const loginRole = qs("loginRole").value;
+
   if (!name) return alert("Enter a username.");
-  const user = state.users.find(u => u.name.toLowerCase() === name.toLowerCase());
-  if (!user) return alert("No user with such username found, try registering first.");
+
+  // Try find user
+  let user = state.users.find(u => u.name.toLowerCase() === name.toLowerCase());
+
+  // If backend rebooted → restore user from localStorage
+  if (!user) {
+    const cached = JSON.parse(localStorage.getItem(SESSION_KEY) || "{}");
+    if (cached.name && cached.name.toLowerCase() === name.toLowerCase()) {
+      user = {
+        id: Date.now(),
+        name: cached.name,
+        email: cached.email || "",
+        role: cached.role || "user",
+        createdAt: Date.now()
+      };
+      state.users.push(user);
+      syncState();
+    } else {
+      return alert("User not found. Please register.");
+    }
+  }
+
   if (loginRole === "admin" && name.toLowerCase() !== "bajaish")
     return alert("Only authorised access allowed, try logging in as User.");
+
   const role =
-    loginRole === "admin" && name.toLowerCase() === "bajaish" ? "admin" : "user";
-  state.currentUser = { id: user.id, name: user.name, email: user.email, role };
+    loginRole === "admin" && name.toLowerCase() === "bajaish"
+      ? "admin"
+      : "user";
+
+  // save session
+  state.currentUser = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role
+  };
   saveSession();
   updateAuthUI();
+
   qs("loginModal").classList.add("hidden");
   showSection("feed");
-  renderFeed();
 });
+
 
 on(qs("logoutBtn"), "click", () => {
   state.currentUser = null;
@@ -930,6 +993,7 @@ on(qs("calcLandBtn"), "click", () => {
 // ===== INITIAL LOAD + polling for near-realtime chat =====
 updateAuthUI();
 loadState();                  // loadState will decide which section to show
-setInterval(refreshFromServer, 4000);
+setInterval(refreshFromServer, 1000);
+
 
 
