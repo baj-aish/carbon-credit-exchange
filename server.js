@@ -16,15 +16,32 @@ if (!MONGO_URI) {
   process.exit(1);
 }
 
-mongoose.connect(MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => console.log("MongoDB connected"))
-.catch(err => {
-  console.error("MongoDB connection error:", err);
-  process.exit(1);
-});
+// Improved connect function so we get clear logs in Render and better error handling.
+// We intentionally await connect so deploy logs show success/failure clearly.
+async function connectMongo() {
+  try {
+    // NOTE: we purposely don't pass the deprecated options (useNewUrlParser/useUnifiedTopology)
+    // because modern mongoose/drivers either don't need them or they are handled internally.
+    await mongoose.connect(MONGO_URI);
+    console.log("✅ MongoDB connected successfully");
+  } catch (err) {
+    console.error("❌ MongoDB connection error:", err);
+    // Keep the process alive if you prefer to inspect logs, or exit to fail the service.
+    // For production you can exit so the service restarts: process.exit(1);
+    process.exit(1);
+  }
+
+  // Also listen for runtime connection errors and rejections
+  mongoose.connection.on("error", (err) => {
+    console.error("MongoDB runtime error:", err);
+  });
+  mongoose.connection.on("disconnected", () => {
+    console.warn("MongoDB disconnected");
+  });
+}
+
+connectMongo();
+
 
 // ----------------- Schemas & Models -----------------
 const userSchema = new mongoose.Schema({
@@ -228,3 +245,4 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log("Server running on port", PORT);
 });
+
