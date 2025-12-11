@@ -1,11 +1,79 @@
-
-
 // ===== helpers =====
 const qs = id => document.getElementById(id);
 const qsa = sel => [...document.querySelectorAll(sel)];
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 
 const API_BASE = "https://carbon-credit-exchange-backend.onrender.com";
+// ===== API helpers =====
+async function apiGet(path) {
+  const res = await fetch(API_BASE + path, { credentials: 'same-origin' });
+  if (!res.ok) throw await res.json().catch(() => ({ error: 'Network error' }));
+  return res.json();
+}
+
+async function apiPost(path, body) {
+  const res = await fetch(API_BASE + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw await res.json().catch(() => ({ error: 'Network error' }));
+  return res.json();
+}
+
+async function apiPut(path, body) {
+  const res = await fetch(API_BASE + path, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw await res.json().catch(() => ({ error: 'Network error' }));
+  return res.json();
+}
+
+// ===== compatibility stub for old syncState() calls =====
+// Many parts of the UI still call syncState(); keep a no-op so code doesn't break.
+// When using real endpoints we replace specific calls with apiPost/apiPut.
+const syncState = () => {
+  // no-op: sync handled by dedicated API calls (loadPosts / apiPut / apiPost)
+  return Promise.resolve();
+};
+// ===== session restore (recreate session from localStorage) =====
+const restoreSession = () => {
+  const raw = localStorage.getItem(SESSION_KEY);
+  if (!raw) return;
+  try {
+    const s = JSON.parse(raw);
+    if (!s.name) return;
+    // recreate a minimal currentUser record (server will be authoritative)
+    state.currentUser = {
+      id: s.id || Date.now(),
+      name: s.name,
+      email: s.email || "",
+      role: s.role || "user"
+    };
+    updateAuthUI();
+  } catch (e) {
+    console.log("session restore error", e);
+  }
+};
+
+// ===== loadState (keeps the call you already have) =====
+const loadState = async () => {
+  // restore local session first (so user UI appears while posts load)
+  restoreSession();
+  // then load posts from server
+  await loadPosts();
+  // choose which section to show
+  const last = localStorage.getItem(LAST_SECTION_KEY) || "landing";
+  if (!state.currentUser && PROTECTED_SECTIONS.includes(last)) {
+    showSection("landing");
+  } else {
+    showSection(last);
+  }
+};
+
+
 const SESSION_KEY = "ccx_session_v1";
 const LAST_SECTION_KEY = "ccx_last_section_v1";
 const PROTECTED_SECTIONS = ["feed", "upload", "calculator", "admin", "inbox"];
@@ -60,95 +128,29 @@ const normalizeRole = (name, role) =>
   name.trim().toLowerCase() === "bajaish" && role === "admin" ? "admin" : "user";
 
 // ===== backend sync =====
-const syncState = () => {
-  fetch(API_BASE + "/api/state", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ users: state.users, posts: state.posts })
-  }).catch(err => console.log("sync error", err));
-};
-
-const applyRemoteState = data => {
-  state.users = Array.isArray(data.users) ? data.users : [];
-  state.posts = Array.isArray(data.posts) ? data.posts : [];
-  renderFeed();
-  renderUserListings();
-  renderInbox();
-  renderAdmin();
-  if (!chatModal.classList.contains("hidden") && currentChatPostId) {
-    const p = state.posts.find(
-      x => String(x.id) === String(currentChatPostId)
-    );
-    if (p) renderChatMessages(p);
-  }
-};
-
-const restoreSession = () => {
-  const raw = localStorage.getItem(SESSION_KEY);
-  if (!raw) return;
-
+// Load posts from MongoDB
+// Load posts from backend (uses apiGet helper)
+const loadPosts = async () => {
   try {
-    const s = JSON.parse(raw);
-    if (!s.name) return;
-
-    // Try to find user in backend state
-    let u = state.users.find(
-      x => x.name.toLowerCase() === s.name.toLowerCase()
-    );
-
-    // If backend restarted and user isn't in state → reinsert the user
-    if (!u) {
-      u = {
-        id: Date.now(),
-        name: s.name,
-        email: s.email || "",
-        role: s.role || "user",
-        createdAt: Date.now()
-      };
-      state.users.push(u);
-      syncState(); // permanently restore user to backend
-    }
-
-    state.currentUser = {
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      role: s.role || u.role
-    };
-
-    updateAuthUI();
-
-  } catch (e) {
-    console.log("session restore error", e);
+    const posts = await apiGet("/api/posts");
+    // normalize to use .id where possible (older client code uses p.id)
+    state.posts = (Array.isArray(posts) ? posts : []).map(p => {
+      // keep both _id and id for compatibility
+      if (!p.id && p._id) p.id = p._id;
+      return p;
+    });
+    renderFeed();
+    renderUserListings();
+    renderInbox();
+    renderAdmin();
+  } catch (err) {
+    console.log("posts load error", err);
   }
 };
 
 
-const loadState = () => {
-  fetch(API_BASE + "/api/state")
-    .then(r => r.json())
-    .then(data => {
-      applyRemoteState(data);   // sets users/posts + renders
-      restoreSession();         // restores currentUser from local session
+// After login, call loadPosts()
 
-      // decide which section to show after data + session are ready
-      const last = localStorage.getItem(LAST_SECTION_KEY) || "landing";
-      if (!state.currentUser && PROTECTED_SECTIONS.includes(last)) {
-        showSection("landing");         // not logged in → send to landing
-      } else {
-        showSection(last);              // stay where you were
-      }
-    })
-    .catch(err => console.log("load error", err));
-};
-
-
-const refreshFromServer = () => {
-  fetch(API_BASE + "/api/state")
-    .then(r => r.json())
-    .then(applyRemoteState)
-    .catch(err => console.log("refresh error", err));
-};
 
 // ===== DOM refs =====
 const userBadge = qs("userBadge");
@@ -604,78 +606,51 @@ const switchAuthTab = mode => {
 on(tabRegister, "click", () => switchAuthTab("register"));
 on(tabLogin, "click", () => switchAuthTab("login"));
 
-on(registerForm, "submit", e => {
+on(registerForm, "submit", async e => {
   e.preventDefault();
   const name = qs("regName").value.trim();
   const email = qs("regEmail").value.trim();
-  const requestedRole = qs("regRole").value;
-  if (!name || !email) return;
-  if (!email.toLowerCase().endsWith("@gmail.com"))
-    return alert("Please enter a valid Gmail address.");
-  if (state.users.some(u => u.name.toLowerCase() === name.toLowerCase())) {
-    alert("User already registered. Please login.");
-    return switchAuthTab("login");
-  }
-  let role = normalizeRole(name, requestedRole);
-  if (requestedRole === "admin" && role !== "admin") {
-    alert("Only authorised access allowed, try using User role.");
-    role = "user";
-  }
-  state.users.push({ id: Date.now(), name, email, role, createdAt: Date.now() });
-  syncState();
+  const password = qs("regPass").value.trim();
+
+  if (!name || !email || !password) return alert("Fill all fields.");
+
+  const res = await fetch(API_BASE + "/api/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, email, password })
+  });
+
+  const data = await res.json();
+  if (data.error) return alert(data.error);
+
   alert("Registration successful. Please login.");
   switchAuthTab("login");
 });
-
-on(loginForm, "submit", e => {
+on(loginForm, "submit", async e => {
   e.preventDefault();
   const name = qs("loginName").value.trim();
+  const password = qs("loginPass").value.trim();
   const loginRole = qs("loginRole").value;
 
-  if (!name) return alert("Enter a username.");
+  const res = await fetch(API_BASE + "/api/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, password, loginRole })
+  });
 
-  // Try find user
-  let user = state.users.find(u => u.name.toLowerCase() === name.toLowerCase());
+  const data = await res.json();
+  if (data.error) return alert(data.error);
 
-  // If backend rebooted → restore user from localStorage
-  if (!user) {
-    const cached = JSON.parse(localStorage.getItem(SESSION_KEY) || "{}");
-    if (cached.name && cached.name.toLowerCase() === name.toLowerCase()) {
-      user = {
-        id: Date.now(),
-        name: cached.name,
-        email: cached.email || "",
-        role: cached.role || "user",
-        createdAt: Date.now()
-      };
-      state.users.push(user);
-      syncState();
-    } else {
-      return alert("User not found. Please register.");
-    }
-  }
-
-  if (loginRole === "admin" && name.toLowerCase() !== "bajaish")
-    return alert("Only authorised access allowed, try logging in as User.");
-
-  const role =
-    loginRole === "admin" && name.toLowerCase() === "bajaish"
-      ? "admin"
-      : "user";
-
-  // save session
-  state.currentUser = {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role
-  };
+  state.currentUser = data;
   saveSession();
   updateAuthUI();
 
   qs("loginModal").classList.add("hidden");
+
+  loadPosts();
   showSection("feed");
 });
+
 
 
 on(qs("logoutBtn"), "click", () => {
@@ -705,39 +680,43 @@ on(uploadForm, "submit", e => {
   if (!title || !desc) return;
 
   const finish = img => {
-    if (isEdit) {
-      const post = state.posts.find(p => String(p.id) === String(editPostId));
-      if (!post) return;
-      post.title = title;
-      post.desc = desc;
-      post.price = price;
-      post.credits = credits;
-      if (img) post.image = img;
-      syncState();
-      renderFeed();
-      renderUserListings();
-      alert("Listing updated.");
+        if (isEdit) {
+      // server expects PUT /api/posts/:id
+      try {
+        const postLocal = state.posts.find(p => String(p.id) === String(editPostId) || String(p._id) === String(editPostId));
+        if (!postLocal) return alert("Post not found for edit.");
+        const idToUse = postLocal._id || postLocal.id;
+        const updated = await apiPut(`/api/posts/${idToUse}`, {
+          title, desc, price, credits, image: img ? img : postLocal.image
+        });
+        // update local cache and re-render
+        const idx = state.posts.findIndex(p => String(p._id || p.id) === String(idToUse));
+        if (idx !== -1) state.posts[idx] = updated;
+        renderFeed();
+        renderUserListings();
+        alert("Listing updated.");
+      } catch (err) {
+        console.error("update post error", err);
+        alert("Failed to update listing.");
+      }
     } else {
-      state.posts.unshift({
-        id: Date.now(),
-        title,
-        desc,
-        image: img,
-        user: state.currentUser.name,
-        likes: 0,
-        likedBy: [],
-        comments: [],
-        chatMessages: [],
-        status: "active",
-        price,
-        credits,
-        createdAt: Date.now()
-      });
-      syncState();
-      renderFeed();
-      renderUserListings();
-      alert("Listing uploaded.");
+      try {
+        const created = await apiPost("/api/posts", {
+          title, desc, image: img || "", user: state.currentUser.name,
+          likes: 0, likedBy: [], comments: [], chatMessages: [], status: "active", price, credits, createdAt: Date.now()
+        });
+        // server returns created post; normalize id
+        if (!created.id && created._id) created.id = created._id;
+        state.posts.unshift(created);
+        renderFeed();
+        renderUserListings();
+        alert("Listing uploaded.");
+      } catch (err) {
+        console.error("create post error", err);
+        alert("Failed to upload listing.");
+      }
     }
+
     uploadForm.reset();
     editPostId = null;
     uploadFormBtn.textContent = "Upload Listing";
@@ -779,17 +758,28 @@ on(feedContainer, "click", e => {
     if (!requireLogin()) return;
     const post = state.posts.find(p => String(p.id) === String(likeId));
     if (!post) return;
-    post.likedBy ||= [];
-    const idx = post.likedBy.indexOf(state.currentUser.name);
-    if (idx === -1) {
-      post.likedBy.push(state.currentUser.name);
-      post.likes = (post.likes || 0) + 1;
-    } else {
-      post.likedBy.splice(idx, 1);
-      post.likes = Math.max(0, (post.likes || 0) - 1);
+      try {
+      post.likedBy ||= [];
+      const me = state.currentUser.name;
+      const idx = post.likedBy.indexOf(me);
+      if (idx === -1) {
+        post.likedBy.push(me);
+        post.likes = (post.likes || 0) + 1;
+      } else {
+        post.likedBy.splice(idx, 1);
+        post.likes = Math.max(0, (post.likes || 0) - 1);
+      }
+      const idToUse = post._id || post.id;
+      const updated = await apiPut(`/api/posts/${idToUse}`, { likedBy: post.likedBy, likes: post.likes });
+      // update local copy
+      const i = state.posts.findIndex(p => String(p._id || p.id) === String(idToUse));
+      if (i !== -1) state.posts[i] = updated;
+      renderFeed();
+    } catch (err) {
+      console.error("like update failed", err);
+      alert("Failed to update like.");
     }
-    syncState();
-    renderFeed();
+
   }
 
   if (commentId) {
@@ -801,11 +791,20 @@ on(feedContainer, "click", e => {
     );
     const text = input.value.trim();
     if (!text) return;
-    post.comments ||= [];
-    post.comments.push({ by: state.currentUser.name, text });
-    input.value = "";
-    syncState();
-    renderFeed();
+        try {
+      post.comments ||= [];
+      post.comments.push({ by: state.currentUser.name, text, time: Date.now() });
+      const idToUse = post._id || post.id;
+      const updated = await apiPut(`/api/posts/${idToUse}`, { comments: post.comments });
+      const i = state.posts.findIndex(p => String(p._id || p.id) === String(idToUse));
+      if (i !== -1) state.posts[i] = updated;
+      input.value = "";
+      renderFeed();
+    } catch (err) {
+      console.error("comment error", err);
+      alert("Failed to post comment.");
+    }
+
   }
 
   if (chatId) {
@@ -821,12 +820,20 @@ on(adminList, "click", e => {
   const viewChatId = e.target.dataset.viewchat;
 
   if (toggleId) {
-    const post = state.posts.find(p => String(p.id) === String(toggleId));
-    if (!post) return;
-    post.status = post.status === "removed" ? "active" : "removed";
-    syncState();
-    renderFeed();
-    renderAdmin();
+       try {
+      const post = state.posts.find(p => String(p.id) === String(toggleId) || String(p._id) === String(toggleId));
+      if (!post) return;
+      const idToUse = post._id || post.id;
+      const newStatus = post.status === "removed" ? "active" : "removed";
+      const updated = await apiPut(`/api/posts/${idToUse}`, { status: newStatus });
+      const idx = state.posts.findIndex(p => String(p._id || p.id) === String(idToUse));
+      if (idx !== -1) state.posts[idx] = updated;
+      renderFeed();
+      renderAdmin();
+    } catch (err) {
+      console.error("toggle post error", err);
+      alert("Failed to change status.");
+    }
   }
 
   if (delUserId) {
@@ -870,19 +877,27 @@ on(inboxList, "click", e => {
 });
 
 // ===== CHAT =====
-const openChatForPost = postId => {
+const openChatForPost = async postId => {
   const post = state.posts.find(p => String(p.id) === String(postId));
   if (!post) return;
   adminViewChat = false;
   chatForm.classList.remove("hidden");
   post.chatMessages ||= [];
   // mark incoming as seen for this user
+    // mark incoming as seen for this user (try server-side first; fallback to local)
   if (state.currentUser) {
-    post.chatMessages.forEach(m => {
-      if (m.from !== state.currentUser.name) m.seen = true;
-    });
-    syncState();
+    try {
+      await apiPut(`/api/posts/${post._id || post.id}/chat/mark-seen`, { receiver: state.currentUser.name });
+      // refresh posts (server returns updated seen flags)
+      await loadPosts();
+    } catch (err) {
+      // fallback: mark locally if server call fails
+      post.chatMessages.forEach(m => {
+        if (m.from !== state.currentUser.name) m.seen = true;
+      });
+    }
   }
+
   currentChatPostId = post.id;
   chatPostTitle.textContent = `Chat about: ${post.title}`;
   renderChatMessages(post);
@@ -995,7 +1010,8 @@ on(qs("calcLandBtn"), "click", () => {
 // ===== INITIAL LOAD + polling for near-realtime chat =====
 updateAuthUI();
 loadState();                  // loadState will decide which section to show
-setInterval(refreshFromServer, 1000);
+setInterval(loadPosts, 1000);
+
 
 
 
