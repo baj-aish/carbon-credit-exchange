@@ -646,22 +646,36 @@ on(tabLogin, "click", () => switchAuthTab("login"));
 
 on(registerForm, "submit", async e => {
   e.preventDefault();
+
   const name = qs("regName").value.trim();
   const email = qs("regEmail").value.trim();
   const password = qs("regPass").value.trim();
   if (!name || !email || !password) return alert("Fill all fields.");
 
   try {
-    const res = await fetch(API_BASE + "/api/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password })
-    });
-    const data = await res.json();
+    const data = await apiPost("/api/register", { name, email, password });
+
+    // Check for error
     if (data.error) return alert(data.error);
+    if (data.message) alert(data.message); // backend might return success message
+
+    // Add user to local state so admin tab updates
+    state.users.push({
+      id: data.id || data._id || Date.now(),
+      name,
+      email,
+      role: "user"
+    });
 
     alert("Registration successful. Please login.");
+
     switchAuthTab("login"); // auto switch
+    qs("regName").value = "";
+    qs("regEmail").value = "";
+    qs("regPass").value = "";
+
+    renderAdmin(); // refresh admin tab if open
+
   } catch (err) {
     console.error("register error", err);
     alert("Failed to register. Try again.");
@@ -1090,6 +1104,7 @@ restoreSession();   // restore logged-in user first
 updateAuthUI();     // now UI knows whether protected buttons should show
 loadState();        // loads posts + last section
 setInterval(loadPosts, 1000);
+
 
 
 
