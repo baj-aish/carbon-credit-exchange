@@ -905,16 +905,17 @@ const openChatForPost = async postId => {
     // mark incoming as seen for this user (try server-side first; fallback to local)
   if (state.currentUser) {
     try {
-      await apiPut(`/api/posts/${post._id || post.id}/chat/mark-seen`, { receiver: state.currentUser.name });
-      // refresh posts (server returns updated seen flags)
-      await loadPosts();
-    } catch (err) {
-      // fallback: mark locally if server call fails
-      post.chatMessages.forEach(m => {
-        if (m.from !== state.currentUser.name) m.seen = true;
-      });
-    }
-  }
+  await apiPut(`/api/posts/${post._id || post.id}/chat/mark-seen`, {
+    receiver: state.currentUser.name
+  });
+
+  await loadPosts(); // reload with updated seen flags
+} catch (err) {
+  post.chatMessages.forEach(m => {
+    if (m.from !== state.currentUser.name) m.seen = true;
+  });
+}
+ }
 
   currentChatPostId = post.id;
   chatPostTitle.textContent = `Chat about: ${post.title}`;
@@ -966,25 +967,44 @@ on(qs("closeChat"), "click", () => {
 
 on(chatForm, "submit", async e => {
   e.preventDefault();
-  if (adminViewChat) return; // admin read-only view
+  if (adminViewChat) return;
   if (!requireLogin() || !currentChatPostId) return;
+
   const text = chatInput.value.trim();
   if (!text) return;
-  const post = state.posts.find(p => String(p.id) === String(currentChatPostId));
+
+  const post = state.posts.find(
+    p => String(p.id) === String(currentChatPostId)
+  );
   if (!post) return;
-  post.chatMessages ||= [];
-  post.chatMessages.push({
+
+  const message = {
     id: Date.now(),
     from: state.currentUser.name,
     text,
     time: Date.now(),
     seen: false
-  });
-  syncState();
-  chatInput.value = "";
-  renderChatMessages(post);
-  updateUnreadIndicator();
+  };
+
+  try {
+    // SEND MESSAGE TO SERVER
+    await apiPut(`/api/posts/${post._id || post.id}/chat`, {
+      newMessage: message
+    });
+
+    // Refresh from server so unread indicators update correctly
+    await loadPosts();
+
+    chatInput.value = "";
+    const updated = state.posts.find(p => p.id === post.id);
+    renderChatMessages(updated);
+    updateUnreadIndicator();
+  } catch (err) {
+    console.error("chat send error", err);
+    alert("Failed to send message.");
+  }
 });
+
 
 // ===== CALCULATOR =====
 qsa('input[name="calcMethod"]').forEach(r =>
@@ -1030,6 +1050,7 @@ restoreSession();   // restore logged-in user first
 updateAuthUI();     // now UI knows whether protected buttons should show
 loadState();        // loads posts + last section
 setInterval(loadPosts, 1000);
+
 
 
 
