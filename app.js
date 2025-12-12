@@ -644,43 +644,45 @@ const switchAuthTab = mode => {
 on(tabRegister, "click", () => switchAuthTab("register"));
 on(tabLogin, "click", () => switchAuthTab("login"));
 
-on(registerForm, "submit", async e => {
-  e.preventDefault();
+document.addEventListener("DOMContentLoaded", () => {
 
-  const name = qs("regName").value.trim();
-  const email = qs("regEmail").value.trim();
-  const password = qs("regPass").value.trim();
-  if (!name || !email || !password) return alert("Fill all fields.");
+  const registerForm = qs("registerForm");
+  if (registerForm) {
+    on(registerForm, "submit", async e => {
+      e.preventDefault();
+      const name = qs("regName").value.trim();
+      const email = qs("regEmail").value.trim();
+      const password = qs("regPass").value.trim();
+      if (!name || !email || !password) return alert("Fill all fields.");
 
-  try {
-    const data = await apiPost("/api/register", { name, email, password });
+      try {
+        const data = await apiPost("/api/register", { name, email, password });
+        if (data.error) return alert(data.error);
+        if (data.message) alert(data.message);
 
-    // Check for error
-    if (data.error) return alert(data.error);
-    if (data.message) alert(data.message); // backend might return success message
+        state.users.push({
+          id: data.id || data._id || Date.now(),
+          name,
+          email,
+          role: "user"
+        });
 
-    // Add user to local state so admin tab updates
-    state.users.push({
-      id: data.id || data._id || Date.now(),
-      name,
-      email,
-      role: "user"
+        alert("Registration successful. Please login.");
+        switchAuthTab("login");
+        qs("loginModal").classList.remove("hidden");
+        qs("regName").value = "";
+        qs("regEmail").value = "";
+        qs("regPass").value = "";
+        renderAdmin();
+      } catch (err) {
+        console.error("register error", err);
+        alert("Failed to register. Try again.");
+      }
     });
-
-    alert("Registration successful. Please login.");
-
-    switchAuthTab("login"); // auto switch
-    qs("regName").value = "";
-    qs("regEmail").value = "";
-    qs("regPass").value = "";
-
-    renderAdmin(); // refresh admin tab if open
-
-  } catch (err) {
-    console.error("register error", err);
-    alert("Failed to register. Try again.");
   }
+
 });
+
 
 on(loginForm, "submit", async e => {
   e.preventDefault();
@@ -1104,6 +1106,7 @@ restoreSession();   // restore logged-in user first
 updateAuthUI();     // now UI knows whether protected buttons should show
 loadState();        // loads posts + last section
 setInterval(loadPosts, 1000);
+
 
 
 
