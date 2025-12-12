@@ -620,7 +620,11 @@ const switchAuthTab = mode => {
   tabRegister.classList.toggle("bg-slate-900", !reg);
   tabLogin.classList.toggle("bg-slate-800", !reg);
   tabLogin.classList.toggle("bg-slate-900", reg);
+
+  // Ensure the login/register modal is visible when switching tabs
+  qs("loginModal").classList.remove("hidden");
 };
+
 on(tabRegister, "click", () => switchAuthTab("register"));
 on(tabLogin, "click", () => switchAuthTab("login"));
 
@@ -632,42 +636,71 @@ on(registerForm, "submit", async e => {
 
   if (!name || !email || !password) return alert("Fill all fields.");
 
-  const res = await fetch(API_BASE + "/api/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, email, password })
-  });
+  try {
+    const res = await fetch(API_BASE + "/api/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, password })
+    });
 
-  const data = await res.json();
-  if (data.error) return alert(data.error);
+    const data = await res.json();
+    if (data.error) return alert(data.error);
 
-  alert("Registration successful. Please login.");
-  switchAuthTab("login");
+    alert("Registration successful. Please login.");
+
+    // Switch to login tab
+    switchAuthTab("login");
+
+    // Make sure login modal is visible
+    qs("loginModal").classList.remove("hidden");
+
+    // Clear previous inputs
+    qs("regName").value = "";
+    qs("regEmail").value = "";
+    qs("regPass").value = "";
+  } catch (err) {
+    console.error("register error", err);
+    alert("Failed to register. Try again.");
+  }
 });
+
 on(loginForm, "submit", async e => {
   e.preventDefault();
   const name = qs("loginName").value.trim();
   const password = qs("loginPass").value.trim();
   const loginRole = qs("loginRole").value;
 
-  const res = await fetch(API_BASE + "/api/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, password, loginRole })
-  });
+  if (!name || !password) return alert("Enter username and password.");
 
-  const data = await res.json();
-  if (data.error) return alert(data.error);
+  try {
+    const res = await fetch(API_BASE + "/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, password, loginRole })
+    });
+    const data = await res.json();
+    if (data.error) return alert(data.error);
 
-  state.currentUser = data;
-  saveSession();
-  updateAuthUI();
+    state.currentUser = data;
+    saveSession();
+    updateAuthUI();
 
-  qs("loginModal").classList.add("hidden");
+    // Close login modal
+    qs("loginModal").classList.add("hidden");
 
-  loadPosts();
-  showSection("feed");
+    // Load posts and show feed
+    await loadPosts();
+    showSection("feed");
+
+    // Clear login inputs
+    qs("loginName").value = "";
+    qs("loginPass").value = "";
+  } catch (err) {
+    console.error("login error", err);
+    alert("Failed to login. Try again.");
+  }
 });
+
 
 
 
@@ -1050,6 +1083,7 @@ restoreSession();   // restore logged-in user first
 updateAuthUI();     // now UI knows whether protected buttons should show
 loadState();        // loads posts + last section
 setInterval(loadPosts, 1000);
+
 
 
 
