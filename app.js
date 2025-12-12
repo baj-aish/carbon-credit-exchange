@@ -45,7 +45,6 @@ const restoreSession = () => {
   try {
     const s = JSON.parse(raw);
     if (!s.name) return;
-    // recreate a minimal currentUser record (server will be authoritative)
     state.currentUser = {
       id: s.id || Date.now(),
       name: s.name,
@@ -58,6 +57,7 @@ const restoreSession = () => {
   }
 };
 
+
 // ===== loadState (keeps the call you already have) =====
 const loadState = async () => {
   // restore local session first (so user UI appears while posts load)
@@ -65,12 +65,14 @@ const loadState = async () => {
   // then load posts from server
   await loadPosts();
   // choose which section to show
-  const last = localStorage.getItem(LAST_SECTION_KEY) || "landing";
-  if (!state.currentUser && PROTECTED_SECTIONS.includes(last)) {
-    showSection("landing");
-  } else {
-    showSection(last);
-  }
+ const last = localStorage.getItem(LAST_SECTION_KEY) || "landing";
+if (state.currentUser) {
+  showSection(last === "landing" ? "feed" : last);
+} else if (PROTECTED_SECTIONS.includes(last)) {
+  showSection("landing");
+} else {
+  showSection(last);
+}
 };
 
 
@@ -115,7 +117,9 @@ const saveSession = () => {
     localStorage.setItem(
       SESSION_KEY,
       JSON.stringify({
+        id: state.currentUser.id || state.currentUser._id || Date.now(),
         name: state.currentUser.name,
+        email: state.currentUser.email || "",
         role: state.currentUser.role
       })
     );
@@ -123,6 +127,7 @@ const saveSession = () => {
     localStorage.removeItem(SESSION_KEY);
   }
 };
+
 
 const normalizeRole = (name, role) =>
   name.trim().toLowerCase() === "bajaish" && role === "admin" ? "admin" : "user";
@@ -621,9 +626,20 @@ const switchAuthTab = mode => {
   tabLogin.classList.toggle("bg-slate-800", !reg);
   tabLogin.classList.toggle("bg-slate-900", reg);
 
-  // Ensure the login/register modal is visible when switching tabs
+  // Ensure modal is visible
   qs("loginModal").classList.remove("hidden");
+
+  // Clear input fields
+  if (reg) {
+    qs("regName").value = "";
+    qs("regEmail").value = "";
+    qs("regPass").value = "";
+  } else {
+    qs("loginName").value = "";
+    qs("loginPass").value = "";
+  }
 };
+
 
 on(tabRegister, "click", () => switchAuthTab("register"));
 on(tabLogin, "click", () => switchAuthTab("login"));
@@ -633,7 +649,6 @@ on(registerForm, "submit", async e => {
   const name = qs("regName").value.trim();
   const email = qs("regEmail").value.trim();
   const password = qs("regPass").value.trim();
-
   if (!name || !email || !password) return alert("Fill all fields.");
 
   try {
@@ -642,22 +657,11 @@ on(registerForm, "submit", async e => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, email, password })
     });
-
     const data = await res.json();
     if (data.error) return alert(data.error);
 
     alert("Registration successful. Please login.");
-
-    // Switch to login tab
-    switchAuthTab("login");
-
-    // Make sure login modal is visible
-    qs("loginModal").classList.remove("hidden");
-
-    // Clear previous inputs
-    qs("regName").value = "";
-    qs("regEmail").value = "";
-    qs("regPass").value = "";
+    switchAuthTab("login"); // auto switch
   } catch (err) {
     console.error("register error", err);
     alert("Failed to register. Try again.");
@@ -669,7 +673,6 @@ on(loginForm, "submit", async e => {
   const name = qs("loginName").value.trim();
   const password = qs("loginPass").value.trim();
   const loginRole = qs("loginRole").value;
-
   if (!name || !password) return alert("Enter username and password.");
 
   try {
@@ -681,18 +684,21 @@ on(loginForm, "submit", async e => {
     const data = await res.json();
     if (data.error) return alert(data.error);
 
-    state.currentUser = data;
+    // normalize user object for local state
+    state.currentUser = {
+      id: data.id || data._id || Date.now(),
+      name: data.name,
+      email: data.email || "",
+      role: data.role
+    };
+
     saveSession();
     updateAuthUI();
-
-    // Close login modal
     qs("loginModal").classList.add("hidden");
 
-    // Load posts and show feed
     await loadPosts();
     showSection("feed");
 
-    // Clear login inputs
     qs("loginName").value = "";
     qs("loginPass").value = "";
   } catch (err) {
@@ -700,6 +706,7 @@ on(loginForm, "submit", async e => {
     alert("Failed to login. Try again.");
   }
 });
+
 
 
 
@@ -1083,6 +1090,7 @@ restoreSession();   // restore logged-in user first
 updateAuthUI();     // now UI knows whether protected buttons should show
 loadState();        // loads posts + last section
 setInterval(loadPosts, 1000);
+
 
 
 
