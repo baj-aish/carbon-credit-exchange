@@ -697,7 +697,7 @@ on(uploadForm, "submit", async e => {
   const isEdit = !!editPostId;
   if (!title || !desc) return;
 
-  const finish = img => {
+  const finish = async img => {
         if (isEdit) {
       // server expects PUT /api/posts/:id
       try {
@@ -1030,6 +1030,7 @@ restoreSession();   // restore logged-in user first
 updateAuthUI();     // now UI knows whether protected buttons should show
 loadState();        // loads posts + last section
 setInterval(loadPosts, 1000);
+
 
 
 
