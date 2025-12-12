@@ -296,34 +296,52 @@ const updateAuthUI = () => {
   const logoutBtn = qs("logoutBtn");
   const u = state.currentUser;
 
-  if (u) {
+ if (u) {
+    // user logged in
     loginBtn.classList.add("hidden");
     logoutBtn.classList.remove("hidden");
     userBadge.classList.remove("hidden");
+
     badgeName.textContent = u.name;
     badgeRole.textContent = u.role;
+
     heroLoginBtn?.classList.add("hidden");
     if (welcomeLine && welcomeName) {
       welcomeName.textContent = u.name;
       welcomeLine.classList.remove("hidden");
     }
+
+    // SHOW protected navigation
     qsa(".protected-nav").forEach(b => b.classList.remove("hidden"));
-    u.role === "admin"
-      ? adminTab.classList.remove("hidden")
-      : adminTab.classList.add("hidden");
+
+    // Admin tab only for admin
+    if (u.role === "admin") adminTab.classList.remove("hidden");
+    else adminTab.classList.add("hidden");
+
     feedFiltersBox?.classList.remove("hidden");
-  } else {
+} 
+else {
+    // user logged out
+    state.currentUser = null;
+
     loginBtn.classList.remove("hidden");
     logoutBtn.classList.add("hidden");
+
     userBadge.classList.add("hidden");
+    badgeName.textContent = "";
     badgeRole.textContent = "";
+
     heroLoginBtn?.classList.remove("hidden");
     welcomeLine?.classList.add("hidden");
+
+    // HIDE protected buttons
+    qsa(".protected-nav").forEach(b => b.classList.add("hidden"));
+
     adminTab.classList.add("hidden");
     feedFiltersBox?.classList.add("hidden");
-    qsa(".protected-nav").forEach(b => b.classList.add("hidden"));
-  }
-  updateUnreadIndicator();
+}
+
+updateUnreadIndicator();
 };
 
 // ===== FEED / ADMIN =====
@@ -558,7 +576,7 @@ const setListingMode = mode => {
 
 // ===== NAV + HERO =====
 qsa(".nav-btn").forEach(btn =>
-  on(btn, "click", () => {
+  on(btn, "click", async () => {
     const target = btn.dataset.section;
     if (!target) return;
     if (btn.classList.contains("protected-nav") && !requireLogin()) return;
@@ -668,7 +686,7 @@ on(createListingTab, "click", () => {
   if (requireLogin()) setListingMode("create");
 });
 
-on(uploadForm, "submit", e => {
+on(uploadForm, "submit", async e => {
   e.preventDefault();
   if (!requireLogin()) return;
   const title = qs("postTitle").value.trim();
@@ -749,7 +767,7 @@ on(userListingsBox, "click", e => {
 });
 
 // ===== FEED EVENTS =====
-on(feedContainer, "click", e => {
+on(feedContainer, "click", async e => {
   const likeId = e.target.dataset.like;
   const commentId = e.target.dataset.commentBtn;
   const chatId = e.target.dataset.chat;
@@ -814,7 +832,7 @@ on(feedContainer, "click", e => {
 });
 
 // ===== ADMIN EVENTS (remove user, toggle post, view chat) =====
-on(adminList, "click", e => {
+on(adminList, "click", async e => {
   const toggleId = e.target.dataset.toggle;
   const delUserId = e.target.dataset.deluser;
   const viewChatId = e.target.dataset.viewchat;
@@ -869,7 +887,7 @@ on(adminList, "click", e => {
 });
 
 // inbox → open chat (normal user)
-on(inboxList, "click", e => {
+on(inboxList, "click", async e => {
   const id = e.target.dataset.openChat;
   if (!id) return;
   if (!requireLogin()) return;
@@ -946,7 +964,7 @@ on(qs("closeChat"), "click", () => {
   chatForm.classList.remove("hidden");
 });
 
-on(chatForm, "submit", e => {
+on(chatForm, "submit", async e => {
   e.preventDefault();
   if (adminViewChat) return; // admin read-only view
   if (!requireLogin() || !currentChatPostId) return;
@@ -1008,9 +1026,12 @@ on(qs("calcLandBtn"), "click", () => {
 });
 
 // ===== INITIAL LOAD + polling for near-realtime chat =====
-updateAuthUI();
-loadState();                  // loadState will decide which section to show
+restoreSession();   // restore logged-in user first
+updateAuthUI();     // now UI knows whether protected buttons should show
+loadState();        // loads posts + last section
 setInterval(loadPosts, 1000);
+
+
 
 
 
