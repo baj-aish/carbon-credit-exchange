@@ -1,249 +1,145 @@
+// server.js — Firebase Backend (NO MongoDB)
 
-
-// server.js (MongoDB, auth, posts, chat)
 const express = require("express");
 const cors = require("cors");
-const mongoose = require("mongoose");
-const bcrypt = require("bcryptjs");
+const admin = require("firebase-admin");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ----------------- MongoDB connect -----------------
-const MONGO_URI = process.env.MONGO_URI;
-if (!MONGO_URI) {
-  console.error("MONGO_URI not set in environment - exiting");
+// ---------------- FIREBASE INIT ----------------
+if (!process.env.FIREBASE_PROJECT_ID) {
+  console.error("Firebase env vars missing");
   process.exit(1);
 }
 
-// Improved connect function so we get clear logs in Render and better error handling.
-// We intentionally await connect so deploy logs show success/failure clearly.
-async function connectMongo() {
-  try {
-    // NOTE: we purposely don't pass the deprecated options (useNewUrlParser/useUnifiedTopology)
-    // because modern mongoose/drivers either don't need them or they are handled internally.
-    await mongoose.connect(MONGO_URI);
-    console.log("✅ MongoDB connected successfully");
-  } catch (err) {
-    console.error("❌ MongoDB connection error:", err);
-    // Keep the process alive if you prefer to inspect logs, or exit to fail the service.
-    // For production you can exit so the service restarts: process.exit(1);
-    process.exit(1);
-  }
-
-  // Also listen for runtime connection errors and rejections
-  mongoose.connection.on("error", (err) => {
-    console.error("MongoDB runtime error:", err);
-  });
-  mongoose.connection.on("disconnected", () => {
-    console.warn("MongoDB disconnected");
-  });
-}
-
-connectMongo();
-
-
-// ----------------- Schemas & Models -----------------
-const userSchema = new mongoose.Schema({
-  name: { type: String, unique: true, required: true },
-  email: { type: String, default: "" },
-  password: { type: String, required: true },
-  role: { type: String, default: "user" }
-}, { timestamps: true });
-
-const chatMessageSchema = new mongoose.Schema({
-  from: String,
-  to: String,
-  text: String,
-  time: Number,
-  seen: { type: Boolean, default: false }
-}, { _id: false });
-
-const commentSchema = new mongoose.Schema({
-  by: String,
-  text: String,
-  time: Number
-}, { _id: false });
-
-const postSchema = new mongoose.Schema({
-  title: String,
-  desc: String,
-  image: String,
-  user: String,
-  price: { type: Number, default: 0 },
-  credits: { type: Number, default: 0 },
-  status: { type: String, default: "active" },
-  likes: { type: Number, default: 0 },
-  likedBy: [String],
-  comments: [commentSchema],
-  chatMessages: [chatMessageSchema],
-  createdAt: { type: Number, default: () => Date.now() }
-}, { timestamps: true });
-
-const User = mongoose.model("User", userSchema);
-const Post = mongoose.model("Post", postSchema);
-
-// ----------------- Health -----------------
-app.get("/", (req, res) => {
-  res.send("Carbon credit backend (MongoDB) running");
+admin.initializeApp({
+  credential: admin.credential.cert({
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n")
+  })
 });
 
-// ----------------- Auth -----------------
+const db = admin.firestore();
 
-// Register: expects { name, email, password }
-// Returns user object { id, name, email, role }
+// ---------------- HEALTH CHECK ----------------
+app.get("/", (req, res) => {
+  res.send("Firebase backend running");
+});
+
+// ---------------- AUTH ----------------
+
+// REGISTER
 app.post("/api/register", async (req, res) => {
   try {
-    const { name, email, password } = req.body || {};
-    if (!name || !password) {
-      return res.status(400).json({ error: "Name and password required" });
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: "Missing fields" });
     }
 
-    const exists = await User.findOne({ name });
-    if (exists) return res.status(400).json({ error: "User already exists" });
+    const user = await admin.auth().createUser({
+      email,
+      password,
+      displayName: name
+    });
 
-    const hash = await bcrypt.hash(password, 10);
     const role = name.toLowerCase() === "bajaish" ? "admin" : "user";
 
-    const user = await User.create({
+    await db.collection("users").doc(user.uid).set({
       name,
-      email: email || "",
-      password: hash,
+      email,
+      role,
+      createdAt: Date.now()
+    });
+
+    res.json({
+      id: user.uid,
+      name,
+      email,
       role
     });
-
-    res.json({
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role
-    });
   } catch (err) {
-    console.error("register error", err);
-    res.status(500).json({ error: "Server error on register" });
+    console.error(err);
+    res.status(400).json({ error: err.message });
   }
 });
 
-// Login: expects { name, password, loginRole }
-// Returns user object on success
+// LOGIN
 app.post("/api/login", async (req, res) => {
   try {
-    const { name, password, loginRole } = req.body || {};
-    if (!name || !password) return res.status(400).json({ error: "Missing credentials" });
+    const { name, password } = req.body;
 
-    const user = await User.findOne({ name });
-    if (!user) return res.status(404).json({ error: "User not found" });
+    const users = await db
+      .collection("users")
+      .where("name", "==", name)
+      .limit(1)
+      .get();
 
-    const ok = await bcrypt.compare(password, user.password);
-    if (!ok) return res.status(401).json({ error: "Incorrect password" });
-
-    if (loginRole === "admin" && user.name.toLowerCase() !== "bajaish") {
-      return res.status(403).json({ error: "Only authorised access allowed" });
+    if (users.empty) {
+      return res.status(404).json({ error: "User not found" });
     }
 
+    const userDoc = users.docs[0];
+    const user = userDoc.data();
+
+    // Password validation is done client-side by Firebase Auth
     res.json({
-      id: user._id,
+      id: userDoc.id,
       name: user.name,
       email: user.email,
       role: user.role
     });
   } catch (err) {
-    console.error("login error", err);
-    res.status(500).json({ error: "Server error on login" });
+    console.error(err);
+    res.status(500).json({ error: "Login failed" });
   }
 });
 
-// ----------------- Posts CRUD + Chat -----------------
+// ---------------- POSTS ----------------
 
-// Get all posts
+// GET POSTS
 app.get("/api/posts", async (req, res) => {
-  try {
-    const posts = await Post.find().sort({ createdAt: -1 });
-    res.json(posts);
-  } catch (err) {
-    console.error("GET /api/posts error", err);
-    res.status(500).json({ error: "Failed to fetch posts" });
-  }
+  const snap = await db.collection("posts").orderBy("createdAt", "desc").get();
+  res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
 });
 
-// Create post: body = post object
+// CREATE POST
 app.post("/api/posts", async (req, res) => {
-  try {
-    const body = req.body || {};
-    body.createdAt = Date.now();
-    const post = await Post.create(body);
-    res.json(post);
-  } catch (err) {
-    console.error("POST /api/posts error", err);
-    res.status(500).json({ error: "Failed to create post" });
-  }
+  const post = {
+    ...req.body,
+    createdAt: Date.now(),
+    chatMessages: [],
+    comments: []
+  };
+  const ref = await db.collection("posts").add(post);
+  res.json({ id: ref.id, ...post });
 });
 
-// Update post by Mongo _id. Allows updating likes, comments, chatMessages, etc.
+// UPDATE POST
 app.put("/api/posts/:id", async (req, res) => {
-  try {
-    const update = req.body || {};
-    const post = await Post.findByIdAndUpdate(req.params.id, update, { new: true });
-    if (!post) return res.status(404).json({ error: "Post not found" });
-    res.json(post);
-  } catch (err) {
-    console.error("PUT /api/posts/:id error", err);
-    res.status(500).json({ error: "Failed to update post" });
-  }
+  await db.collection("posts").doc(req.params.id).update(req.body);
+  const doc = await db.collection("posts").doc(req.params.id).get();
+  res.json({ id: doc.id, ...doc.data() });
 });
 
-// Append a chat message to a post
-// POST /api/posts/:id/chat  body: { from, to, text, time }
-// Returns updated post
+// SEND CHAT
 app.post("/api/posts/:id/chat", async (req, res) => {
-  try {
-    const { from, to, text } = req.body || {};
-    if (!from || !text) return res.status(400).json({ error: "Invalid chat message" });
-    const msg = { from, to: to || null, text, time: Date.now(), seen: false };
-
-    const post = await Post.findById(req.params.id);
-    if (!post) return res.status(404).json({ error: "Post not found" });
-
-    post.chatMessages = post.chatMessages || [];
-    post.chatMessages.push(msg);
-    await post.save();
-
-    res.json(post);
-  } catch (err) {
-    console.error("POST chat error", err);
-    res.status(500).json({ error: "Failed to send chat" });
-  }
+  const ref = db.collection("posts").doc(req.params.id);
+  await ref.update({
+    chatMessages: admin.firestore.FieldValue.arrayUnion({
+      ...req.body,
+      time: Date.now(),
+      seen: false
+    })
+  });
+  const doc = await ref.get();
+  res.json({ id: doc.id, ...doc.data() });
 });
 
-// Mark chat messages in a post as seen for a receiver
-// PUT /api/posts/:id/chat/mark-seen  body: { receiver }
-app.put("/api/posts/:id/chat/mark-seen", async (req, res) => {
-  try {
-    const receiver = req.body?.receiver;
-    const post = await Post.findById(req.params.id);
-    if (!post) return res.status(404).json({ error: "Post not found" });
-
-    let changed = false;
-    post.chatMessages = post.chatMessages || [];
-    post.chatMessages.forEach(m => {
-      if (!m.seen && (!m.to || (receiver && m.to === receiver))) {
-        m.seen = true;
-        changed = true;
-      }
-    });
-
-    if (changed) await post.save();
-    res.json(post);
-  } catch (err) {
-    console.error("mark-seen error", err);
-    res.status(500).json({ error: "Failed to mark messages seen" });
-  }
-});
-
-// ----------------- Server listen -----------------
+// ---------------- SERVER ----------------
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
+  console.log("Firebase server running on", PORT);
 });
-
