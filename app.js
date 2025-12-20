@@ -1,11 +1,11 @@
 // app.js
+
 const qs = id => document.getElementById(id);
 const qsa = sel => [...document.querySelectorAll(sel)];
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 
-// ⚠️ CHANGE THIS TO YOUR RENDER URL
+// ⚠️ YOUR RENDER BACKEND URL
 const API_BASE = "https://carbon-credit-exchange-backend.onrender.com"; 
-
 const SESSION_KEY = "ccx_session_v2";
 const LAST_SECTION_KEY = "ccx_last_section_v2";
 const PROTECTED_SECTIONS = ["feed", "upload", "calculator", "admin", "inbox"];
@@ -35,53 +35,6 @@ const saveSession = () => {
 };
 
 const updateAuthUI = () => {
-  // Add this logic inside your updateAuthUI function
-const updateAuthUI = () => {
-    // ... existing logic ...
-    // [NEW] Update Global Inbox Indicator
-    const indicator = qs("inboxIndicator");
-    if (state.currentUser && indicator) {
-        // Count total unread messages across ALL posts
-        let totalUnread = 0;
-        state.posts.forEach(p => {
-            if(p.chatMessages) {
-                p.chatMessages.forEach(m => {
-                   if(m.from !== state.currentUser.name && !m.seen) totalUnread++;
-                });
-            }
-        });
-        
-        if (totalUnread > 0) indicator.classList.remove("hidden");
-        else indicator.classList.add("hidden");
-    }
-};
-
-// Update renderInbox to show specific "New" badges on list items
-const renderInbox = () => {
-    const list = qs("inboxList");
-    if(!state.currentUser) return;
-    
-    const items = state.posts.filter(p => 
-        p.chatMessages?.length && (p.user === state.currentUser.name || p.chatMessages.some(m => m.from === state.currentUser.name))
-    );
-    
-    list.innerHTML = items.length ? items.map(p => {
-        const last = p.chatMessages[p.chatMessages.length-1];
-        // [NEW] Check if this specific thread has unread messages
-        const unreadCount = p.chatMessages.filter(m => m.from !== state.currentUser.name && !m.seen).length;
-        
-        return `<div onclick="window.openChat('${p.id}')" class="bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-pointer flex justify-between items-center hover:bg-slate-800">
-            <div>
-               <div class="text-sm font-bold text-emerald-100 flex items-center gap-2">
-                 ${p.title} 
-                 ${unreadCount > 0 ? `<span class="bg-red-500 text-white text-[9px] px-1.5 rounded-full">${unreadCount}</span>` : ''}
-               </div>
-               <div class="text-xs text-slate-400">Last: ${last.from}</div>
-            </div>
-            <div class="text-xs text-emerald-500">Open</div>
-        </div>`
-    }).join("") : `<p class="text-slate-400 text-sm">No messages yet.</p>`;
-};
   const u = state.currentUser;
   if (u) {
     qs("loginBtn").classList.add("hidden");
@@ -92,21 +45,23 @@ const renderInbox = () => {
     qs("heroLoginBtn").classList.add("hidden");
     
     // Greeting
-    qs("welcomeName").textContent = u.name;
-    qs("welcomeWrapper").classList.remove("hidden");
+    if(qs("welcomeName")) {
+        qs("welcomeName").textContent = u.name;
+        qs("welcomeLine").classList.remove("hidden");
+    }
     
     qsa(".protected-nav").forEach(b => b.classList.remove("hidden"));
     if (u.role === "admin") qs("adminTab").classList.remove("hidden");
     else qs("adminTab").classList.add("hidden");
-    qs("feedFilters").classList.remove("hidden");
+    if(qs("feedFilters")) qs("feedFilters").classList.remove("hidden");
   } else {
     qs("loginBtn").classList.remove("hidden");
     qs("logoutBtn").classList.add("hidden");
     qs("userBadge").classList.add("hidden");
     qs("heroLoginBtn").classList.remove("hidden");
-    qs("welcomeWrapper").classList.add("hidden");
+    if(qs("welcomeLine")) qs("welcomeLine").classList.add("hidden");
     qs("adminTab").classList.add("hidden");
-    qs("feedFilters").classList.add("hidden");
+    if(qs("feedFilters")) qs("feedFilters").classList.add("hidden");
     qsa(".protected-nav").forEach(b => b.classList.add("hidden"));
   }
 };
@@ -126,7 +81,6 @@ const fetchData = async () => {
     // 1. Get Posts
     const res = await fetch(API_BASE + "/api/posts");
     if(res.ok) state.posts = await res.json();
-    else console.log("Post fetch error:", res.status);
 
     // 2. Get Users (Only if admin)
     if(state.currentUser?.role === 'admin') {
@@ -176,12 +130,6 @@ on(qs("loginForm"), "submit", async e => {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, password }) 
     });
-    // Check Content-Type to avoid "<" JSON error
-    const contentType = res.headers.get("content-type");
-    if (!contentType || !contentType.includes("application/json")) {
-        throw new Error("Server error (Check console)");
-    }
-
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Login Failed");
 
@@ -210,11 +158,10 @@ on(qs("uploadForm"), "submit", async e => {
     let url = API_BASE + "/api/posts";
     let method = "POST";
     
-    // Edit Mode
     if(editPostId) {
         url += "/" + editPostId;
         method = "PUT";
-        if(!img) delete payload.image; // Don't overwrite if no new image
+        if(!img) delete payload.image; 
     } else if(!img) return alert("Image required for new listing");
 
     const res = await fetch(url, {
@@ -248,20 +195,20 @@ const renderFeed = () => {
     if(!state.posts.length) return con.innerHTML = "";
     
     let arr = state.posts.filter(p => p.status !== 'removed');
-    // Filters
     const pf = qs("priceFilter").value;
     if (pf === "low-high") arr.sort((a,b) => a.price - b.price);
     if (pf === "high-low") arr.sort((a,b) => b.price - a.price);
 
     con.innerHTML = arr.map(p => {
-      // 1. Badge & Time Logic
+      // Badge & Time
       const isMine = state.currentUser && p.user === state.currentUser.name;
       const timeStr = new Date(p.createdAt).toLocaleDateString() + " " + new Date(p.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
       const badge = isMine 
         ? `<span class="bg-emerald-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded ml-2">CREATED BY YOU</span>` 
         : '';
 
-      // 3. Unread Indicator Logic (Red Dot)
+      // Unread Indicator
+      const myName = state.currentUser?.name;
       const hasUnread = p.chatMessages?.some(m => m.from !== myName && !m.seen);
 
       return `
@@ -280,9 +227,8 @@ const renderFeed = () => {
              <span class="text-emerald-300 bg-emerald-900/30 px-2 py-0.5 rounded-full">${p.credits} Credits</span>
              <span class="text-white font-bold">₹${p.price}</span>
           </div>
-          
-          <div class="mt-auto flex justify-between gap-2">
-             <button onclick="window.openChat('${p.id}')" class="flex-1 py-1 bg-slate-800 text-xs rounded border border-slate-600 relative">
+          <div class="mt-auto">
+             <button onclick="window.openChat('${p.id}')" class="w-full py-2 bg-slate-800 text-xs rounded border border-slate-600 relative hover:bg-slate-700">
                 💬 Chat
                 ${ hasUnread ? '<span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-slate-900"></span>' : '' }
              </button>
@@ -291,7 +237,7 @@ const renderFeed = () => {
       </div>
     `}).join("");
     
-    // User Listings View
+    // User Listings
     if(!qs("userListings").classList.contains("hidden")) {
         const myPosts = state.posts.filter(p => p.user === state.currentUser?.name);
         qs("userListings").innerHTML = myPosts.map(p => `
@@ -303,39 +249,32 @@ const renderFeed = () => {
     }
 };
 
-
-    // Instant UI Update
-    renderFeed();
-
-    // Sync with Backend
-    await fetch(API_BASE + `/api/posts/${id}`, {
-        method: "PUT", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ 
-            likes: p.likes, 
-            likedBy: p.likedBy,
-            dislikes: p.dislikes,
-            dislikedBy: p.dislikedBy
-        })
-    });
-
-// [NEW] Helper to check unread messages for a specific post
-const hasUnreadForPost = (p) => {
-    if (!state.currentUser || !p.chatMessages) return false;
-    return p.chatMessages.some(m => m.from !== state.currentUser.name && !m.seen);
-};
 const renderInbox = () => {
     const list = qs("inboxList");
     if(!state.currentUser) return;
-    // Find posts where I am the owner OR I have sent a message
+    
     const items = state.posts.filter(p => 
         p.chatMessages?.length && (p.user === state.currentUser.name || p.chatMessages.some(m => m.from === state.currentUser.name))
     );
     
+    // Inbox Indicator Logic
+    const totalUnread = items.reduce((acc, p) => acc + p.chatMessages.filter(m => m.from !== state.currentUser.name && !m.seen).length, 0);
+    const ind = qs("inboxIndicator");
+    if(ind) {
+        if(totalUnread > 0) ind.classList.remove("hidden");
+        else ind.classList.add("hidden");
+    }
+
     list.innerHTML = items.length ? items.map(p => {
         const last = p.chatMessages[p.chatMessages.length-1];
+        const unreadCount = p.chatMessages.filter(m => m.from !== state.currentUser.name && !m.seen).length;
+        
         return `<div onclick="window.openChat('${p.id}')" class="bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-pointer flex justify-between items-center hover:bg-slate-800">
             <div>
-               <div class="text-sm font-bold text-emerald-100">${p.title}</div>
+               <div class="text-sm font-bold text-emerald-100 flex items-center gap-2">
+                 ${p.title} 
+                 ${unreadCount > 0 ? `<span class="bg-red-500 text-white text-[9px] px-1.5 rounded-full">${unreadCount}</span>` : ''}
+               </div>
                <div class="text-xs text-slate-400">Last: ${last.from}</div>
             </div>
             <div class="text-xs text-emerald-500">Open</div>
@@ -346,7 +285,6 @@ const renderInbox = () => {
 const renderAdmin = () => {
     if(state.currentUser?.role !== 'admin') return;
     
-    // ... existing users table logic ...
     const uHtml = state.users.map(u => `
         <tr class="text-xs border-b border-slate-700">
             <td class="p-2">${u.name}</td>
@@ -355,7 +293,6 @@ const renderAdmin = () => {
         </tr>
     `).join("");
 
-    // [NEW] Added View Chat Button
     const pHtml = state.posts.map(p => `
         <div class="flex justify-between items-center bg-slate-900 p-2 text-xs border border-slate-700 rounded mb-1">
             <div class="flex flex-col">
@@ -375,13 +312,13 @@ const renderAdmin = () => {
         <table class="w-full text-left">${uHtml}</table>
       </div>
       <div>
-        <h3 class="font-bold text-sm mb-2 text-emerald-400">Posts & Chats</h3>
+        <h3 class="font-bold text-sm mb-2 text-emerald-400">Posts</h3>
         ${pHtml}
       </div>
     `;
 };
 
-// --- CHAT & ACTIONS (Exposed to Window for HTML onclick) ---
+// --- CHAT & ACTIONS ---
 window.openChat = async (pid) => {
     if(!requireLogin()) return;
     const p = state.posts.find(x => x.id == pid);
@@ -390,32 +327,26 @@ window.openChat = async (pid) => {
     currentChatPostId = pid;
     qs("chatModal").classList.remove("hidden");
     qs("chatPostTitle").textContent = p.title;
-    
-    // Enable Chat Input (Normal User Mode)
     qs("chatForm").classList.remove("hidden"); 
 
-    // [NEW] Mark messages as seen immediately
     renderChatMessages(p);
+    
+    // Mark as seen
     await fetch(API_BASE + `/api/posts/${pid}/seen`, {
         method: "PUT", headers:{"Content-Type":"application/json"},
         body: JSON.stringify({ user: state.currentUser.name })
     });
-    // Trigger a fetch to update UI indicators
     fetchData();
 };
 
-// [NEW] Admin View Chat Function
 window.viewAdminChat = (pid) => {
     const p = state.posts.find(x => x.id == pid);
     if(!p) return;
     
-    currentChatPostId = null; // Prevent sending messages
+    currentChatPostId = null;
     qs("chatModal").classList.remove("hidden");
     qs("chatPostTitle").textContent = `Admin View: ${p.title}`;
-    
-    // Hide Chat Input (Read Only)
     qs("chatForm").classList.add("hidden"); 
-    
     renderChatMessages(p);
 };
 
@@ -426,6 +357,7 @@ const renderChatMessages = (p) => {
         return `<div class="flex ${isMe?'justify-end':'justify-start'}"><div class="px-2 py-1 rounded mb-1 text-xs max-w-[80%] ${isMe?'bg-emerald-600 text-white':'bg-slate-800 text-slate-300'}">
             <div class="font-bold opacity-50 text-[9px] mb-0.5">${m.from}</div>
             ${m.text}
+            <div class="text-[9px] opacity-60 text-right">${isMe && m.seen ? 'Seen' : ''}</div>
         </div></div>`;
     }).join("");
     box.scrollTop = box.scrollHeight;
@@ -440,25 +372,10 @@ on(qs("chatForm"), "submit", async e => {
         body: JSON.stringify({ from: state.currentUser.name, text })
     });
     qs("chatInput").value = "";
-    fetchData(); // Instant update
+    fetchData();
 });
 
-// Like / Edit / Delete Handlers
-window.likePost = async (id) => {
-    if(!requireLogin()) return;
-    const p = state.posts.find(x => x.id == id);
-    if(!p) return;
-    
-    // Optimistic UI update
-    p.likes = (p.likes || 0) + 1;
-    renderFeed();
-    
-    await fetch(API_BASE + `/api/posts/${id}`, {
-        method: "PUT", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ likes: p.likes })
-    });
-};
-
+// Edit / Delete Handlers
 window.editPost = (id) => {
     const p = state.posts.find(x => x.id == id);
     if(!p) return;
@@ -492,16 +409,16 @@ if(state.currentUser && lastSec) showSection(lastSec);
 else showSection("landing");
 
 fetchData();
-setInterval(fetchData, 3000); // Poll every 3 seconds
+setInterval(fetchData, 3000); 
 
-// UI Event Listeners
+// UI Listeners
 on(qs("loginBtn"), "click", () => qs("loginModal").classList.remove("hidden"));
 on(qs("closeLogin"), "click", () => qs("loginModal").classList.add("hidden"));
 on(qs("closeChat"), "click", () => qs("chatModal").classList.add("hidden"));
 on(qs("logoutBtn"), "click", () => {
     state.currentUser = null;
     saveSession();
-    AuthUI();
+    updateAuthUI();
     showSection("landing");
 });
 on(qs("heroExploreBtn"), "click", () => { if(requireLogin()) showSection("feed"); });
@@ -527,7 +444,6 @@ on(qs("calcTreesBtn"), "click", () => {
     qs("totalCredits").textContent = res.toFixed(2) + " Tons CO2";
 });
 on(qs("calcLandBtn"), "click", () => {
-    // Simple land formula (placeholder logic based on request)
     const factor = qs("landUnit").value === 'hectares' ? 6 : 2.4; 
     const res = qs("landArea").value * factor * qs("landYears").value;
     qs("calcResult").classList.remove("hidden");
@@ -535,7 +451,3 @@ on(qs("calcLandBtn"), "click", () => {
 });
 on(qs("priceFilter"), "change", renderFeed);
 on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
-
-
-
-
