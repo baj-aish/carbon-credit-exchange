@@ -34,6 +34,13 @@ function updateAuthUI() {
     qs("badgeRole").textContent = currentUser.role;
   }
 }
+function showSection(id) {
+  document.querySelectorAll(".section").forEach(s => {
+    s.classList.add("hidden");
+  });
+  const el = document.getElementById("section-" + id);
+  el && el.classList.remove("hidden");
+}
 
 
 // ---------- LOAD POSTS ----------
@@ -262,6 +269,7 @@ document.addEventListener("submit", async e => {
     qs("loginModal").classList.add("hidden");
   }
 });
+
 
 
 
