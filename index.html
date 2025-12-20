@@ -71,11 +71,11 @@
       <div id="feedFilters" class="hidden bg-slate-900 rounded-2xl shadow px-3 py-3 mb-3 flex flex-wrap gap-3 items-center text-xs sm:text-sm">
         <div class="flex flex-col">
           <span class="font-medium mb-1">Sort by price</span>
-          <select id="priceFilter" class="border border-slate-600 bg-slate-900 rounded-lg px-2 py-1"><option value="none">Default</option><option value="low-high">Low to High</option><option value="high-low">High to Low</option></select>
+          <select id="priceFilter" class="border border-slate-600 bg-slate-900 rounded-lg px-2 py-1 text-xs"><option value="none">Default</option><option value="low-high">Low to High</option><option value="high-low">High to Low</option></select>
         </div>
         <div class="flex flex-col">
           <span class="font-medium mb-1">Filter by credits</span>
-          <select id="creditsFilter" class="border border-slate-600 bg-slate-900 rounded-lg px-2 py-1"><option value="all">All</option><option value="1-10">1 - 10</option><option value="50+">50+</option></select>
+          <select id="creditsFilter" class="border border-slate-600 bg-slate-900 rounded-lg px-2 py-1 text-xs"><option value="all">All</option><option value="1-10">1 - 10</option><option value="50+">50+</option></select>
         </div>
       </div>
       <div id="feedContainer" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
@@ -162,14 +162,12 @@
         <input required id="regName" placeholder="Full Name" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2" />
         <input required id="regEmail" type="email" placeholder="Email" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2" />
         <input required id="regPass" type="password" placeholder="Password" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2" />
-        <select id="regRole" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2"><option value="user">User</option><option value="admin">Admin</option></select>
         <button class="w-full bg-blue-600 text-white py-2 rounded">Register</button>
       </form>
 
       <form id="loginForm" class="hidden space-y-3 mt-1">
         <input required id="loginName" placeholder="Username" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2" />
         <input required id="loginPass" type="password" placeholder="Password" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2" />
-        <select id="loginRole" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2"><option value="user">User</option><option value="admin">Admin</option></select>
         <button class="w-full bg-emerald-600 text-white py-2 rounded">Login</button>
       </form>
     </div>
