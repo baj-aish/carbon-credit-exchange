@@ -22,6 +22,19 @@ const updateAuthUI = () => {
     qs("badgeRole").textContent = currentUser.role;
   }
 };
+function updateAuthUI() {
+  const loggedIn = !!currentUser;
+
+  qs("loginBtn").classList.toggle("hidden", loggedIn);
+  qs("logoutBtn").classList.toggle("hidden", !loggedIn);
+  qs("userBadge").classList.toggle("hidden", !loggedIn);
+
+  if (loggedIn) {
+    qs("badgeName").textContent = currentUser.name;
+    qs("badgeRole").textContent = currentUser.role;
+  }
+}
+
 
 // ---------- LOAD POSTS ----------
 const loadPosts = async () => {
@@ -58,16 +71,16 @@ function bindEvents() {
   const closeLogin = qs("closeLogin");
   const loginModal = qs("loginModal");
 
-  loginBtn && (loginBtn.onclick = () => loginModal.classList.remove("hidden"));
-  heroLoginBtn && (heroLoginBtn.onclick = () => loginModal.classList.remove("hidden"));
-  closeLogin && (closeLogin.onclick = () => loginModal.classList.add("hidden"));
+//  loginBtn && (loginBtn.onclick = () => loginModal.classList.remove("hidden"));
+ // heroLoginBtn && (heroLoginBtn.onclick = () => loginModal.classList.remove("hidden"));
+ // closeLogin && (closeLogin.onclick = () => loginModal.classList.add("hidden"));
 
   // Forms
   const registerForm = qs("registerForm");
   const loginForm = qs("loginForm");
 
-  registerForm && (registerForm.onsubmit = registerUser);
-  loginForm && (loginForm.onsubmit = loginUser);
+//  registerForm && (registerForm.onsubmit = registerUser);
+//  loginForm && (loginForm.onsubmit = loginUser);
 
   // Logout
   const logoutBtn = qs("logoutBtn");
@@ -188,5 +201,68 @@ qs("logoutBtn").onclick = () => {
 // ---------- INIT ----------
 updateAuthUI();
 loadPosts();
+document.addEventListener("click", async e => {
+  const t = e.target;
+
+  // LOGIN OPEN
+  if (t.id === "loginBtn" || t.id === "heroLoginBtn") {
+    qs("loginModal").classList.remove("hidden");
+  }
+
+  // LOGIN CLOSE
+  if (t.id === "closeLogin") {
+    qs("loginModal").classList.add("hidden");
+  }
+
+  // LOGOUT
+  if (t.id === "logoutBtn") {
+    localStorage.removeItem("cc_user");
+    currentUser = null;
+    updateAuthUI();
+  }
+});
+document.addEventListener("submit", async e => {
+  e.preventDefault();
+
+  // REGISTER
+  if (e.target.id === "registerForm") {
+    const name = qs("regName").value.trim();
+    const email = qs("regEmail").value.trim();
+
+    if (!name || !email) return alert("Fill all fields");
+
+    const res = await fetch(API + "/api/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, password: "123456" })
+    });
+
+    if (!res.ok) return alert("Registration failed");
+
+    alert("Registered. Please login.");
+  }
+
+  // LOGIN
+  if (e.target.id === "loginForm") {
+    const name = qs("loginName").value.trim();
+    if (!name) return alert("Enter username");
+
+    const res = await fetch(API + "/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name })
+    });
+
+    if (!res.ok) return alert("User not found");
+
+    currentUser = await res.json();
+    localStorage.setItem("cc_user", JSON.stringify(currentUser));
+
+    updateAuthUI();
+    qs("loginModal").classList.add("hidden");
+  }
+});
+
+
 
 
