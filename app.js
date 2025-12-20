@@ -319,21 +319,6 @@ on(qs("chatForm"), "submit", async e => {
 });
 
 // Like / Edit / Delete Handlers
-window.likePost = async (id) => {
-    if(!requireLogin()) return;
-    const p = state.posts.find(x => x.id == id);
-    if(!p) return;
-    
-    // Optimistic UI update
-    p.likes = (p.likes || 0) + 1;
-    renderFeed();
-    
-    await fetch(API_BASE + `/api/posts/${id}`, {
-        method: "PUT", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ likes: p.likes })
-    });
-};
-
 window.editPost = (id) => {
     const p = state.posts.find(x => x.id == id);
     if(!p) return;
@@ -420,5 +405,6 @@ on(qs("calcLandBtn"), "click", () => {
 });
 on(qs("priceFilter"), "change", renderFeed);
 on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
+
 
 
