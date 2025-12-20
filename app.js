@@ -267,8 +267,22 @@ document.addEventListener("submit", async e => {
 
     updateAuthUI();
     qs("loginModal").classList.add("hidden");
+    function showSection(name) {
+  document.querySelectorAll(".section").forEach(sec => {
+    sec.classList.add("hidden");
+  });
+
+  const active = document.getElementById("section-" + name);
+  if (active) active.classList.remove("hidden");
+}
+// SHOW LANDING PAGE ON FIRST LOAD
+window.addEventListener("DOMContentLoaded", () => {
+  showSection("landing");
+});
+
   }
 });
+
 
 
 
