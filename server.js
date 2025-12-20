@@ -9,6 +9,18 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' })); 
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// ... imports
+
+// DEBUGGING LOGS (Remove these after fixing!)
+console.log("--- DEBUG ENV VARS ---");
+console.log("Project ID:", `"${process.env.FIREBASE_PROJECT_ID}"`); // Quotes added to show if extra spaces exist
+console.log("Email:", `"${process.env.FIREBASE_CLIENT_EMAIL}"`);
+console.log("Key Length:", process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.length : "MISSING");
+console.log("----------------------");
+
+// ---------------- FIREBASE INIT ----------------
+// ... rest of code
+
 // 2. Firebase Init
 if (!process.env.FIREBASE_PROJECT_ID) {
   console.error("❌ Error: Firebase environment variables missing.");
@@ -183,3 +195,4 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
