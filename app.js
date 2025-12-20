@@ -57,6 +57,10 @@ const normalizeRole = (name, role) =>
 name.trim().toLowerCase() === "bajaish" && role === "admin" ? "admin" : "user";
 
 // ===== backend sync =====
+// Function disabled because server does not support full state sync
+const syncState = () => { 
+  console.log("State sync is handled by individual API calls now."); 
+};
 // ===== backend data loaders =====
 const loadPosts = async () => {
 try {
@@ -72,18 +76,31 @@ console.error("Failed to load posts", e);
 }
 };
 
-const loadState = async () => {
-restoreSession();
-await loadPosts();
-
-const last = localStorage.getItem(LAST_SECTION_KEY) || "landing";
-if (!state.currentUser && PROTECTED_SECTIONS.includes(last)) {
-showSection("landing");
-} else {
-showSection(last);
-}
+const loadState = () => {
+  // 1. Restore user session from browser memory
+  restoreSession(); 
+  
+  // 2. Load posts from the real server endpoint
+  fetch(API_BASE + "/api/posts")
+    .then(r => r.json())
+    .then(data => {
+      // Server returns an array of posts, not a 'state' object
+      state.posts = Array.isArray(data) ? data : [];
+      
+      renderFeed();
+      renderUserListings();
+      renderInbox();
+      
+      // Navigate to correct section
+      const last = localStorage.getItem(LAST_SECTION_KEY) || "landing";
+      if (!state.currentUser && PROTECTED_SECTIONS.includes(last)) {
+        showSection("landing");
+      } else {
+        showSection(last);
+      }
+    })
+    .catch(err => console.log("load error", err));
 };
-
 
 const applyRemoteState = data => {
 state.users = Array.isArray(data.users) ? data.users : [];
@@ -161,10 +178,14 @@ showSection(last); // stay where you were
 
 
 const refreshFromServer = () => {
-fetch(API_BASE + "/api/state")
-.then(r => r.json())
-.then(applyRemoteState)
-.catch(err => console.log("refresh error", err));
+  fetch(API_BASE + "/api/posts")
+    .then(r => r.json())
+    .then(data => {
+      state.posts = Array.isArray(data) ? data : [];
+      renderFeed();
+      renderInbox();
+    })
+    .catch(err => console.log("refresh error", err));
 };
 
 // ===== DOM refs =====
@@ -991,3 +1012,4 @@ restoreSession();
 updateAuthUI();
 loadState();
 setInterval(loadPosts, 1000);
+
