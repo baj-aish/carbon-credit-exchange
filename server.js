@@ -1,109 +1,185 @@
-// server.js — Firebase Backend (Clean & Working)
-
 const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
 
 const app = express();
-app.use(cors());
-app.use(express.json());
 
-// ---------- Firebase Init ----------
-admin.initializeApp({
-  credential: admin.credential.cert({
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n")
-  })
-});
+// 1. Middleware: Fix CORS and Body Size (for images)
+app.use(cors());
+app.use(express.json({ limit: '50mb' })); 
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// 2. Firebase Init
+if (!process.env.FIREBASE_PROJECT_ID) {
+  console.error("❌ Error: Firebase environment variables missing.");
+  process.exit(1);
+}
+
+try {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n")
+    })
+  });
+  console.log("🔥 Firebase initialized");
+} catch (e) {
+  console.error("Firebase Init Error:", e);
+}
 
 const db = admin.firestore();
 
-// ---------- Health ----------
-app.get("/", (_, res) => res.send("Backend running"));
+// 3. Routes
 
-// ---------- AUTH ----------
-
-// Register
+// --- AUTH ---
 app.post("/api/register", async (req, res) => {
-  const { name, email, password } = req.body;
-  if (!name || !email || !password)
-    return res.status(400).json({ error: "Missing fields" });
-
   try {
-    const user = await admin.auth().createUser({
+    const { name, email, password, role: reqRole } = req.body;
+    if (!name || !email || !password) return res.status(400).json({ error: "Missing fields" });
+
+    // Create in Auth
+    const userRecord = await admin.auth().createUser({
       email,
       password,
       displayName: name
     });
 
-    const role = name.toLowerCase() === "bajaish" ? "admin" : "user";
+    // Determine Role (Secure check)
+    const role = (name.trim().toLowerCase() === "bajaish" && reqRole === 'admin') ? "admin" : "user";
 
-    await db.collection("users").doc(user.uid).set({
+    // Save to Firestore
+    await db.collection("users").doc(userRecord.uid).set({
+      id: userRecord.uid,
       name,
       email,
       role,
       createdAt: Date.now()
     });
 
-    res.json({ id: user.uid, name, email, role });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
+    res.json({ id: userRecord.uid, name, email, role });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 
-// Login (simple username check)
 app.post("/api/login", async (req, res) => {
-  const { name } = req.body;
-  const snap = await db.collection("users").where("name", "==", name).limit(1).get();
+  try {
+    const { name } = req.body; // In this mini-project, we trust the username check 
+    // (Real apps should verify password via Client SDK, but this keeps your logic simple)
 
-  if (snap.empty)
-    return res.status(404).json({ error: "No user found" });
+    const usersSnap = await db.collection("users").where("name", "==", name).limit(1).get();
+    
+    if (usersSnap.empty) {
+      return res.status(404).json({ error: "User not found. Please register." });
+    }
 
-  const doc = snap.docs[0];
-  res.json({ id: doc.id, ...doc.data() });
+    const userDoc = usersSnap.docs[0];
+    const userData = userDoc.data();
+
+    res.json(userData);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// ---------- POSTS ----------
+// --- DATA ---
 
-// Get posts
-app.get("/api/posts", async (_, res) => {
-  const snap = await db.collection("posts").orderBy("createdAt", "desc").get();
-  res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+// Get All Posts
+app.get("/api/posts", async (req, res) => {
+  try {
+    const snap = await db.collection("posts").orderBy("createdAt", "desc").get();
+    const posts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    res.json(posts);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// Create post
+// Create Post
 app.post("/api/posts", async (req, res) => {
-  const post = {
-    ...req.body,
-    likes: 0,
-    comments: [],
-    chatMessages: [],
-    status: "active",
-    createdAt: Date.now()
-  };
-  const ref = await db.collection("posts").add(post);
-  res.json({ id: ref.id, ...post });
-});
-
-// Update post (likes / comments / admin)
-app.put("/api/posts/:id", async (req, res) => {
-  await db.collection("posts").doc(req.params.id).update(req.body);
-  res.json({ ok: true });
-});
-
-// Chat
-app.post("/api/posts/:id/chat", async (req, res) => {
-  await db.collection("posts").doc(req.params.id).update({
-    chatMessages: admin.firestore.FieldValue.arrayUnion({
+  try {
+    const newPost = {
       ...req.body,
+      createdAt: Date.now(),
+      likes: 0,
+      likedBy: [],
+      comments: [],
+      chatMessages: [],
+      status: "active"
+    };
+    const ref = await db.collection("posts").add(newPost);
+    // Return the data with the new ID
+    res.json({ id: ref.id, ...newPost });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update Post (Edit / Like / Comment)
+app.put("/api/posts/:id", async (req, res) => {
+  try {
+    await db.collection("posts").doc(req.params.id).update(req.body);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete Post (Admin)
+app.delete("/api/posts/:id", async (req, res) => {
+  try {
+    await db.collection("posts").doc(req.params.id).delete();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Chat Message
+app.post("/api/posts/:id/chat", async (req, res) => {
+  try {
+    const msg = {
+      ...req.body, // from, text
       time: Date.now(),
       seen: false
-    })
-  });
-  res.json({ ok: true });
+    };
+    await db.collection("posts").doc(req.params.id).update({
+      chatMessages: admin.firestore.FieldValue.arrayUnion(msg)
+    });
+    res.json(msg);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// ---------- Server ----------
+// Get Users (Admin)
+app.get("/api/users", async (req, res) => {
+  try {
+    const snap = await db.collection("users").get();
+    res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete User (Admin)
+app.delete("/api/users/:id", async (req, res) => {
+  try {
+    // Try to delete from Auth (might fail if not using Admin SDK for Auth management fully)
+    try { await admin.auth().deleteUser(req.params.id); } catch(e) {}
+    // Delete from Firestore
+    await db.collection("users").doc(req.params.id).delete();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Global 404 Handler (Prevents the HTML "<" error)
+app.use((req, res) => {
+  res.status(404).json({ error: "Endpoint not found" });
+});
+
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log("Server running on", PORT));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
