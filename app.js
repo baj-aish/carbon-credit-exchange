@@ -400,6 +400,16 @@ on(qs("createListingTab"), "click", () => { qs("uploadWrapper").classList.remove
 on(qs("yourListingsTab"), "click", () => { qs("uploadWrapper").classList.add("hidden"); qs("userListings").classList.remove("hidden"); qs("yourListingsTab").classList.add("text-white","bg-slate-800"); qs("createListingTab").classList.remove("text-white","bg-slate-800"); });
 
 // Calculator
+
+// [NEW] Logic to switch between Tree and Land forms
+qsa('input[name="calcMethod"]').forEach(r =>
+  on(r, "change", () => {
+    const v = document.querySelector('input[name="calcMethod"]:checked').value;
+    qs("treeForm").classList.toggle("hidden", v !== "trees");
+    qs("landForm").classList.toggle("hidden", v !== "land");
+    qs("calcResult").classList.add("hidden");
+  })
+);
 on(qs("calcTreesBtn"), "click", () => {
     const res = (qs("treeCount").value * qs("treeType").value * qs("treeYears").value)/1000;
     qs("calcResult").classList.remove("hidden");
@@ -414,3 +424,4 @@ on(qs("calcLandBtn"), "click", () => {
 });
 on(qs("priceFilter"), "change", renderFeed);
 on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
+
