@@ -261,14 +261,6 @@ const renderFeed = () => {
         ? `<span class="bg-emerald-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded ml-2">CREATED BY YOU</span>` 
         : '';
 
-      // 2. Like/Dislike State Logic
-      const myName = state.currentUser?.name;
-      const liked = p.likedBy?.includes(myName);
-      const disliked = p.dislikedBy?.includes(myName);
-      
-      const likeClass = liked ? "bg-emerald-600 border-emerald-500 text-white" : "bg-slate-800 border-slate-600 text-slate-300";
-      const dislikeClass = disliked ? "bg-red-600 border-red-500 text-white" : "bg-slate-800 border-slate-600 text-slate-300";
-
       // 3. Unread Indicator Logic (Red Dot)
       const hasUnread = p.chatMessages?.some(m => m.from !== myName && !m.seen);
 
@@ -290,12 +282,6 @@ const renderFeed = () => {
           </div>
           
           <div class="mt-auto flex justify-between gap-2">
-             <button onclick="window.handleVote('${p.id}', 'like')" class="flex-1 py-1 text-xs rounded border ${likeClass}">
-                👍 ${p.likes||0}
-             </button>
-             <button onclick="window.handleVote('${p.id}', 'dislike')" class="flex-1 py-1 text-xs rounded border ${dislikeClass}">
-                👎 ${p.dislikes||0}
-             </button>
              <button onclick="window.openChat('${p.id}')" class="flex-1 py-1 bg-slate-800 text-xs rounded border border-slate-600 relative">
                 💬 Chat
                 ${ hasUnread ? '<span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-slate-900"></span>' : '' }
@@ -317,44 +303,6 @@ const renderFeed = () => {
     }
 };
 
-window.handleVote = async (id, type) => {
-    if(!requireLogin()) return;
-    const p = state.posts.find(x => x.id == id);
-    if(!p) return;
-
-    const me = state.currentUser.name;
-    p.likedBy = p.likedBy || [];
-    p.dislikedBy = p.dislikedBy || [];
-
-    if (type === 'like') {
-        if (p.likedBy.includes(me)) {
-            // Tap twice: Remove Like (Toggle off)
-            p.likedBy = p.likedBy.filter(u => u !== me);
-            p.likes = Math.max(0, (p.likes || 1) - 1);
-        } else {
-            // Tap once: Add Like (and remove Dislike if exists)
-            p.likedBy.push(me);
-            p.likes = (p.likes || 0) + 1;
-            if (p.dislikedBy.includes(me)) {
-                p.dislikedBy = p.dislikedBy.filter(u => u !== me);
-                p.dislikes = Math.max(0, (p.dislikes || 1) - 1);
-            }
-        }
-    } else if (type === 'dislike') {
-        if (p.dislikedBy.includes(me)) {
-            // Tap twice: Remove Dislike (Toggle off)
-            p.dislikedBy = p.dislikedBy.filter(u => u !== me);
-            p.dislikes = Math.max(0, (p.dislikes || 1) - 1);
-        } else {
-            // Tap once: Add Dislike (and remove Like if exists)
-            p.dislikedBy.push(me);
-            p.dislikes = (p.dislikes || 0) + 1;
-            if (p.likedBy.includes(me)) {
-                p.likedBy = p.likedBy.filter(u => u !== me);
-                p.likes = Math.max(0, (p.likes || 1) - 1);
-            }
-        }
-    }
 
     // Instant UI Update
     renderFeed();
@@ -588,5 +536,6 @@ on(qs("calcLandBtn"), "click", () => {
 });
 on(qs("priceFilter"), "change", renderFeed);
 on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
+
 
 
