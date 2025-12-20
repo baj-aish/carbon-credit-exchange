@@ -35,6 +35,53 @@ const saveSession = () => {
 };
 
 const updateAuthUI = () => {
+  // Add this logic inside your updateAuthUI function
+const updateAuthUI = () => {
+    // ... existing logic ...
+    // [NEW] Update Global Inbox Indicator
+    const indicator = qs("inboxIndicator");
+    if (state.currentUser && indicator) {
+        // Count total unread messages across ALL posts
+        let totalUnread = 0;
+        state.posts.forEach(p => {
+            if(p.chatMessages) {
+                p.chatMessages.forEach(m => {
+                   if(m.from !== state.currentUser.name && !m.seen) totalUnread++;
+                });
+            }
+        });
+        
+        if (totalUnread > 0) indicator.classList.remove("hidden");
+        else indicator.classList.add("hidden");
+    }
+};
+
+// Update renderInbox to show specific "New" badges on list items
+const renderInbox = () => {
+    const list = qs("inboxList");
+    if(!state.currentUser) return;
+    
+    const items = state.posts.filter(p => 
+        p.chatMessages?.length && (p.user === state.currentUser.name || p.chatMessages.some(m => m.from === state.currentUser.name))
+    );
+    
+    list.innerHTML = items.length ? items.map(p => {
+        const last = p.chatMessages[p.chatMessages.length-1];
+        // [NEW] Check if this specific thread has unread messages
+        const unreadCount = p.chatMessages.filter(m => m.from !== state.currentUser.name && !m.seen).length;
+        
+        return `<div onclick="window.openChat('${p.id}')" class="bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-pointer flex justify-between items-center hover:bg-slate-800">
+            <div>
+               <div class="text-sm font-bold text-emerald-100 flex items-center gap-2">
+                 ${p.title} 
+                 ${unreadCount > 0 ? `<span class="bg-red-500 text-white text-[9px] px-1.5 rounded-full">${unreadCount}</span>` : ''}
+               </div>
+               <div class="text-xs text-slate-400">Last: ${last.from}</div>
+            </div>
+            <div class="text-xs text-emerald-500">Open</div>
+        </div>`
+    }).join("") : `<p class="text-slate-400 text-sm">No messages yet.</p>`;
+};
   const u = state.currentUser;
   if (u) {
     qs("loginBtn").classList.add("hidden");
@@ -200,32 +247,48 @@ const renderFeed = () => {
     const con = qs("feedContainer");
     if(!state.posts.length) return con.innerHTML = "";
     
-    // Sort logic
     let arr = state.posts.filter(p => p.status !== 'removed');
+    // ... existing sort logic ...
     const pf = qs("priceFilter").value;
     if (pf === "low-high") arr.sort((a,b) => a.price - b.price);
     if (pf === "high-low") arr.sort((a,b) => b.price - a.price);
 
-    con.innerHTML = arr.map(p => `
+    con.innerHTML = arr.map(p => {
+      // [NEW] "Created by you" Logic & Time Format
+      const isMine = state.currentUser && p.user === state.currentUser.name;
+      const timeStr = new Date(p.createdAt).toLocaleDateString();
+      const badge = isMine 
+        ? `<span class="bg-emerald-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded ml-2">CREATED BY YOU</span>` 
+        : '';
+
+      return `
       <div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow flex flex-col">
         <img src="${p.image}" class="w-full h-44 object-cover">
         <div class="p-3 flex flex-col flex-1">
-          <h3 class="font-bold text-sm truncate">${p.title}</h3>
+          <div class="flex justify-between items-start mb-1">
+             <h3 class="font-bold text-sm truncate flex-1">${p.title}</h3>
+             ${badge}
+          </div>
+          <p class="text-[10px] text-slate-500 mb-2">
+             By ${p.user} • Posted on ${timeStr}
+          </p>
           <p class="text-xs text-slate-400 mb-2 truncate">${p.desc}</p>
           <div class="flex justify-between text-[11px] mb-2">
              <span class="text-emerald-300 bg-emerald-900/30 px-2 py-0.5 rounded-full">${p.credits} Credits</span>
              <span class="text-white font-bold">₹${p.price}</span>
           </div>
-          <p class="text-[10px] text-slate-500 mb-2">By ${p.user}</p>
           <div class="mt-auto flex justify-between gap-2">
              <button onclick="window.likePost('${p.id}')" class="flex-1 py-1 bg-slate-800 text-xs rounded border border-slate-600">❤️ ${p.likes||0}</button>
-             <button onclick="window.openChat('${p.id}')" class="flex-1 py-1 bg-slate-800 text-xs rounded border border-slate-600">💬 Chat</button>
+             <button onclick="window.openChat('${p.id}')" class="flex-1 py-1 bg-slate-800 text-xs rounded border border-slate-600 relative">
+                💬 Chat
+                ${ hasUnreadForPost(p) ? '<span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-slate-900"></span>' : '' }
+             </button>
           </div>
         </div>
       </div>
-    `).join("");
+    `}).join("");
     
-    // Also render "Your Listings" if active
+    // ... existing user listings logic ...
     if(!qs("userListings").classList.contains("hidden")) {
         const myPosts = state.posts.filter(p => p.user === state.currentUser?.name);
         qs("userListings").innerHTML = myPosts.map(p => `
@@ -237,6 +300,11 @@ const renderFeed = () => {
     }
 };
 
+// [NEW] Helper to check unread messages for a specific post
+const hasUnreadForPost = (p) => {
+    if (!state.currentUser || !p.chatMessages) return false;
+    return p.chatMessages.some(m => m.from !== state.currentUser.name && !m.seen);
+};
 const renderInbox = () => {
     const list = qs("inboxList");
     if(!state.currentUser) return;
@@ -260,6 +328,7 @@ const renderInbox = () => {
 const renderAdmin = () => {
     if(state.currentUser?.role !== 'admin') return;
     
+    // ... existing users table logic ...
     const uHtml = state.users.map(u => `
         <tr class="text-xs border-b border-slate-700">
             <td class="p-2">${u.name}</td>
@@ -268,10 +337,17 @@ const renderAdmin = () => {
         </tr>
     `).join("");
 
+    // [NEW] Added View Chat Button
     const pHtml = state.posts.map(p => `
         <div class="flex justify-between items-center bg-slate-900 p-2 text-xs border border-slate-700 rounded mb-1">
-            <span>${p.title} (by ${p.user})</span>
-            <button onclick="window.deletePost('${p.id}')" class="text-red-400 hover:text-red-300">Delete</button>
+            <div class="flex flex-col">
+                <span class="font-bold">${p.title}</span>
+                <span class="text-[10px] text-slate-400">By ${p.user} • ${p.chatMessages?.length || 0} msgs</span>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="window.viewAdminChat('${p.id}')" class="text-blue-400 hover:text-blue-300">View Chat</button>
+                <button onclick="window.deletePost('${p.id}')" class="text-red-400 hover:text-red-300">Delete</button>
+            </div>
         </div>
     `).join("");
 
@@ -281,20 +357,47 @@ const renderAdmin = () => {
         <table class="w-full text-left">${uHtml}</table>
       </div>
       <div>
-        <h3 class="font-bold text-sm mb-2 text-emerald-400">Posts</h3>
+        <h3 class="font-bold text-sm mb-2 text-emerald-400">Posts & Chats</h3>
         ${pHtml}
       </div>
     `;
 };
 
 // --- CHAT & ACTIONS (Exposed to Window for HTML onclick) ---
-window.openChat = (pid) => {
+window.openChat = async (pid) => {
     if(!requireLogin()) return;
     const p = state.posts.find(x => x.id == pid);
     if(!p) return;
+    
     currentChatPostId = pid;
     qs("chatModal").classList.remove("hidden");
     qs("chatPostTitle").textContent = p.title;
+    
+    // Enable Chat Input (Normal User Mode)
+    qs("chatForm").classList.remove("hidden"); 
+
+    // [NEW] Mark messages as seen immediately
+    renderChatMessages(p);
+    await fetch(API_BASE + `/api/posts/${pid}/seen`, {
+        method: "PUT", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ user: state.currentUser.name })
+    });
+    // Trigger a fetch to update UI indicators
+    fetchData();
+};
+
+// [NEW] Admin View Chat Function
+window.viewAdminChat = (pid) => {
+    const p = state.posts.find(x => x.id == pid);
+    if(!p) return;
+    
+    currentChatPostId = null; // Prevent sending messages
+    qs("chatModal").classList.remove("hidden");
+    qs("chatPostTitle").textContent = `Admin View: ${p.title}`;
+    
+    // Hide Chat Input (Read Only)
+    qs("chatForm").classList.add("hidden"); 
+    
     renderChatMessages(p);
 };
 
@@ -380,7 +483,7 @@ on(qs("closeChat"), "click", () => qs("chatModal").classList.add("hidden"));
 on(qs("logoutBtn"), "click", () => {
     state.currentUser = null;
     saveSession();
-    updateAuthUI();
+    AuthUI();
     showSection("landing");
 });
 on(qs("heroExploreBtn"), "click", () => { if(requireLogin()) showSection("feed"); });
@@ -414,3 +517,4 @@ on(qs("calcLandBtn"), "click", () => {
 });
 on(qs("priceFilter"), "change", renderFeed);
 on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
+
