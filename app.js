@@ -317,7 +317,6 @@ const renderFeed = () => {
             dislikedBy: p.dislikedBy
         })
     });
-};
 
 // [NEW] Helper to check unread messages for a specific post
 const hasUnreadForPost = (p) => {
@@ -536,6 +535,7 @@ on(qs("calcLandBtn"), "click", () => {
 });
 on(qs("priceFilter"), "change", renderFeed);
 on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
+
 
 
 
