@@ -108,17 +108,20 @@ app.get("/api/posts", async (req, res) => {
   }
 });
 
-// Create Post
+// CREATE POST
 app.post("/api/posts", async (req, res) => {
   try {
-    const newPost = {
+    const post = {
       ...req.body,
       createdAt: Date.now(),
+      // explicitly removed likes/dislikes/likedBy
+      chatMessages: [],
+      comments: [],
       status: "active"
     };
-    const ref = await db.collection("posts").add(newPost);
+    const ref = await db.collection("posts").add(post);
     // Return the data with the new ID
-    res.json({ id: ref.id, ...newPost });
+    res.json({ id: ref.id, ...post });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -226,6 +229,9 @@ app.put("/api/posts/:id/seen", async (req, res) => {
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+
+
 
 
 
