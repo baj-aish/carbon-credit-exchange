@@ -1,3 +1,4 @@
+alert("app.js is loaded");
 const API = "https://carbon-credit-exchange-backend.onrender.com";
 const qs = id => document.getElementById(id);
 
@@ -101,3 +102,4 @@ qs("logoutBtn").onclick = () => {
 // ---------- INIT ----------
 updateAuthUI();
 loadPosts();
+
