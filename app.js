@@ -248,18 +248,29 @@ const renderFeed = () => {
     if(!state.posts.length) return con.innerHTML = "";
     
     let arr = state.posts.filter(p => p.status !== 'removed');
-    // ... existing sort logic ...
+    // Filters
     const pf = qs("priceFilter").value;
     if (pf === "low-high") arr.sort((a,b) => a.price - b.price);
     if (pf === "high-low") arr.sort((a,b) => b.price - a.price);
 
     con.innerHTML = arr.map(p => {
-      // [NEW] "Created by you" Logic & Time Format
+      // 1. Badge & Time Logic
       const isMine = state.currentUser && p.user === state.currentUser.name;
-      const timeStr = new Date(p.createdAt).toLocaleDateString();
+      const timeStr = new Date(p.createdAt).toLocaleDateString() + " " + new Date(p.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
       const badge = isMine 
         ? `<span class="bg-emerald-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded ml-2">CREATED BY YOU</span>` 
         : '';
+
+      // 2. Like/Dislike State Logic
+      const myName = state.currentUser?.name;
+      const liked = p.likedBy?.includes(myName);
+      const disliked = p.dislikedBy?.includes(myName);
+      
+      const likeClass = liked ? "bg-emerald-600 border-emerald-500 text-white" : "bg-slate-800 border-slate-600 text-slate-300";
+      const dislikeClass = disliked ? "bg-red-600 border-red-500 text-white" : "bg-slate-800 border-slate-600 text-slate-300";
+
+      // 3. Unread Indicator Logic (Red Dot)
+      const hasUnread = p.chatMessages?.some(m => m.from !== myName && !m.seen);
 
       return `
       <div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow flex flex-col">
@@ -270,25 +281,31 @@ const renderFeed = () => {
              ${badge}
           </div>
           <p class="text-[10px] text-slate-500 mb-2">
-             By ${p.user} • Posted on ${timeStr}
+             By ${p.user} • ${timeStr}
           </p>
           <p class="text-xs text-slate-400 mb-2 truncate">${p.desc}</p>
           <div class="flex justify-between text-[11px] mb-2">
              <span class="text-emerald-300 bg-emerald-900/30 px-2 py-0.5 rounded-full">${p.credits} Credits</span>
              <span class="text-white font-bold">₹${p.price}</span>
           </div>
+          
           <div class="mt-auto flex justify-between gap-2">
-             <button onclick="window.likePost('${p.id}')" class="flex-1 py-1 bg-slate-800 text-xs rounded border border-slate-600">❤️ ${p.likes||0}</button>
+             <button onclick="window.handleVote('${p.id}', 'like')" class="flex-1 py-1 text-xs rounded border ${likeClass}">
+                👍 ${p.likes||0}
+             </button>
+             <button onclick="window.handleVote('${p.id}', 'dislike')" class="flex-1 py-1 text-xs rounded border ${dislikeClass}">
+                👎 ${p.dislikes||0}
+             </button>
              <button onclick="window.openChat('${p.id}')" class="flex-1 py-1 bg-slate-800 text-xs rounded border border-slate-600 relative">
                 💬 Chat
-                ${ hasUnreadForPost(p) ? '<span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-slate-900"></span>' : '' }
+                ${ hasUnread ? '<span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-slate-900"></span>' : '' }
              </button>
           </div>
         </div>
       </div>
     `}).join("");
     
-    // ... existing user listings logic ...
+    // User Listings View
     if(!qs("userListings").classList.contains("hidden")) {
         const myPosts = state.posts.filter(p => p.user === state.currentUser?.name);
         qs("userListings").innerHTML = myPosts.map(p => `
@@ -298,6 +315,60 @@ const renderFeed = () => {
             </div>
         `).join("");
     }
+};
+
+window.handleVote = async (id, type) => {
+    if(!requireLogin()) return;
+    const p = state.posts.find(x => x.id == id);
+    if(!p) return;
+
+    const me = state.currentUser.name;
+    p.likedBy = p.likedBy || [];
+    p.dislikedBy = p.dislikedBy || [];
+
+    if (type === 'like') {
+        if (p.likedBy.includes(me)) {
+            // Tap twice: Remove Like (Toggle off)
+            p.likedBy = p.likedBy.filter(u => u !== me);
+            p.likes = Math.max(0, (p.likes || 1) - 1);
+        } else {
+            // Tap once: Add Like (and remove Dislike if exists)
+            p.likedBy.push(me);
+            p.likes = (p.likes || 0) + 1;
+            if (p.dislikedBy.includes(me)) {
+                p.dislikedBy = p.dislikedBy.filter(u => u !== me);
+                p.dislikes = Math.max(0, (p.dislikes || 1) - 1);
+            }
+        }
+    } else if (type === 'dislike') {
+        if (p.dislikedBy.includes(me)) {
+            // Tap twice: Remove Dislike (Toggle off)
+            p.dislikedBy = p.dislikedBy.filter(u => u !== me);
+            p.dislikes = Math.max(0, (p.dislikes || 1) - 1);
+        } else {
+            // Tap once: Add Dislike (and remove Like if exists)
+            p.dislikedBy.push(me);
+            p.dislikes = (p.dislikes || 0) + 1;
+            if (p.likedBy.includes(me)) {
+                p.likedBy = p.likedBy.filter(u => u !== me);
+                p.likes = Math.max(0, (p.likes || 1) - 1);
+            }
+        }
+    }
+
+    // Instant UI Update
+    renderFeed();
+
+    // Sync with Backend
+    await fetch(API_BASE + `/api/posts/${id}`, {
+        method: "PUT", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ 
+            likes: p.likes, 
+            likedBy: p.likedBy,
+            dislikes: p.dislikes,
+            dislikedBy: p.dislikedBy
+        })
+    });
 };
 
 // [NEW] Helper to check unread messages for a specific post
@@ -517,4 +588,5 @@ on(qs("calcLandBtn"), "click", () => {
 });
 on(qs("priceFilter"), "change", renderFeed);
 on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
+
 
