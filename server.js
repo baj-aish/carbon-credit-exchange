@@ -193,6 +193,42 @@ app.use((req, res) => {
   res.status(404).json({ error: "Endpoint not found" });
 });
 
+// ... existing chat POST endpoint ...
+
+// [NEW] MARK MESSAGES AS SEEN
+app.put("/api/posts/:id/seen", async (req, res) => {
+  try {
+    const { user } = req.body; // The user who is reading the messages
+    const postRef = db.collection("posts").doc(req.params.id);
+    const doc = await postRef.get();
+    
+    if (!doc.exists) return res.status(404).json({ error: "Post not found" });
+    
+    const postData = doc.data();
+    const messages = postData.chatMessages || [];
+    
+    // Check if updates are actually needed to save database writes
+    let needsUpdate = false;
+    const updatedMessages = messages.map(msg => {
+        // If message is NOT from me, and it is NOT seen yet -> Mark it seen
+        if (msg.from !== user && !msg.seen) {
+            needsUpdate = true;
+            return { ...msg, seen: true };
+        }
+        return msg;
+    });
+
+    if (needsUpdate) {
+        await postRef.update({ chatMessages: updatedMessages });
+    }
+    
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
 
