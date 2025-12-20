@@ -7,7 +7,7 @@ const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 // app.js
 
 // 🔴 CHANGE THIS LINE:
-const API_BASE = "https://carbon-credit-exchange-backend.onrender.com"; 
+const API_BASE = ""; 
  
 const SESSION_KEY = "ccx_session_v1";
 const LAST_SECTION_KEY = "ccx_last_section_v1";
@@ -306,4 +306,5 @@ on(qs("calcTreesBtn"), "click", () => {
     qs("calcResult").classList.remove("hidden");
     qs("totalCredits").textContent = res.toFixed(2) + " Tons";
 });
+
 
