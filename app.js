@@ -1,9 +1,15 @@
-alert("app.js is loaded");
 const API = "https://carbon-credit-exchange-backend.onrender.com";
 const qs = id => document.getElementById(id);
 
 let currentUser = JSON.parse(localStorage.getItem("cc_user"));
 let posts = [];
+
+window.addEventListener("DOMContentLoaded", () => {
+  console.log("DOM READY");
+  bindEvents();
+  updateAuthUI();
+  loadPosts();
+});
 
 // ---------- UI ----------
 const updateAuthUI = () => {
@@ -44,6 +50,86 @@ const renderFeed = () => {
     </div>
   `).join("");
 };
+
+function bindEvents() {
+  // Login modal open
+  const loginBtn = qs("loginBtn");
+  const heroLoginBtn = qs("heroLoginBtn");
+  const closeLogin = qs("closeLogin");
+  const loginModal = qs("loginModal");
+
+  loginBtn && (loginBtn.onclick = () => loginModal.classList.remove("hidden"));
+  heroLoginBtn && (heroLoginBtn.onclick = () => loginModal.classList.remove("hidden"));
+  closeLogin && (closeLogin.onclick = () => loginModal.classList.add("hidden"));
+
+  // Forms
+  const registerForm = qs("registerForm");
+  const loginForm = qs("loginForm");
+
+  registerForm && (registerForm.onsubmit = registerUser);
+  loginForm && (loginForm.onsubmit = loginUser);
+
+  // Logout
+  const logoutBtn = qs("logoutBtn");
+  logoutBtn && (logoutBtn.onclick = logoutUser);
+}
+async function registerUser(e) {
+  e.preventDefault();
+
+  const name = qs("regName").value.trim();
+  const email = qs("regEmail").value.trim();
+
+  if (!name || !email) return alert("Fill all fields");
+
+  const res = await fetch(API + "/api/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, email, password: "123456" })
+  });
+
+  if (!res.ok) return alert("Registration failed");
+
+  alert("Registered successfully. Please login.");
+}
+
+async function loginUser(e) {
+  e.preventDefault();
+
+  const name = qs("loginName").value.trim();
+  if (!name) return alert("Enter username");
+
+  const res = await fetch(API + "/api/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name })
+  });
+
+  if (!res.ok) return alert("User not found");
+
+  currentUser = await res.json();
+  localStorage.setItem("cc_user", JSON.stringify(currentUser));
+
+  updateAuthUI();
+  qs("loginModal").classList.add("hidden");
+}
+
+function logoutUser() {
+  localStorage.removeItem("cc_user");
+  currentUser = null;
+  updateAuthUI();
+}
+function updateAuthUI() {
+  const loggedIn = !!currentUser;
+
+  qs("loginBtn").classList.toggle("hidden", loggedIn);
+  qs("logoutBtn").classList.toggle("hidden", !loggedIn);
+  qs("userBadge").classList.toggle("hidden", !loggedIn);
+
+  if (loggedIn) {
+    qs("badgeName").textContent = currentUser.name;
+    qs("badgeRole").textContent = currentUser.role;
+  }
+}
 
 // ---------- ACTIONS ----------
 window.likePost = async (id, likes) => {
@@ -102,4 +188,5 @@ qs("logoutBtn").onclick = () => {
 // ---------- INIT ----------
 updateAuthUI();
 loadPosts();
+
 
