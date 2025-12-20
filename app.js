@@ -217,6 +217,9 @@ const renderFeed = () => {
              <span class="text-white font-bold">₹${p.price}</span>
           </div>
           <p class="text-[10px] text-slate-500 mb-2">By ${p.user}</p>
+          <div class="mt-auto flex justify-between gap-2">
+             <button onclick="window.openChat('${p.id}')" class="flex-1 py-1 bg-slate-800 text-xs rounded border border-slate-600">💬 Chat</button>
+          </div>
         </div>
       </div>
     `).join("");
@@ -318,7 +321,7 @@ on(qs("chatForm"), "submit", async e => {
     fetchData(); // Instant update
 });
 
-// Like / Edit / Delete Handlers
+// / Edit / Delete Handlers
 window.editPost = (id) => {
     const p = state.posts.find(x => x.id == id);
     if(!p) return;
@@ -404,7 +407,4 @@ on(qs("calcLandBtn"), "click", () => {
     qs("totalCredits").textContent = res.toFixed(2) + " Tons CO2";
 });
 on(qs("priceFilter"), "change", renderFeed);
-on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
-
-
-
+on(qs("gotoCalcLink"), "click", () => showSection(""));
