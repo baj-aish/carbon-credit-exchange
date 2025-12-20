@@ -1,4 +1,4 @@
-/ app.js
+// app.js
 const qs = id => document.getElementById(id);
 const qsa = sel => [...document.querySelectorAll(sel)];
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
@@ -414,3 +414,4 @@ qs("totalCredits").textContent = res.toFixed(2) + " Tons CO2";
 });
 on(qs("priceFilter"), "change", renderFeed);
 on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
+
