@@ -4,7 +4,11 @@ const qsa = sel => [...document.querySelectorAll(sel)];
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 
 // RENDER URL (Leave empty for relative path if same domain)
-const API_BASE = ""; 
+// app.js
+
+// 🔴 CHANGE THIS LINE:
+const API_BASE = "https://carbon-credit-exchange-backend.onrender.com"; 
+ 
 const SESSION_KEY = "ccx_session_v1";
 const LAST_SECTION_KEY = "ccx_last_section_v1";
 const PROTECTED_SECTIONS = ["feed", "upload", "calculator", "admin", "inbox"];
@@ -302,3 +306,4 @@ on(qs("calcTreesBtn"), "click", () => {
     qs("calcResult").classList.remove("hidden");
     qs("totalCredits").textContent = res.toFixed(2) + " Tons";
 });
+
