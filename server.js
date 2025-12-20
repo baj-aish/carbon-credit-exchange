@@ -114,10 +114,6 @@ app.post("/api/posts", async (req, res) => {
     const newPost = {
       ...req.body,
       createdAt: Date.now(),
-      likes: 0,
-      likedBy: [],
-      comments: [],
-      chatMessages: [],
       status: "active"
     };
     const ref = await db.collection("posts").add(newPost);
@@ -230,5 +226,6 @@ app.put("/api/posts/:id/seen", async (req, res) => {
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
 
 
