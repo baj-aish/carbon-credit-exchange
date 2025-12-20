@@ -3,12 +3,8 @@ const qs = id => document.getElementById(id);
 const qsa = sel => [...document.querySelectorAll(sel)];
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 
-// RENDER URL (Leave empty for relative path if same domain)
-// app.js
-
-// 🔴 CHANGE THIS LINE:
-const API_BASE = ""; 
- 
+// 🔴 ENSURE THIS MATCHES YOUR RENDER URL EXACTLY:
+const API_BASE = "https://carbon-credit-exchange-backend.onrender.com"; 
 const SESSION_KEY = "ccx_session_v1";
 const LAST_SECTION_KEY = "ccx_last_section_v1";
 const PROTECTED_SECTIONS = ["feed", "upload", "calculator", "admin", "inbox"];
@@ -17,7 +13,6 @@ const PROTECTED_SECTIONS = ["feed", "upload", "calculator", "admin", "inbox"];
 let state = { users: [], posts: [], currentUser: null };
 let editPostId = null;
 let currentChatPostId = null;
-let adminViewChat = false;
 
 // --- UTILS ---
 const showSection = name => {
@@ -26,7 +21,6 @@ const showSection = name => {
   if (sec) sec.classList.remove("hidden");
   localStorage.setItem(LAST_SECTION_KEY, name);
   
-  // Nav Highlight
   qsa(".nav-btn").forEach(btn => {
     const isActive = btn.dataset.section === name;
     btn.classList.toggle("border-b-emerald-400", isActive);
@@ -80,13 +74,6 @@ const fetchData = async () => {
   try {
     const res = await fetch(API_BASE + "/api/posts");
     if(res.ok) state.posts = await res.json();
-
-    if(state.currentUser?.role === 'admin') {
-       const uRes = await fetch(API_BASE + "/api/users");
-       if(uRes.ok) state.users = await uRes.json();
-       renderAdmin();
-    }
-    
     renderFeed();
     renderInbox();
     if (!qs("chatModal").classList.contains("hidden") && currentChatPostId) {
@@ -102,12 +89,11 @@ on(qs("registerForm"), "submit", async e => {
   const name = qs("regName").value;
   const email = qs("regEmail").value;
   const password = qs("regPass").value;
-  const role = qs("regRole").value;
 
   try {
     const res = await fetch(API_BASE + "/api/register", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password, role })
+      body: JSON.stringify({ name, email, password })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
@@ -120,12 +106,11 @@ on(qs("loginForm"), "submit", async e => {
   e.preventDefault();
   const name = qs("loginName").value;
   const password = qs("loginPass").value;
-  const role = qs("loginRole").value;
 
   try {
     const res = await fetch(API_BASE + "/api/login", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, password, role }) 
+        body: JSON.stringify({ name, password }) 
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
@@ -214,16 +199,6 @@ const renderInbox = () => {
     }).join("");
 };
 
-const renderAdmin = () => {
-    if(state.currentUser?.role !== 'admin') return;
-    qs("adminList").innerHTML = state.users.map(u => `
-        <div class="flex justify-between bg-slate-900 p-2 text-xs border border-slate-700 mb-1">
-            <span>${u.name} (${u.role})</span>
-            <button onclick="deleteUser('${u.id}')" class="text-red-400">Delete</button>
-        </div>
-    `).join("");
-};
-
 // --- CHAT ---
 window.openChat = (pid) => {
     if(!requireLogin()) return;
@@ -255,14 +230,6 @@ on(qs("chatForm"), "submit", async e => {
     qs("chatInput").value = "";
     fetchData();
 });
-
-// --- GLOBAL EXPORTS FOR HTML ONCLICK ---
-window.deleteUser = async (id) => {
-    if(confirm("Delete user?")) {
-        await fetch(API_BASE + `/api/users/${id}`, { method: "DELETE" });
-        fetchData();
-    }
-};
 
 // --- INIT ---
 const saved = localStorage.getItem(SESSION_KEY);
@@ -306,5 +273,3 @@ on(qs("calcTreesBtn"), "click", () => {
     qs("calcResult").classList.remove("hidden");
     qs("totalCredits").textContent = res.toFixed(2) + " Tons";
 });
-
-
