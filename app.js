@@ -217,10 +217,6 @@ const renderFeed = () => {
              <span class="text-white font-bold">₹${p.price}</span>
           </div>
           <p class="text-[10px] text-slate-500 mb-2">By ${p.user}</p>
-          <div class="mt-auto flex justify-between gap-2">
-             <button onclick="window.likePost('${p.id}')" class="flex-1 py-1 bg-slate-800 text-xs rounded border border-slate-600">❤️ ${p.likes||0}</button>
-             <button onclick="window.openChat('${p.id}')" class="flex-1 py-1 bg-slate-800 text-xs rounded border border-slate-600">💬 Chat</button>
-          </div>
         </div>
       </div>
     `).join("");
@@ -424,4 +420,5 @@ on(qs("calcLandBtn"), "click", () => {
 });
 on(qs("priceFilter"), "change", renderFeed);
 on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
+
 
