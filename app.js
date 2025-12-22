@@ -1,367 +1,410 @@
+// app.js
+const qs = id => document.getElementById(id);
+const qsa = sel => [...document.querySelectorAll(sel)];
+const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
+
+// ⚠️ CHANGE THIS TO YOUR RENDER URL
+const API_BASE = "https://carbon-credit-exchange-backend.onrender.com"; 
+
+const SESSION_KEY = "ccx_session_v2";
+const LAST_SECTION_KEY = "ccx_last_section_v2";
+const PROTECTED_SECTIONS = ["feed", "upload", "calculator", "admin", "inbox"];
+
+// State
+let state = { users: [], posts: [], currentUser: null };
+let editPostId = null;
+let currentChatPostId = null;
+
+// --- UTILS ---
+const showSection = name => {
+  qsa(".section").forEach(s => s.classList.add("hidden"));
+  const sec = qs("section-" + name);
+  if (sec) sec.classList.remove("hidden");
+  localStorage.setItem(LAST_SECTION_KEY, name);
   
-// --- Simple frontend state (posts in localStorage, users in backend) ---
+  qsa(".nav-btn").forEach(btn => {
+    const isActive = btn.dataset.section === name;
+    btn.classList.toggle("border-b-emerald-400", isActive);
+    btn.classList.toggle("text-white", isActive);
+  });
+};
 
-let currentUser = JSON.parse(localStorage.getItem("cc_currentUser")) || null;
-let posts = JSON.parse(localStorage.getItem("cc_posts")) || [];
+const saveSession = () => {
+  if (state.currentUser) localStorage.setItem(SESSION_KEY, JSON.stringify(state.currentUser));
+  else localStorage.removeItem(SESSION_KEY);
+};
 
-const feedContainer = document.getElementById("feedContainer");
-const emptyFeedMsg = document.getElementById("emptyFeedMsg");
-const adminList = document.getElementById("adminList");
-const adminTab = document.getElementById("adminTab");
-const userBadge = document.getElementById("userBadge");
-const badgeName = document.getElementById("badgeName");
-const badgeRole = document.getElementById("badgeRole");
-const priceFilter = document.getElementById("priceFilter");
-const creditsFilter = document.getElementById("creditsFilter");
+const updateAuthUI = () => {
+  const u = state.currentUser;
+  if (u) {
+    qs("loginBtn").classList.add("hidden");
+    qs("logoutBtn").classList.remove("hidden");
+    qs("userBadge").classList.remove("hidden");
+    qs("badgeName").textContent = u.name;
+    qs("badgeRole").textContent = u.role;
+    qs("heroLoginBtn").classList.add("hidden");
+    
+    // Greeting
+    qs("welcomeName").textContent = u.name;
+    qs("welcomeWrapper").classList.remove("hidden");
+    
+    qsa(".protected-nav").forEach(b => b.classList.remove("hidden"));
+    if (u.role === "admin") qs("adminTab").classList.remove("hidden");
+    else qs("adminTab").classList.add("hidden");
+    qs("feedFilters").classList.remove("hidden");
+  } else {
+    qs("loginBtn").classList.remove("hidden");
+    qs("logoutBtn").classList.add("hidden");
+    qs("userBadge").classList.add("hidden");
+    qs("heroLoginBtn").classList.remove("hidden");
+    qs("welcomeWrapper").classList.add("hidden");
+    qs("adminTab").classList.add("hidden");
+    qs("feedFilters").classList.add("hidden");
+    qsa(".protected-nav").forEach(b => b.classList.add("hidden"));
+  }
+};
 
-// ---------- helpers ----------
-function saveState() {
-  localStorage.setItem("cc_currentUser", JSON.stringify(currentUser));
-  localStorage.setItem("cc_posts", JSON.stringify(posts));
-}
-
-function requireLogin() {
-  if (!currentUser) {
+const requireLogin = () => {
+  if (!state.currentUser) {
     alert("Please login first.");
-    document.getElementById("loginModal").classList.remove("hidden");
+    qs("loginModal").classList.remove("hidden");
     return false;
   }
   return true;
-}
+};
 
-function updateAuthUI() {
-  const loginBtn = document.getElementById("loginBtn");
-  const logoutBtn = document.getElementById("logoutBtn");
-  if (currentUser) {
-    loginBtn.classList.add("hidden");
-    logoutBtn.classList.remove("hidden");
-    userBadge.classList.remove("hidden");
-    badgeName.textContent = currentUser.name;
-    badgeRole.textContent = currentUser.role;
-    if (currentUser.role === "admin") adminTab.classList.remove("hidden");
-    else adminTab.classList.add("hidden");
-  } else {
-    loginBtn.classList.remove("hidden");
-    logoutBtn.classList.add("hidden");
-    userBadge.classList.add("hidden");
-    adminTab.classList.add("hidden");
-  }
-}
+// --- DATA FETCHING ---
+const fetchData = async () => {
+  try {
+    // 1. Get Posts
+    const res = await fetch(API_BASE + "/api/posts");
+    if(res.ok) state.posts = await res.json();
+    else console.log("Post fetch error:", res.status);
 
-function getFilteredPosts() {
-  let arr = posts.filter(p => p.status !== "removed");
+    // 2. Get Users (Only if admin)
+    if(state.currentUser?.role === 'admin') {
+       const uRes = await fetch(API_BASE + "/api/users");
+       if(uRes.ok) state.users = await uRes.json();
+       renderAdmin();
+    }
+    
+    renderFeed();
+    renderInbox();
+    
+    // Update active chat
+    if (!qs("chatModal").classList.contains("hidden") && currentChatPostId) {
+        const p = state.posts.find(x => x.id == currentChatPostId);
+        if(p) renderChatMessages(p);
+    }
+  } catch (err) { console.error("Fetch Loop Error:", err); }
+};
 
-  // credits range filter
-  const cf = creditsFilter.value;
-  if (cf !== "all") {
-    arr = arr.filter(p => {
-      const c = Number(p.credits || 0);
-      if (cf === "1-10") return c >= 1 && c <= 10;
-      if (cf === "10-20") return c > 10 && c <= 20;
-      if (cf === "20-30") return c > 20 && c <= 30;
-      if (cf === "30-40") return c > 30 && c <= 40;
-      if (cf === "40-50") return c > 40 && c <= 50;
-      if (cf === "50+") return c > 50;
-      return true;
-    });
-  }
-
-  // price sort
-  const pf = priceFilter.value;
-  if (pf === "low-high") {
-    arr = [...arr].sort((a, b) => (a.price || 0) - (b.price || 0));
-  } else if (pf === "high-low") {
-    arr = [...arr].sort((a, b) => (b.price || 0) - (a.price || 0));
-  }
-  return arr;
-}
-
-function renderFeed() {
-  const visiblePosts = getFilteredPosts();
-
-  if (!visiblePosts.length) {
-    feedContainer.innerHTML = "";
-    emptyFeedMsg.classList.remove("hidden");
-    return;
-  }
-  emptyFeedMsg.classList.add("hidden");
-
-  feedContainer.innerHTML = visiblePosts
-    .map(p => {
-      const commentsHtml = p.comments.length
-        ? p.comments
-            .map(c => `<p class="text-xs"><b>${c.by}:</b> ${c.text}</p>`)
-            .join("")
-        : '<p class="text-xs text-slate-400">No comments yet</p>';
-      return `
-      <article class="bg-white rounded-2xl shadow overflow-hidden flex flex-col hover:shadow-lg transition">
-        <img src="${p.image}" class="w-full h-44 object-cover" alt="post image">
-        <div class="p-3 flex-1 flex flex-col">
-          <h3 class="font-semibold text-sm mb-1 line-clamp-2">${p.title}</h3>
-          <p class="text-xs text-slate-600 mb-1 line-clamp-3">${p.desc}</p>
-          <div class="flex items-center justify-between text-[11px] mb-2">
-            <span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
-              ${p.credits || 0} credits
-            </span>
-            <span class="font-semibold text-blue-700">â‚¹${p.price || 0}</span>
-          </div>
-          <p class="text-[11px] text-slate-400 mb-2">By ${p.user}</p>
-          <div class="mt-auto space-y-2">
-            <div class="flex items-center justify-between text-xs">
-              <button data-like="${p.id}" class="px-2 py-1 rounded-full border text-[11px]">
-                â¤ï¸ Like (${p.likes})
-              </button>
-            </div>
-            <div class="border-t pt-1">
-              <div class="flex gap-1 mb-1">
-                <input data-comment-input="${p.id}" class="flex-1 border rounded-lg px-2 py-1 text-[11px]"
-                       placeholder="Add comment..." />
-                <button data-comment-btn="${p.id}" class="px-2 text-[11px] border rounded-lg">
-                  Post
-                </button>
-              </div>
-              <div class="space-y-0.5">${commentsHtml}</div>
-            </div>
-          </div>
-        </div>
-      </article>`;
-    })
-    .join("");
-}
-
-function renderAdmin() {
-  if (!currentUser || currentUser.role !== "admin") {
-    adminList.innerHTML = `<p class="text-sm text-slate-500">You are not admin.</p>`;
-    return;
-  }
-  if (!posts.length) {
-    adminList.innerHTML = `<p class="text-sm text-slate-500">No posts yet.</p>`;
-    return;
-  }
-  adminList.innerHTML = posts
-    .map(p => `
-    <div class="bg-white rounded-xl shadow p-3 flex items-center justify-between text-sm">
-      <div>
-        <p class="font-semibold">${p.title}</p>
-        <p class="text-xs text-slate-500">
-          By ${p.user} â€¢ Likes: ${p.likes} â€¢ Comments: ${p.comments.length}
-        </p>
-        <p class="text-[11px] mt-1">
-          Credits: ${p.credits || 0} â€¢ Price: â‚¹${p.price || 0}
-        </p>
-        <p class="text-[11px] mt-1">Status:
-          <span class="px-2 py-0.5 rounded-full text-[10px] ${
-            p.status === "removed" ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-700"
-          }">${p.status || "active"}</span>
-        </p>
-      </div>
-      <button data-toggle="${p.id}" class="text-xs px-3 py-1 rounded-full border">
-        ${p.status === "removed" ? "Restore" : "Remove"}
-      </button>
-    </div>
-  `)
-    .join("");
-}
-
-// ---------- nav switching ----------
-document.querySelectorAll(".nav-btn").forEach(btn => {
-  btn.addEventListener("click", () => {
-    const target = btn.dataset.section;
-    document.querySelectorAll(".section").forEach(sec => sec.classList.add("hidden"));
-    document.getElementById(`section-${target}`).classList.remove("hidden");
-    if (target === "admin") renderAdmin();
-  });
-});
-
-// ---------- filters ----------
-priceFilter.addEventListener("change", renderFeed);
-creditsFilter.addEventListener("change", renderFeed);
-
-// ---------- jump from upload to calculator ----------
-document.getElementById("gotoCalcLink").addEventListener("click", () => {
-  document.querySelectorAll(".section").forEach(sec => sec.classList.add("hidden"));
-  document.getElementById("section-calculator").classList.remove("hidden");
-  window.scrollTo({ top: 0, behavior: "smooth" });
-});
-
-// ---------- login modal ----------
-document.getElementById("loginBtn").addEventListener("click", () => {
-  document.getElementById("loginModal").classList.remove("hidden");
-});
-document.getElementById("closeLogin").addEventListener("click", () => {
-  document.getElementById("loginModal").classList.add("hidden");
-});
-
-// --- Login with backend (max 50 users stored on server) ---
-document.getElementById("loginForm").addEventListener("submit", async e => {
+// --- AUTH HANDLERS ---
+on(qs("registerForm"), "submit", async e => {
   e.preventDefault();
-  const name = document.getElementById("loginName").value.trim();
-  const role = document.getElementById("loginRole").value;
-  if (!name) return;
+  const name = qs("regName").value;
+  const email = qs("regEmail").value;
+  const password = qs("regPass").value;
+  const role = qs("regRole").value;
 
   try {
-    const res = await fetch("http://localhost:5000/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, role })
+    const res = await fetch(API_BASE + "/api/register", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, password, role })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    alert("Registered! Please login.");
+    qs("tabLogin").click();
+  } catch (err) { alert(err.message); }
+});
+
+on(qs("loginForm"), "submit", async e => {
+  e.preventDefault();
+  const name = qs("loginName").value;
+  const password = qs("loginPass").value;
+
+  try {
+    const res = await fetch(API_BASE + "/api/login", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, password }) 
+    });
+    // Check Content-Type to avoid "<" JSON error
+    const contentType = res.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Server error (Check console)");
+    }
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Login Failed");
+
+    state.currentUser = data;
+    saveSession();
+    updateAuthUI();
+    qs("loginModal").classList.add("hidden");
+    showSection("feed"); // Redirect to marketplace
+    fetchData();
+  } catch (err) { alert(err.message); }
+});
+
+// --- POSTS ---
+on(qs("uploadForm"), "submit", async e => {
+  e.preventDefault();
+  if(!requireLogin()) return;
+  
+  const title = qs("postTitle").value;
+  const desc = qs("postDesc").value;
+  const price = Number(qs("postPrice").value);
+  const credits = Number(qs("postCredits").value);
+  const file = qs("postImage").files[0];
+  
+  const process = async (img) => {
+    const payload = { title, desc, price, credits, user: state.currentUser.name, image: img };
+    let url = API_BASE + "/api/posts";
+    let method = "POST";
+    
+    // Edit Mode
+    if(editPostId) {
+        url += "/" + editPostId;
+        method = "PUT";
+        if(!img) delete payload.image; // Don't overwrite if no new image
+    } else if(!img) return alert("Image required for new listing");
+
+    const res = await fetch(url, {
+        method, headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
     });
 
-    if (!res.ok) {
-      const err = await res.json();
-      alert(err.message || "Login failed");
-      return;
+    if(res.ok) {
+        alert("Saved!");
+        qs("uploadForm").reset();
+        editPostId = null;
+        qs("uploadFormBtn").textContent = "Upload Listing";
+        fetchData();
+        qs("yourListingsTab").click();
+    } else {
+        alert("Upload failed. Image might be too large.");
     }
-
-    const data = await res.json(); // {id, name, role}
-    currentUser = { name: data.name, role: data.role };
-  } catch (err) {
-    // fallback: local login if server down
-    alert("Backend not running, using local login only.");
-    currentUser = { name, role };
-  }
-
-  saveState();
-  updateAuthUI();
-  document.getElementById("loginModal").classList.add("hidden");
-});
-
-document.getElementById("logoutBtn").addEventListener("click", () => {
-  currentUser = null;
-  saveState();
-  updateAuthUI();
-});
-
-// ---------- upload post ----------
-document.getElementById("uploadForm").addEventListener("submit", e => {
-  e.preventDefault();
-  if (!requireLogin()) return;
-
-  const title = document.getElementById("postTitle").value.trim();
-  const desc = document.getElementById("postDesc").value.trim();
-  const price = parseFloat(document.getElementById("postPrice").value) || 0;
-  const credits = parseFloat(document.getElementById("postCredits").value) || 0;
-  const fileInput = document.getElementById("postImage");
-  const file = fileInput.files[0];
-  if (!file) return;
-
-  // 50 KB limit
-  const maxSizeBytes = 50 * 1024;
-  if (file.size > maxSizeBytes) {
-    alert("Image too large! Please upload an image up to 50 KB only.");
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = ev => {
-    const newPost = {
-      id: Date.now(),
-      title,
-      desc,
-      image: ev.target.result,
-      user: currentUser.name,
-      likes: 0,
-      comments: [],
-      status: "active",
-      price,
-      credits
-    };
-    posts.unshift(newPost);
-    saveState();
-    renderFeed();
-    e.target.reset();
-    alert("Listing uploaded (saved in your browser).");
   };
-  reader.readAsDataURL(file);
+
+  if(file) {
+    if(file.size > 100 * 1024) return alert("Image too large (Max 100KB)");
+    const r = new FileReader();
+    r.onload = ev => process(ev.target.result);
+    r.readAsDataURL(file);
+  } else process(null);
 });
 
-// ---------- feed actions (like + comment) ----------
-feedContainer.addEventListener("click", e => {
-  const likeId = e.target.dataset.like;
-  const commentBtnId = e.target.dataset.commentBtn;
+// --- RENDERERS ---
+const renderFeed = () => {
+    const con = qs("feedContainer");
+    if(!state.posts.length) return con.innerHTML = "";
+    
+    // Sort logic
+    let arr = state.posts.filter(p => p.status !== 'removed');
+    const pf = qs("priceFilter").value;
+    if (pf === "low-high") arr.sort((a,b) => a.price - b.price);
+    if (pf === "high-low") arr.sort((a,b) => b.price - a.price);
 
-  if (likeId) {
-    if (!requireLogin()) return;
-    const post = posts.find(p => String(p.id) === likeId);
-    if (post) {
-      post.likes++;
-      saveState();
-      renderFeed();
+    con.innerHTML = arr.map(p => `
+      <div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow flex flex-col">
+        <img src="${p.image}" class="w-full h-44 object-cover">
+        <div class="p-3 flex flex-col flex-1">
+          <h3 class="font-bold text-sm truncate">${p.title}</h3>
+          <p class="text-xs text-slate-400 mb-2 truncate">${p.desc}</p>
+          <div class="flex justify-between text-[11px] mb-2">
+             <span class="text-emerald-300 bg-emerald-900/30 px-2 py-0.5 rounded-full">${p.credits} Credits</span>
+             <span class="text-white font-bold">₹${p.price}</span>
+          </div>
+          <p class="text-[10px] text-slate-500 mb-2">By ${p.user}</p>
+          <div class="mt-auto flex justify-between gap-2">
+             <button onclick="window.openChat('${p.id}')" class="flex-1 py-1 bg-slate-800 text-xs rounded border border-slate-600">💬 Chat</button>
+          </div>
+        </div>
+      </div>
+    `).join("");
+    
+    // Also render "Your Listings" if active
+    if(!qs("userListings").classList.contains("hidden")) {
+        const myPosts = state.posts.filter(p => p.user === state.currentUser?.name);
+        qs("userListings").innerHTML = myPosts.map(p => `
+            <div class="bg-slate-900 p-2 border border-slate-700 rounded mb-2 flex justify-between text-xs items-center">
+                <span>${p.title}</span>
+                <button class="text-emerald-400 underline" onclick="window.editPost('${p.id}')">Edit</button>
+            </div>
+        `).join("");
     }
-  }
+};
 
-  if (commentBtnId) {
-    if (!requireLogin()) return;
-    const post = posts.find(p => String(p.id) === commentBtnId);
-    if (!post) return;
-    const input = document.querySelector(`[data-comment-input="${commentBtnId}"]`);
-    const text = input.value.trim();
-    if (!text) return;
-    post.comments.push({ by: currentUser.name, text });
-    input.value = "";
-    saveState();
-    renderFeed();
-  }
+const renderInbox = () => {
+    const list = qs("inboxList");
+    if(!state.currentUser) return;
+    // Find posts where I am the owner OR I have sent a message
+    const items = state.posts.filter(p => 
+        p.chatMessages?.length && (p.user === state.currentUser.name || p.chatMessages.some(m => m.from === state.currentUser.name))
+    );
+    
+    list.innerHTML = items.length ? items.map(p => {
+        const last = p.chatMessages[p.chatMessages.length-1];
+        return `<div onclick="window.openChat('${p.id}')" class="bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-pointer flex justify-between items-center hover:bg-slate-800">
+            <div>
+               <div class="text-sm font-bold text-emerald-100">${p.title}</div>
+               <div class="text-xs text-slate-400">Last: ${last.from}</div>
+            </div>
+            <div class="text-xs text-emerald-500">Open</div>
+        </div>`
+    }).join("") : `<p class="text-slate-400 text-sm">No messages yet.</p>`;
+};
+
+const renderAdmin = () => {
+    if(state.currentUser?.role !== 'admin') return;
+    
+    const uHtml = state.users.map(u => `
+        <tr class="text-xs border-b border-slate-700">
+            <td class="p-2">${u.name}</td>
+            <td class="p-2">${u.role}</td>
+            <td class="p-2 text-right"><button onclick="window.deleteUser('${u.id}')" class="text-red-400 hover:text-red-300">Delete</button></td>
+        </tr>
+    `).join("");
+
+    const pHtml = state.posts.map(p => `
+        <div class="flex justify-between items-center bg-slate-900 p-2 text-xs border border-slate-700 rounded mb-1">
+            <span>${p.title} (by ${p.user})</span>
+            <button onclick="window.deletePost('${p.id}')" class="text-red-400 hover:text-red-300">Delete</button>
+        </div>
+    `).join("");
+
+    qs("adminList").innerHTML = `
+      <div class="mb-4">
+        <h3 class="font-bold text-sm mb-2 text-emerald-400">Users</h3>
+        <table class="w-full text-left">${uHtml}</table>
+      </div>
+      <div>
+        <h3 class="font-bold text-sm mb-2 text-emerald-400">Posts</h3>
+        ${pHtml}
+      </div>
+    `;
+};
+
+// --- CHAT & ACTIONS (Exposed to Window for HTML onclick) ---
+window.openChat = (pid) => {
+    if(!requireLogin()) return;
+    const p = state.posts.find(x => x.id == pid);
+    if(!p) return;
+    currentChatPostId = pid;
+    qs("chatModal").classList.remove("hidden");
+    qs("chatPostTitle").textContent = p.title;
+    renderChatMessages(p);
+};
+
+const renderChatMessages = (p) => {
+    const box = qs("chatMessages");
+    box.innerHTML = (p.chatMessages||[]).map(m => {
+        const isMe = state.currentUser && m.from === state.currentUser.name;
+        return `<div class="flex ${isMe?'justify-end':'justify-start'}"><div class="px-2 py-1 rounded mb-1 text-xs max-w-[80%] ${isMe?'bg-emerald-600 text-white':'bg-slate-800 text-slate-300'}">
+            <div class="font-bold opacity-50 text-[9px] mb-0.5">${m.from}</div>
+            ${m.text}
+        </div></div>`;
+    }).join("");
+    box.scrollTop = box.scrollHeight;
+};
+
+on(qs("chatForm"), "submit", async e => {
+    e.preventDefault();
+    const text = qs("chatInput").value.trim();
+    if(!text) return;
+    await fetch(API_BASE + `/api/posts/${currentChatPostId}/chat`, {
+        method: "POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ from: state.currentUser.name, text })
+    });
+    qs("chatInput").value = "";
+    fetchData(); // Instant update
 });
 
-// ---------- admin actions ----------
-adminList.addEventListener("click", e => {
-  const id = e.target.dataset.toggle;
-  if (!id) return;
-  const post = posts.find(p => String(p.id) === id);
-  if (!post) return;
-  post.status = post.status === "removed" ? "active" : "removed";
-  saveState();
-  renderFeed();
-  renderAdmin();
-});
+// / Edit / Delete Handlers
+window.editPost = (id) => {
+    const p = state.posts.find(x => x.id == id);
+    if(!p) return;
+    editPostId = id;
+    qs("postTitle").value = p.title;
+    qs("postDesc").value = p.desc;
+    qs("postPrice").value = p.price;
+    qs("postCredits").value = p.credits;
+    qs("uploadFormBtn").textContent = "Update Listing";
+    qs("createListingTab").click();
+};
 
-// ---------- calculator logic ----------
-document.querySelectorAll('input[name="calcMethod"]').forEach(r => {
-  r.addEventListener("change", () => {
-    const v = document.querySelector('input[name="calcMethod"]:checked').value;
-    document.getElementById("treeForm").classList.toggle("hidden", v !== "trees");
-    document.getElementById("landForm").classList.toggle("hidden", v !== "land");
-    document.getElementById("calcResult").classList.add("hidden");
-  });
-});
+window.deleteUser = async (id) => {
+    if(!confirm("Delete user?")) return;
+    await fetch(API_BASE + `/api/users/${id}`, { method: "DELETE" });
+    fetchData();
+};
+window.deletePost = async (id) => {
+    if(!confirm("Delete post?")) return;
+    await fetch(API_BASE + `/api/posts/${id}`, { method: "DELETE" });
+    fetchData();
+};
 
-function showResult(annual, total) {
-  const resBox = document.getElementById("calcResult");
-  resBox.classList.remove("hidden");
-  document.getElementById("annualCredits").textContent =
-    `Annual Carbon Credits: ${annual.toFixed(2)} tons COâ‚‚ / year`;
-  document.getElementById("totalCredits").textContent =
-    `Total Carbon Credits: ${total.toFixed(2)} tons COâ‚‚`;
-}
+// --- INIT ---
+const saved = localStorage.getItem(SESSION_KEY);
+if(saved) state.currentUser = JSON.parse(saved);
+const lastSec = localStorage.getItem(LAST_SECTION_KEY);
 
-// Tree-based
-document.getElementById("calcTreesBtn").addEventListener("click", () => {
-  const x = parseFloat(document.getElementById("treeType").value); // kg CO2/tree/year
-  const N = parseFloat(document.getElementById("treeCount").value);
-  const t = parseFloat(document.getElementById("treeYears").value);
-  if (N <= 0 || t <= 0) return alert("Enter valid tree count and years.");
-  const annual = (N * x) / 1000; // kg -> tons
-  const total = annual * t;
-  showResult(annual, total);
-});
-
-// Land-based
-document.getElementById("calcLandBtn").addEventListener("click", () => {
-  const A = parseFloat(document.getElementById("landArea").value);
-  const unit = document.getElementById("landUnit").value;
-  const t = parseFloat(document.getElementById("landYears").value);
-  if (A <= 0 || t <= 0) return alert("Enter valid area and years.");
-
-  let hectares = A;
-  if (unit === "acres") hectares = A * 0.404686; // acres -> hectares
-  const y = 6; // tons CO2 / hectare / year
-  const annual = hectares * y;
-  const total = annual * t;
-  showResult(annual, total);
-});
-
-// ---------- initial ----------
 updateAuthUI();
-renderFeed();
+if(state.currentUser && lastSec) showSection(lastSec);
+else showSection("landing");
 
+fetchData();
+setInterval(fetchData, 3000); // Poll every 3 seconds
 
+// UI Event Listeners
+on(qs("loginBtn"), "click", () => qs("loginModal").classList.remove("hidden"));
+on(qs("closeLogin"), "click", () => qs("loginModal").classList.add("hidden"));
+on(qs("closeChat"), "click", () => qs("chatModal").classList.add("hidden"));
+on(qs("logoutBtn"), "click", () => {
+    state.currentUser = null;
+    saveSession();
+    updateAuthUI();
+    showSection("landing");
+});
+on(qs("heroExploreBtn"), "click", () => { if(requireLogin()) showSection("feed"); });
+on(qs("heroLoginBtn"), "click", () => qs("loginModal").classList.remove("hidden"));
+
+// Tabs
+on(qs("tabRegister"), "click", () => { qs("registerForm").classList.remove("hidden"); qs("loginForm").classList.add("hidden"); qs("tabRegister").classList.replace("bg-slate-900","bg-slate-800"); qs("tabLogin").classList.replace("bg-slate-800","bg-slate-900"); });
+on(qs("tabLogin"), "click", () => { qs("loginForm").classList.remove("hidden"); qs("registerForm").classList.add("hidden"); qs("tabLogin").classList.replace("bg-slate-900","bg-slate-800"); qs("tabRegister").classList.replace("bg-slate-800","bg-slate-900");});
+
+// Nav
+qsa(".nav-btn").forEach(b => on(b, "click", () => {
+    if(b.classList.contains("protected-nav") && !requireLogin()) return;
+    showSection(b.dataset.section);
+    if(b.dataset.section === 'upload') qs("yourListingsTab").click();
+}));
+on(qs("createListingTab"), "click", () => { qs("uploadWrapper").classList.remove("hidden"); qs("userListings").classList.add("hidden"); qs("createListingTab").classList.add("text-white","bg-slate-800"); qs("yourListingsTab").classList.remove("text-white","bg-slate-800"); });
+on(qs("yourListingsTab"), "click", () => { qs("uploadWrapper").classList.add("hidden"); qs("userListings").classList.remove("hidden"); qs("yourListingsTab").classList.add("text-white","bg-slate-800"); qs("createListingTab").classList.remove("text-white","bg-slate-800"); });
+
+// Calculator
+
+// [NEW] Logic to switch between Tree and Land forms
+qsa('input[name="calcMethod"]').forEach(r =>
+  on(r, "change", () => {
+    const v = document.querySelector('input[name="calcMethod"]:checked').value;
+    qs("treeForm").classList.toggle("hidden", v !== "trees");
+    qs("landForm").classList.toggle("hidden", v !== "land");
+    qs("calcResult").classList.add("hidden");
+  })
+);
+on(qs("calcTreesBtn"), "click", () => {
+    const res = (qs("treeCount").value * qs("treeType").value * qs("treeYears").value)/1000;
+    qs("calcResult").classList.remove("hidden");
+    qs("totalCredits").textContent = res.toFixed(2) + " Tons CO2";
+});
+on(qs("calcLandBtn"), "click", () => {
+    // Simple land formula (placeholder logic based on request)
+    const factor = qs("landUnit").value === 'hectares' ? 6 : 2.4; 
+    const res = qs("landArea").value * factor * qs("landYears").value;
+    qs("calcResult").classList.remove("hidden");
+    qs("totalCredits").textContent = res.toFixed(2) + " Tons CO2";
+});
+on(qs("priceFilter"), "change", renderFeed);
+on(qs("gotoCalcLink"), "click", () => showSection(""));
