@@ -89,6 +89,7 @@ const requireLogin = () => {
   if (!state.currentUser) {
     alert("Please login first.");
     qs("loginModal").classList.remove("hidden");
+    qs("loginModal").classList.remove("pointer-events-none");
     return false;
   }
   return true;
@@ -142,6 +143,7 @@ on(qs("loginForm"), "submit", async e => {
   saveSession();
   updateAuthUI();
   qs("loginModal").classList.add("hidden");
+  qs("loginModal").classList.add("pointer-events-none");
   showSection("feed");
   fetchData(true);
 });
@@ -250,6 +252,7 @@ window.openChat = id => {
   if (!p) return;
 
   qs("chatModal").classList.remove("hidden");
+  qs("chatModal").classList.remove("pointer-events-none");
   qs("chatPostTitle").textContent = p.title;
 
   p.chatMessages?.forEach(m => (m.seen = true));
@@ -350,3 +353,4 @@ qsa(".nav-btn").forEach(b =>
 
 on(qs("priceFilter"), "change", renderFeed);
 on(qs("creditsFilter"), "change", renderFeed);
+
