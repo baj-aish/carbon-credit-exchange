@@ -2,6 +2,7 @@
    Carbon Credit Hub – FINAL FIXED app.js
    SAME UI • SAME FEATURES • STABLE STATE
    ========================================================= */
+document.addEventListener("DOMContentLoaded", () => {
 
 /* ---------- Helpers ---------- */
 const qs = id => document.getElementById(id);
@@ -350,7 +351,10 @@ qsa(".nav-btn").forEach(b =>
     showSection(b.dataset.section);
   })
 );
+   });
+
 
 on(qs("priceFilter"), "change", renderFeed);
 on(qs("creditsFilter"), "change", renderFeed);
+
 
