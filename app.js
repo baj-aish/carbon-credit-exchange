@@ -2,7 +2,12 @@
    Carbon Credit Hub – FINAL FIXED app.js
    SAME UI • SAME FEATURES • STABLE STATE
    ========================================================= */
+const safe = fn => {
+  try { fn(); } catch (e) { console.warn("Init skipped:", e.message); }
+};
+
 document.addEventListener("DOMContentLoaded", () => {
+   
 
 /* ---------- Helpers ---------- */
 const qs = id => document.getElementById(id);
@@ -353,8 +358,16 @@ qsa(".nav-btn").forEach(b =>
 );
    });
 
+safe(() => {
+  on(qs("priceFilter"), "change", renderFeed);
+  on(qs("creditsFilter"), "change", renderFeed);
+});
+document.addEventListener("click", e => {
+  if (e.target.id === "loginBtn") {
+    qs("loginModal").classList.remove("hidden");
+    console.log("Login button clicked (delegated)");
+  }
+});
 
-on(qs("priceFilter"), "change", renderFeed);
-on(qs("creditsFilter"), "change", renderFeed);
 
 
