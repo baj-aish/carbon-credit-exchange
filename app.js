@@ -500,7 +500,7 @@ const startListeners = () => {
     onSnapshot(query(collection(db, "posts"), orderBy("createdAt", "desc")), (snap) => {
         state.posts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         renderFeed(); 
-        renderInbox(); 
+        renderInbox();
         
         if (currentChatPostId && !qs("chatModal").classList.contains("hidden")) {
             const p = state.posts.find(x => x.id == currentChatPostId);
@@ -610,7 +610,9 @@ const renderInbox = () => {
     );
     
     let totalUnread = 0;
-    items.forEach(p => totalUnread += p.chatMessages.filter(m => m.from !== myName && !m.seen).length);
+    items.forEach(p => {
+        totalUnread += p.chatMessages.filter(m => m.from !== myName && !m.seen).length;
+    });
     toggle("inboxIndicator", totalUnread > 0);
 
     const list = qs("inboxList");
@@ -633,7 +635,7 @@ const renderAdmin = () => {
 };
 
 // ==========================================
-// 7. ACTIONS
+// 7. ACTIONS (CHAT, POSTS)
 // ==========================================
 window.openChat = async (pid) => {
     if(!requireLogin()) return;
@@ -675,12 +677,15 @@ window.editPost = (id) => {
     editPostId = id;
     
     // Fill Form
-    qs("postTitle").value = p.title; qs("postDesc").value = p.desc;
-    qs("postPrice").value = p.price; qs("postCredits").value = p.credits;
-    qs("uploadFormBtn").textContent = "Update Listing"; 
+    qs("postTitle").value = p.title; 
+    qs("postDesc").value = p.desc;
+    qs("postPrice").value = p.price; 
+    qs("postCredits").value = p.credits;
     
-    // Switch to Edit Mode
-    toggle("deletePostBtn", true); // <--- SHOW DELETE BUTTON
+    // Update Button Text & Show Delete
+    qs("uploadFormBtn").textContent = "Update Listing"; 
+    show("deleteEditBtn"); // <--- SHOW DELETE BUTTON
+    
     qs("createListingTab").click();
 };
 
@@ -698,7 +703,6 @@ on(qs("chatForm"), "submit", async e => {
     qs("chatInput").value = "";
 });
 
-// Upload & Edit & Delete
 on(qs("uploadForm"), "submit", async e => {
   e.preventDefault();
   if(!requireLogin()) return;
@@ -710,27 +714,37 @@ on(qs("uploadForm"), "submit", async e => {
         price: Number(qs("postPrice").value), credits: Number(qs("postCredits").value),
         user: state.currentUser.name, image: img, createdAt: Date.now(), chatMessages: [], status: "active"
     };
-    if(editPostId) { if(!img) delete data.image; await updateDoc(doc(db, "posts", editPostId), data); }
-    else { if(!img) return alert("Image required"); await addDoc(collection(db, "posts"), data); }
+    if(editPostId) { 
+        if(!img) delete data.image; 
+        await updateDoc(doc(db, "posts", editPostId), data); 
+    } else { 
+        if(!img) return alert("Image required"); 
+        await addDoc(collection(db, "posts"), data); 
+    }
     
-    // Reset Form & UI
+    // Reset Form & Hide Delete Button
     qs("uploadForm").reset(); 
     editPostId = null; 
     qs("uploadFormBtn").textContent = "Upload Listing"; 
-    toggle("deletePostBtn", false); // <--- HIDE DELETE BUTTON
+    hide("deleteEditBtn"); // <--- HIDE DELETE BUTTON
+    
     qs("yourListingsTab").click();
   };
   if(file) { reader.onload = ev => save(ev.target.result); reader.readAsDataURL(file); } else save(null);
 });
 
-// [NEW] Delete Post Button Handler
-on(qs("deletePostBtn"), "click", async () => {
-    if(editPostId && confirm("Are you sure you want to delete this listing?")) {
+// [NEW] Delete Button Listener in Edit Form
+on(qs("deleteEditBtn"), "click", async () => {
+    if(!editPostId) return;
+    if(confirm("Delete this listing permanently?")) {
         await deleteDoc(doc(db, "posts", editPostId));
+        
+        // Reset Form
         qs("uploadForm").reset();
         editPostId = null;
-        qs("uploadFormBtn").textContent = "Upload Listing";
-        toggle("deletePostBtn", false);
+        qs("uploadFormBtn").textContent = "Upload Listing"; 
+        hide("deleteEditBtn");
+        
         qs("yourListingsTab").click();
     }
 });
@@ -750,22 +764,30 @@ on(qs("priceFilter"), "change", renderFeed);
 on(qs("creditsFilter"), "change", renderFeed);
 on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
 
-// Tab Switching
+// Tabs (Listings)
 on(qs("createListingTab"), "click", () => { 
     show("uploadWrapper"); hide("userListings"); 
     qs("createListingTab").classList.replace("text-slate-300", "text-white"); qs("createListingTab").classList.add("bg-slate-800");
     qs("yourListingsTab").classList.replace("text-white", "text-slate-300"); qs("yourListingsTab").classList.remove("bg-slate-800");
     
-    // Ensure fresh state for creating new
-    editPostId = null;
-    qs("uploadForm").reset();
-    qs("uploadFormBtn").textContent = "Upload Listing";
-    toggle("deletePostBtn", false); // <--- HIDE DELETE BUTTON
+    // If user clicked "Create New" manually, clear any pending edit state
+    if (!editPostId) {
+        qs("uploadForm").reset();
+        qs("uploadFormBtn").textContent = "Upload Listing";
+        hide("deleteEditBtn");
+    }
 });
 on(qs("yourListingsTab"), "click", () => { 
     hide("uploadWrapper"); show("userListings"); 
     qs("yourListingsTab").classList.replace("text-slate-300", "text-white"); qs("yourListingsTab").classList.add("bg-slate-800");
     qs("createListingTab").classList.replace("text-white", "text-slate-300"); qs("createListingTab").classList.remove("bg-slate-800");
+    
+    // Clear edit state when leaving
+    editPostId = null;
+    qs("uploadForm").reset();
+    qs("uploadFormBtn").textContent = "Upload Listing";
+    hide("deleteEditBtn");
+    
     renderFeed(); 
 });
 
@@ -807,7 +829,7 @@ const htmlAdminUser = (u) => `<tr class="text-xs border-b border-slate-700"><td 
 const htmlAdminPost = (p) => `<div class="flex justify-between items-center bg-slate-900 p-2 text-xs border border-slate-700 rounded mb-1"><div class="flex flex-col"><span class="font-bold">${p.title}</span><span class="text-[10px] text-slate-400">By ${p.user} • ${p.chatMessages?.length||0} msgs</span></div><div class="flex gap-2"><button onclick="window.viewAdminChat('${p.id}')" class="text-blue-400">View</button><button onclick="window.deletePost('${p.id}')" class="text-red-400">Delete</button></div></div>`;
 
 // ==========================================
-// 10. INIT
+// 8. SAFE INIT (Wait for DOM)
 // ==========================================
 const init = () => {
     updateAuthUI();
@@ -817,7 +839,8 @@ const init = () => {
     showSection(target);
 };
 
-if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
-else init();
-
-
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+} else {
+    init();
+}
