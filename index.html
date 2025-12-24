@@ -1,11 +1,8 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <title>Carbon Credit Hub</title>
-  <style>
-  button { pointer-events: auto !important; }
-</style>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -23,17 +20,17 @@
 
       <div class="flex items-center justify-between flex-wrap gap-2">
         <div class="flex items-center gap-2 flex-wrap">
-          <button class="nav-btn border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm pointer-events-auto relative z-50" data-section="landing">Home</button>
+          <button class="nav-btn border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm" data-section="landing">Home</button>
         </div>
 
         <div class="flex items-center gap-2 flex-wrap ml-auto">
-          <button class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm pointer-events-auto relative z-50" data-section="inbox">
+          <button class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm" data-section="inbox">
             Inbox <span id="inboxIndicator" class="hidden ml-1 w-2 h-2 rounded-full bg-red-500"></span>
           </button>
-          <button class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm pointer-events-auto relative z-50" data-section="feed">Marketplace</button>
-          <button class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm pointer-events-auto relative z-50" data-section="upload">Post Listing</button>
-          <button class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm pointer-events-auto relative z-50" data-section="calculator">Calculator</button>
-          <button id="adminTab" class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm hidden pointer-events-auto relative z-50" data-section="admin">Admin</button>
+          <button class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm" data-section="feed">Marketplace</button>
+          <button class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm" data-section="upload">Post Listing</button>
+          <button class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm" data-section="calculator">Calculator</button>
+          <button id="adminTab" class="nav-btn protected-nav border-b-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm hidden" data-section="admin">Admin</button>
 
           <div class="flex items-center gap-2">
             <div id="userBadge" class="hidden text-xs px-3 py-1.5 rounded-full bg-slate-800 border border-slate-600 text-slate-100">
@@ -41,8 +38,8 @@
               <span class="mx-1 text-slate-400">•</span>
               <span id="badgeRole" class="uppercase text-[10px] tracking-wide"></span>
             </div>
-            <button id="loginBtn" class="px-3 py-1.5 rounded-full bg-emerald-500 text-slate-950 text-sm pointer-events-auto relative z-50">Login / Sign Up</button>
-            <button id="logoutBtn" class="px-3 py-1.5 rounded-full bg-red-500 text-white text-sm hidden pointer-events-auto relative z-50">Logout</button>
+            <button id="loginBtn" class="px-3 py-1.5 rounded-full bg-emerald-500 text-slate-950 text-sm">Login / Sign Up</button>
+            <button id="logoutBtn" class="px-3 py-1.5 rounded-full bg-red-500 text-white text-sm hidden">Logout</button>
           </div>
         </div>
       </div>
@@ -66,8 +63,8 @@
             Upload plantation listings, calculate carbon credits with tree or land formulas, and explore community projects.
           </p>
           <div class="flex flex-wrap gap-3 mt-4">
-            <button id="heroLoginBtn" class="px-4 py-2 rounded-full bg-emerald-400 text-slate-900 text-sm font-semibold pointer-events-auto relative z-50">Login / Sign Up</button>
-            <button id="heroExploreBtn" class="px-4 py-2 rounded-full border border-emerald-300 text-emerald-200 text-sm pointer-events-auto relative z-50">Carbon Credit Marketplace</button>
+            <button id="heroLoginBtn" class="px-4 py-2 rounded-full bg-emerald-400 text-slate-900 text-sm font-semibold">Login / Sign Up</button>
+            <button id="heroExploreBtn" class="px-4 py-2 rounded-full border border-emerald-300 text-emerald-200 text-sm">Carbon Credit Marketplace</button>
           </div>
         </div>
         
@@ -101,8 +98,8 @@
       <h2 class="text-xl sm:text-2xl font-semibold mb-3">Post Listing</h2>
       <div class="bg-slate-900 rounded-2xl shadow p-4 border border-slate-700 max-w-2xl">
         <div class="flex mb-3 border border-slate-700 rounded-full overflow-hidden text-xs">
-          <button id="yourListingsTab" class="flex-1 py-1.5 bg-slate-800 text-white pointer-events-auto relative z-50">Your listings</button>
-          <button id="createListingTab" class="flex-1 py-1.5 bg-slate-900 text-slate-300 pointer-events-auto relative z-50">Create new</button>
+          <button id="yourListingsTab" class="flex-1 py-1.5 bg-slate-800 text-white">Your listings</button>
+          <button id="createListingTab" class="flex-1 py-1.5 bg-slate-900 text-slate-300">Create new</button>
         </div>
         
         <div id="userListings" class="space-y-3 text-sm"></div>
@@ -116,10 +113,10 @@
             <div><label class="block mb-1">Description</label><textarea required id="postDesc" class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2"></textarea></div>
             <div class="grid sm:grid-cols-2 gap-3 items-end">
               <div><label class="block mb-1">Credits</label><input required id="postCredits" type="number" class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2" /></div>
-              <button type="button" id="gotoCalcLink" class="text-xs text-emerald-400 underline pointer-events-auto relative z-50">Calculate</button>
+              <button type="button" id="gotoCalcLink" class="text-xs text-emerald-400 underline">Calculate</button>
             </div>
             <div><label class="block mb-1">Image (Max 50KB)</label><input id="postImage" type="file" accept="image/*" class="w-full text-slate-200" /></div>
-            <button id="uploadFormBtn" type="submit" class="w-full mt-2 rounded bg-emerald-600 text-white py-2 pointer-events-auto relative z-50">Upload Listing</button>
+            <button id="uploadFormBtn" type="submit" class="w-full mt-2 rounded bg-emerald-600 text-white py-2">Upload Listing</button>
           </form>
         </div>
       </div>
@@ -138,7 +135,7 @@
              <input id="treeCount" type="number" placeholder="Count" class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm" />
              <input id="treeYears" type="number" placeholder="Years" class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm" />
           </div>
-          <button id="calcTreesBtn" class="bg-emerald-600 text-white px-4 py-2 rounded text-sm pointer-events-auto relative z-50">Calculate</button>
+          <button id="calcTreesBtn" class="bg-emerald-600 text-white px-4 py-2 rounded text-sm">Calculate</button>
         </div>
         <div id="landForm" class="space-y-3 hidden">
           <div class="grid sm:grid-cols-2 gap-3">
@@ -146,7 +143,7 @@
             <select id="landUnit" class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm"><option value="hectares">Hectares</option><option value="acres">Acres</option></select>
           </div>
           <input id="landYears" type="number" placeholder="Years" class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm" />
-          <button id="calcLandBtn" class="bg-emerald-600 text-white px-4 py-2 rounded text-sm pointer-events-auto relative z-50">Calculate</button>
+          <button id="calcLandBtn" class="bg-emerald-600 text-white px-4 py-2 rounded text-sm">Calculate</button>
         </div>
         <div id="calcResult" class="hidden bg-slate-800 p-3 rounded text-sm font-semibold"><p id="totalCredits"></p></div>
       </div>
@@ -158,20 +155,20 @@
     </section>
   </main>
 
-  <div id="chatModal" class="hidden fixed inset-0 bg-black/60 pointer-events-none flex items-center justify-center px-4 z-30">
+  <div id="chatModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center px-4 z-30">
     <div class="bg-slate-900 rounded-2xl shadow-lg max-w-md w-full p-4 flex flex-col border border-slate-700 h-[400px]">
-      <div class="flex justify-between mb-2"><h3 id="chatPostTitle" class="font-semibold">Chat</h3><button id="closeChat" class="text-xs text-slate-400 pointer-events-auto relative z-50">Close</button></div>
+      <div class="flex justify-between mb-2"><h3 id="chatPostTitle" class="font-semibold">Chat</h3><button id="closeChat" class="text-xs text-slate-400">Close</button></div>
       <div id="chatMessages" class="flex-1 overflow-y-auto border border-slate-700 rounded p-2 mb-2 bg-slate-950 text-xs"></div>
-      <form id="chatForm" class="flex gap-1"><input id="chatInput" class="flex-1 bg-slate-900 border border-slate-700 rounded px-2 text-sm" placeholder="Message..." /><button class="bg-emerald-600 text-white px-3 rounded text-sm pointer-events-auto relative z-50">Send</button></form>
+      <form id="chatForm" class="flex gap-1"><input id="chatInput" class="flex-1 bg-slate-900 border border-slate-700 rounded px-2 text-sm" placeholder="Message..." /><button class="bg-emerald-600 text-white px-3 rounded text-sm">Send</button></form>
     </div>
   </div>
 
-  <div id="loginModal" class="hidden fixed inset-0 bg-black/60 pointer-events-none flex items-center justify-center px-4 z-20">
+  <div id="loginModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center px-4 z-20">
     <div class="bg-slate-900 rounded-2xl shadow-lg max-w-sm w-full p-5 border border-slate-700">
-      <div class="flex justify-between mb-3"><h3 class="text-lg font-semibold">Account</h3><button id="closeLogin" class="text-slate-400 pointer-events-auto relative z-50">Close</button></div>
+      <div class="flex justify-between mb-3"><h3 class="text-lg font-semibold">Account</h3><button id="closeLogin" class="text-slate-400">Close</button></div>
       <div class="flex mb-3 border border-slate-700 rounded-full overflow-hidden text-xs">
-        <button id="tabRegister" class="flex-1 py-1.5 bg-slate-800 text-white pointer-events-auto relative z-50">Register</button>
-        <button id="tabLogin" class="flex-1 py-1.5 bg-slate-900 text-slate-300 pointer-events-auto relative z-50">Login</button>
+        <button id="tabRegister" class="flex-1 py-1.5 bg-slate-800 text-white">Register</button>
+        <button id="tabLogin" class="flex-1 py-1.5 bg-slate-900 text-slate-300">Login</button>
       </div>
       
       <form id="registerForm" class="space-y-3">
@@ -179,21 +176,22 @@
         <input required id="regEmail" type="email" placeholder="Email" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm" />
         <input required id="regPass" type="password" placeholder="Password" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm" />
         <select id="regRole" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm"><option value="user">User</option><option value="admin">Admin</option></select>
-        <button class="w-full bg-blue-600 text-white py-2 rounded text-sm pointer-events-auto relative z-50">Register</button>
+        <button class="w-full bg-blue-600 text-white py-2 rounded text-sm">Register</button>
       </form>
 
       <form id="loginForm" class="hidden space-y-3 mt-1">
         <input required id="loginName" placeholder="Username" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm" />
         <input required id="loginPass" type="password" placeholder="Password" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm" />
         <select id="loginRole" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm"><option value="user">User</option><option value="admin">Admin</option></select>
-        <button class="w-full bg-emerald-600 text-white py-2 rounded text-sm pointer-events-auto relative z-50">Login</button>
+        <button class="w-full bg-emerald-600 text-white py-2 rounded text-sm">Login</button>
       </form>
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
-</html>
+  </html>
+
 
 
 
