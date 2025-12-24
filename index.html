@@ -118,7 +118,10 @@
               <button type="button" id="gotoCalcLink" class="text-xs text-emerald-400 underline">Calculate</button>
             </div>
             <div><label class="block mb-1">Image (Max 50KB)</label><input id="postImage" type="file" accept="image/*" class="w-full text-slate-200" /></div>
-            <button id="uploadFormBtn" type="submit" class="w-full mt-2 rounded bg-emerald-600 text-white py-2">Upload Listing</button>
+            <div class="flex gap-2 mt-2">
+  <button id="uploadFormBtn" type="submit" class="flex-1 rounded bg-emerald-600 text-white py-2">Upload Listing</button>
+  <button id="deletePostBtn" type="button" class="hidden flex-1 rounded bg-red-600 text-white py-2">Delete Post</button>
+</div>
           </form>
         </div>
       </div>
@@ -191,6 +194,7 @@
 <script type="module" src="app.js?v=2"></script>
 </body>
 </html>
+
 
 
 
