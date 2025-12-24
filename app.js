@@ -1,13 +1,32 @@
-// app.js
+// app.js - Serverless Version
+
+// 1. IMPORT FIREBASE SDKs
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, arrayUnion, query, orderBy, onSnapshot, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+// 🔴 2. PASTE YOUR CONFIG HERE (From Firebase Console)
+const firebaseConfig = {
+  apiKey: "AIzaSyAAfBZtKGSWsC7WH90i0Xd9487CEtduuX0",
+  authDomain: "carbon-credit-f6e72.firebaseapp.com",
+  projectId: "carbon-credit-f6e72",
+  storageBucket: "carbon-credit-f6e72.firebasestorage.app",
+  messagingSenderId: "26922591570",
+  appId: "1:26922591570:web:cb0c8d76e0695fcd29c68b",
+  measurementId: "G-QBM9MF9T54"
+};
+
+// 3. INITIALIZE
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// --- HELPERS & CONSTANTS ---
 const qs = id => document.getElementById(id);
 const qsa = sel => [...document.querySelectorAll(sel)];
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 
-// ⚠️ CHANGE THIS TO YOUR RENDER URL
-const API_BASE = "https://carbon-credit-exchange-backend.onrender.com"; 
-
-const SESSION_KEY = "ccx_session_v2";
-const LAST_SECTION_KEY = "ccx_last_section_v2";
+const LAST_SECTION_KEY = "ccx_last_section_v3";
 const PROTECTED_SECTIONS = ["feed", "upload", "calculator", "admin", "inbox"];
 
 // State
@@ -29,11 +48,6 @@ const showSection = name => {
   });
 };
 
-const saveSession = () => {
-  if (state.currentUser) localStorage.setItem(SESSION_KEY, JSON.stringify(state.currentUser));
-  else localStorage.removeItem(SESSION_KEY);
-};
-
 const updateAuthUI = () => {
   const u = state.currentUser;
   if (u) {
@@ -45,21 +59,23 @@ const updateAuthUI = () => {
     qs("heroLoginBtn").classList.add("hidden");
     
     // Greeting
-    qs("welcomeName").textContent = u.name;
-    qs("welcomeWrapper").classList.remove("hidden");
+    if(qs("welcomeName")) {
+        qs("welcomeName").textContent = u.name;
+        qs("welcomeLine").classList.remove("hidden");
+    }
     
     qsa(".protected-nav").forEach(b => b.classList.remove("hidden"));
     if (u.role === "admin") qs("adminTab").classList.remove("hidden");
     else qs("adminTab").classList.add("hidden");
-    qs("feedFilters").classList.remove("hidden");
+    if(qs("feedFilters")) qs("feedFilters").classList.remove("hidden");
   } else {
     qs("loginBtn").classList.remove("hidden");
     qs("logoutBtn").classList.add("hidden");
     qs("userBadge").classList.add("hidden");
     qs("heroLoginBtn").classList.remove("hidden");
-    qs("welcomeWrapper").classList.add("hidden");
+    if(qs("welcomeLine")) qs("welcomeLine").classList.add("hidden");
     qs("adminTab").classList.add("hidden");
-    qs("feedFilters").classList.add("hidden");
+    if(qs("feedFilters")) qs("feedFilters").classList.add("hidden");
     qsa(".protected-nav").forEach(b => b.classList.add("hidden"));
   }
 };
@@ -73,30 +89,27 @@ const requireLogin = () => {
   return true;
 };
 
-// --- DATA FETCHING ---
-const fetchData = async () => {
-  try {
-    // 1. Get Posts
-    const res = await fetch(API_BASE + "/api/posts");
-    if(res.ok) state.posts = await res.json();
-    else console.log("Post fetch error:", res.status);
+// --- DATA LISTENERS (Real-time!) ---
+const startListeners = () => {
+    // Listen to Posts
+    const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
+    onSnapshot(q, (snapshot) => {
+        state.posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderFeed();
+        renderInbox();
+        
+        // Update active chat if open
+        if (!qs("chatModal").classList.contains("hidden") && currentChatPostId) {
+            const p = state.posts.find(x => x.id == currentChatPostId);
+            if(p) renderChatMessages(p);
+        }
+    });
 
-    // 2. Get Users (Only if admin)
-    if(state.currentUser?.role === 'admin') {
-       const uRes = await fetch(API_BASE + "/api/users");
-       if(uRes.ok) state.users = await uRes.json();
-       renderAdmin();
-    }
-    
-    renderFeed();
-    renderInbox();
-    
-    // Update active chat
-    if (!qs("chatModal").classList.contains("hidden") && currentChatPostId) {
-        const p = state.posts.find(x => x.id == currentChatPostId);
-        if(p) renderChatMessages(p);
-    }
-  } catch (err) { console.error("Fetch Loop Error:", err); }
+    // Listen to Users (Admin only usually, but for this mini-project we load all)
+    onSnapshot(collection(db, "users"), (snapshot) => {
+        state.users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if(state.currentUser?.role === 'admin') renderAdmin();
+    });
 };
 
 // --- AUTH HANDLERS ---
@@ -105,15 +118,24 @@ on(qs("registerForm"), "submit", async e => {
   const name = qs("regName").value;
   const email = qs("regEmail").value;
   const password = qs("regPass").value;
-  const role = qs("regRole").value;
+  const requestedRole = qs("regRole").value;
 
   try {
-    const res = await fetch(API_BASE + "/api/register", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password, role })
+    const userCred = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCred.user;
+    
+    // Secure Role Check
+    const role = (name.toLowerCase() === "bajaish" && requestedRole === "admin") ? "admin" : "user";
+
+    // Save to Firestore
+    await setDoc(doc(db, "users", user.uid), {
+        id: user.uid,
+        name: name,
+        email: email,
+        role: role,
+        createdAt: Date.now()
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
+
     alert("Registered! Please login.");
     qs("tabLogin").click();
   } catch (err) { alert(err.message); }
@@ -121,31 +143,68 @@ on(qs("registerForm"), "submit", async e => {
 
 on(qs("loginForm"), "submit", async e => {
   e.preventDefault();
-  const name = qs("loginName").value;
+  const name = qs("loginName").value; // Used for lookup in this app
   const password = qs("loginPass").value;
 
   try {
-    const res = await fetch(API_BASE + "/api/login", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, password }) 
-    });
-    // Check Content-Type to avoid "<" JSON error
-    const contentType = res.headers.get("content-type");
-    if (!contentType || !contentType.includes("application/json")) {
-        throw new Error("Server error (Check console)");
-    }
+    // 1. Find email by username (since Firebase Auth uses email)
+    // NOTE: This requires reading the users collection. 
+    // In a real app, users should just login with email.
+    // We will do a query here to support username login.
+    const usersRef = collection(db, "users");
+    const q = query(usersRef); // We'll filter in JS for this mini-project or use 'where'
+    const snap = await getDocs(q);
+    const userDoc = snap.docs.find(d => d.data().name === name);
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Login Failed");
+    if (!userDoc) throw new Error("Username not found. Please register.");
+    
+    const email = userDoc.data().email;
 
-    state.currentUser = data;
-    saveSession();
-    updateAuthUI();
+    // 2. Sign In
+    await signInWithEmailAndPassword(auth, email, password);
+    
+    // Auth state listener will handle the UI update
     qs("loginModal").classList.add("hidden");
-    showSection("feed"); // Redirect to marketplace
-    fetchData();
+    showSection("feed");
   } catch (err) { alert(err.message); }
 });
+
+// Handle Auth State Changes
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        // Fetch extended profile (Role)
+        const docRef = doc(db, "users", user.uid);
+        const docSnap = await getDocs(query(collection(db, "users"))); // Simplified: reload users
+        const myData = state.users.find(u => u.id === user.uid);
+        
+        // Wait for listener to catch up if needed, or fetch directly
+        // For simplicity in this structure, we assume listeners are running
+        
+        // Note: On first load, listeners might not be ready. Let's fetch self.
+        if(!myData) {
+             // quick fetch self
+             // (Logic handled by startListeners mostly)
+        }
+        
+        // We need the role. Let's attach it to currentUser when found.
+        // We defer updateAuthUI until we have the user data from Firestore
+    } else {
+        state.currentUser = null;
+        updateAuthUI();
+    }
+});
+
+// Watch state.users to sync current user
+setInterval(() => {
+    if(auth.currentUser && state.users.length > 0) {
+        const u = state.users.find(x => x.id === auth.currentUser.uid);
+        if(u && JSON.stringify(state.currentUser) !== JSON.stringify(u)) {
+            state.currentUser = u;
+            updateAuthUI();
+        }
+    }
+}, 500);
+
 
 // --- POSTS ---
 on(qs("uploadForm"), "submit", async e => {
@@ -159,32 +218,30 @@ on(qs("uploadForm"), "submit", async e => {
   const file = qs("postImage").files[0];
   
   const process = async (img) => {
-    const payload = { title, desc, price, credits, user: state.currentUser.name, image: img };
-    let url = API_BASE + "/api/posts";
-    let method = "POST";
+    const payload = { 
+        title, desc, price, credits, 
+        user: state.currentUser.name, 
+        image: img,
+        createdAt: Date.now(),
+        chatMessages: [],
+        status: "active"
+    };
     
-    // Edit Mode
     if(editPostId) {
-        url += "/" + editPostId;
-        method = "PUT";
-        if(!img) delete payload.image; // Don't overwrite if no new image
-    } else if(!img) return alert("Image required for new listing");
-
-    const res = await fetch(url, {
-        method, headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-    });
-
-    if(res.ok) {
-        alert("Saved!");
-        qs("uploadForm").reset();
-        editPostId = null;
-        qs("uploadFormBtn").textContent = "Upload Listing";
-        fetchData();
-        qs("yourListingsTab").click();
+        if(!img) delete payload.image; 
+        const ref = doc(db, "posts", editPostId);
+        await updateDoc(ref, payload);
+        alert("Updated!");
     } else {
-        alert("Upload failed. Image might be too large.");
+        if(!img) return alert("Image required");
+        await addDoc(collection(db, "posts"), payload);
+        alert("Posted!");
     }
+    
+    qs("uploadForm").reset();
+    editPostId = null;
+    qs("uploadFormBtn").textContent = "Upload Listing";
+    qs("yourListingsTab").click();
   };
 
   if(file) {
@@ -200,31 +257,48 @@ const renderFeed = () => {
     const con = qs("feedContainer");
     if(!state.posts.length) return con.innerHTML = "";
     
-    // Sort logic
     let arr = state.posts.filter(p => p.status !== 'removed');
     const pf = qs("priceFilter").value;
     if (pf === "low-high") arr.sort((a,b) => a.price - b.price);
     if (pf === "high-low") arr.sort((a,b) => b.price - a.price);
 
-    con.innerHTML = arr.map(p => `
+    con.innerHTML = arr.map(p => {
+      const isMine = state.currentUser && p.user === state.currentUser.name;
+      const timeStr = new Date(p.createdAt).toLocaleDateString() + " " + new Date(p.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      const badge = isMine 
+        ? `<span class="bg-emerald-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded ml-2">CREATED BY YOU</span>` 
+        : '';
+
+      const myName = state.currentUser?.name;
+      const hasUnread = p.chatMessages?.some(m => m.from !== myName && !m.seen);
+
+      return `
       <div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow flex flex-col">
         <img src="${p.image}" class="w-full h-44 object-cover">
         <div class="p-3 flex flex-col flex-1">
-          <h3 class="font-bold text-sm truncate">${p.title}</h3>
+          <div class="flex justify-between items-start mb-1">
+             <h3 class="font-bold text-sm truncate flex-1">${p.title}</h3>
+             ${badge}
+          </div>
+          <p class="text-[10px] text-slate-500 mb-2">
+             By ${p.user} • ${timeStr}
+          </p>
           <p class="text-xs text-slate-400 mb-2 truncate">${p.desc}</p>
           <div class="flex justify-between text-[11px] mb-2">
              <span class="text-emerald-300 bg-emerald-900/30 px-2 py-0.5 rounded-full">${p.credits} Credits</span>
              <span class="text-white font-bold">₹${p.price}</span>
           </div>
-          <p class="text-[10px] text-slate-500 mb-2">By ${p.user}</p>
-          <div class="mt-auto flex justify-between gap-2">
-             <button onclick="window.openChat('${p.id}')" class="flex-1 py-1 bg-slate-800 text-xs rounded border border-slate-600">💬 Chat</button>
+          <div class="mt-auto">
+             <button onclick="window.openChat('${p.id}')" class="w-full py-2 bg-slate-800 text-xs rounded border border-slate-600 relative hover:bg-slate-700">
+                💬 Chat
+                ${ hasUnread ? '<span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-slate-900"></span>' : '' }
+             </button>
           </div>
         </div>
       </div>
-    `).join("");
+    `}).join("");
     
-    // Also render "Your Listings" if active
+    // User Listings
     if(!qs("userListings").classList.contains("hidden")) {
         const myPosts = state.posts.filter(p => p.user === state.currentUser?.name);
         qs("userListings").innerHTML = myPosts.map(p => `
@@ -239,16 +313,28 @@ const renderFeed = () => {
 const renderInbox = () => {
     const list = qs("inboxList");
     if(!state.currentUser) return;
-    // Find posts where I am the owner OR I have sent a message
+    
     const items = state.posts.filter(p => 
         p.chatMessages?.length && (p.user === state.currentUser.name || p.chatMessages.some(m => m.from === state.currentUser.name))
     );
     
+    const totalUnread = items.reduce((acc, p) => acc + p.chatMessages.filter(m => m.from !== state.currentUser.name && !m.seen).length, 0);
+    const ind = qs("inboxIndicator");
+    if(ind) {
+        if(totalUnread > 0) ind.classList.remove("hidden");
+        else ind.classList.add("hidden");
+    }
+
     list.innerHTML = items.length ? items.map(p => {
         const last = p.chatMessages[p.chatMessages.length-1];
+        const unreadCount = p.chatMessages.filter(m => m.from !== state.currentUser.name && !m.seen).length;
+        
         return `<div onclick="window.openChat('${p.id}')" class="bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-pointer flex justify-between items-center hover:bg-slate-800">
             <div>
-               <div class="text-sm font-bold text-emerald-100">${p.title}</div>
+               <div class="text-sm font-bold text-emerald-100 flex items-center gap-2">
+                 ${p.title} 
+                 ${unreadCount > 0 ? `<span class="bg-red-500 text-white text-[9px] px-1.5 rounded-full">${unreadCount}</span>` : ''}
+               </div>
                <div class="text-xs text-slate-400">Last: ${last.from}</div>
             </div>
             <div class="text-xs text-emerald-500">Open</div>
@@ -263,14 +349,20 @@ const renderAdmin = () => {
         <tr class="text-xs border-b border-slate-700">
             <td class="p-2">${u.name}</td>
             <td class="p-2">${u.role}</td>
-            <td class="p-2 text-right"><button onclick="window.deleteUser('${u.id}')" class="text-red-400 hover:text-red-300">Delete</button></td>
+            <td class="p-2 text-right"><button onclick="window.deleteUser('${u.id}')" class="text-red-400 hover:text-red-300">Remove</button></td>
         </tr>
     `).join("");
 
     const pHtml = state.posts.map(p => `
         <div class="flex justify-between items-center bg-slate-900 p-2 text-xs border border-slate-700 rounded mb-1">
-            <span>${p.title} (by ${p.user})</span>
-            <button onclick="window.deletePost('${p.id}')" class="text-red-400 hover:text-red-300">Delete</button>
+            <div class="flex flex-col">
+                <span class="font-bold">${p.title}</span>
+                <span class="text-[10px] text-slate-400">By ${p.user} • ${p.chatMessages?.length || 0} msgs</span>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="window.viewAdminChat('${p.id}')" class="text-blue-400 hover:text-blue-300">View Chat</button>
+                <button onclick="window.deletePost('${p.id}')" class="text-red-400 hover:text-red-300">Delete</button>
+            </div>
         </div>
     `).join("");
 
@@ -286,14 +378,42 @@ const renderAdmin = () => {
     `;
 };
 
-// --- CHAT & ACTIONS (Exposed to Window for HTML onclick) ---
-window.openChat = (pid) => {
+// --- CHAT & ACTIONS ---
+window.openChat = async (pid) => {
     if(!requireLogin()) return;
     const p = state.posts.find(x => x.id == pid);
     if(!p) return;
+    
     currentChatPostId = pid;
     qs("chatModal").classList.remove("hidden");
     qs("chatPostTitle").textContent = p.title;
+    qs("chatForm").classList.remove("hidden"); 
+
+    renderChatMessages(p);
+    
+    // Mark as seen locally and in DB
+    const msgs = p.chatMessages || [];
+    let needsUpdate = false;
+    const updated = msgs.map(m => {
+        if(m.from !== state.currentUser.name && !m.seen) {
+            needsUpdate = true;
+            return {...m, seen: true};
+        }
+        return m;
+    });
+    
+    if(needsUpdate) {
+        await updateDoc(doc(db, "posts", pid), { chatMessages: updated });
+    }
+};
+
+window.viewAdminChat = (pid) => {
+    const p = state.posts.find(x => x.id == pid);
+    if(!p) return;
+    currentChatPostId = null;
+    qs("chatModal").classList.remove("hidden");
+    qs("chatPostTitle").textContent = `Admin View: ${p.title}`;
+    qs("chatForm").classList.add("hidden"); 
     renderChatMessages(p);
 };
 
@@ -304,6 +424,7 @@ const renderChatMessages = (p) => {
         return `<div class="flex ${isMe?'justify-end':'justify-start'}"><div class="px-2 py-1 rounded mb-1 text-xs max-w-[80%] ${isMe?'bg-emerald-600 text-white':'bg-slate-800 text-slate-300'}">
             <div class="font-bold opacity-50 text-[9px] mb-0.5">${m.from}</div>
             ${m.text}
+            <div class="text-[9px] opacity-60 text-right">${isMe && m.seen ? 'Seen' : ''}</div>
         </div></div>`;
     }).join("");
     box.scrollTop = box.scrollHeight;
@@ -313,15 +434,22 @@ on(qs("chatForm"), "submit", async e => {
     e.preventDefault();
     const text = qs("chatInput").value.trim();
     if(!text) return;
-    await fetch(API_BASE + `/api/posts/${currentChatPostId}/chat`, {
-        method: "POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ from: state.currentUser.name, text })
+    
+    const msg = {
+        from: state.currentUser.name,
+        text,
+        time: Date.now(),
+        seen: false
+    };
+    
+    await updateDoc(doc(db, "posts", currentChatPostId), {
+        chatMessages: arrayUnion(msg)
     });
+    
     qs("chatInput").value = "";
-    fetchData(); // Instant update
 });
 
-// / Edit / Delete Handlers
+// Edit / Delete Handlers
 window.editPost = (id) => {
     const p = state.posts.find(x => x.id == id);
     if(!p) return;
@@ -335,36 +463,26 @@ window.editPost = (id) => {
 };
 
 window.deleteUser = async (id) => {
-    if(!confirm("Delete user?")) return;
-    await fetch(API_BASE + `/api/users/${id}`, { method: "DELETE" });
-    fetchData();
+    if(!confirm("Delete user? (Auth login will remain, DB record removed)")) return;
+    await deleteDoc(doc(db, "users", id));
 };
 window.deletePost = async (id) => {
     if(!confirm("Delete post?")) return;
-    await fetch(API_BASE + `/api/posts/${id}`, { method: "DELETE" });
-    fetchData();
+    await deleteDoc(doc(db, "posts", id));
 };
 
 // --- INIT ---
-const saved = localStorage.getItem(SESSION_KEY);
-if(saved) state.currentUser = JSON.parse(saved);
 const lastSec = localStorage.getItem(LAST_SECTION_KEY);
-
-updateAuthUI();
-if(state.currentUser && lastSec) showSection(lastSec);
+startListeners(); // Start realtime listeners
+if(lastSec) showSection(lastSec);
 else showSection("landing");
 
-fetchData();
-setInterval(fetchData, 3000); // Poll every 3 seconds
-
-// UI Event Listeners
+// UI Listeners
 on(qs("loginBtn"), "click", () => qs("loginModal").classList.remove("hidden"));
 on(qs("closeLogin"), "click", () => qs("loginModal").classList.add("hidden"));
 on(qs("closeChat"), "click", () => qs("chatModal").classList.add("hidden"));
 on(qs("logoutBtn"), "click", () => {
-    state.currentUser = null;
-    saveSession();
-    updateAuthUI();
+    signOut(auth);
     showSection("landing");
 });
 on(qs("heroExploreBtn"), "click", () => { if(requireLogin()) showSection("feed"); });
@@ -384,8 +502,6 @@ on(qs("createListingTab"), "click", () => { qs("uploadWrapper").classList.remove
 on(qs("yourListingsTab"), "click", () => { qs("uploadWrapper").classList.add("hidden"); qs("userListings").classList.remove("hidden"); qs("yourListingsTab").classList.add("text-white","bg-slate-800"); qs("createListingTab").classList.remove("text-white","bg-slate-800"); });
 
 // Calculator
-
-// [NEW] Logic to switch between Tree and Land forms
 qsa('input[name="calcMethod"]').forEach(r =>
   on(r, "change", () => {
     const v = document.querySelector('input[name="calcMethod"]:checked').value;
@@ -400,15 +516,10 @@ on(qs("calcTreesBtn"), "click", () => {
     qs("totalCredits").textContent = res.toFixed(2) + " Tons CO2";
 });
 on(qs("calcLandBtn"), "click", () => {
-    // Simple land formula (placeholder logic based on request)
     const factor = qs("landUnit").value === 'hectares' ? 6 : 2.4; 
     const res = qs("landArea").value * factor * qs("landYears").value;
     qs("calcResult").classList.remove("hidden");
     qs("totalCredits").textContent = res.toFixed(2) + " Tons CO2";
 });
 on(qs("priceFilter"), "change", renderFeed);
-on(qs("gotoCalcLink"), "click", () => showSection(""));
-
-
-
-
+on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
