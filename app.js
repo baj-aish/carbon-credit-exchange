@@ -3,7 +3,7 @@
 // 1. IMPORT FIREBASE SDKs
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, arrayUnion, query, orderBy, onSnapshot, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, getDoc, doc, updateDoc, arrayUnion, query, orderBy, onSnapshot, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // 🔴 2. PASTE YOUR CONFIG HERE (From Firebase Console)
 const firebaseConfig = {
@@ -95,7 +95,7 @@ const startListeners = () => {
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
     onSnapshot(q, (snapshot) => {
         state.posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        renderFeed();
+        renderFeed(); // Updates Main Feed AND User Listings if visible
         renderInbox();
         
         // Update active chat if open
@@ -105,9 +105,19 @@ const startListeners = () => {
         }
     });
 
-    // Listen to Users (Admin only usually, but for this mini-project we load all)
+    // Listen to Users (and sync current user state)
     onSnapshot(collection(db, "users"), (snapshot) => {
         state.users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        // Auto-sync current user if logged in
+        if (auth.currentUser) {
+            const me = state.users.find(u => u.id === auth.currentUser.uid);
+            if (me) {
+                state.currentUser = me;
+                updateAuthUI();
+            }
+        }
+
         if(state.currentUser?.role === 'admin') renderAdmin();
     });
 };
@@ -147,13 +157,9 @@ on(qs("loginForm"), "submit", async e => {
   const password = qs("loginPass").value;
 
   try {
-    // 1. Find email by username (since Firebase Auth uses email)
-    // NOTE: This requires reading the users collection. 
-    // In a real app, users should just login with email.
-    // We will do a query here to support username login.
+    // 1. Find email by username
     const usersRef = collection(db, "users");
-    const q = query(usersRef); // We'll filter in JS for this mini-project or use 'where'
-    const snap = await getDocs(q);
+    const snap = await getDocs(usersRef);
     const userDoc = snap.docs.find(d => d.data().name === name);
 
     if (!userDoc) throw new Error("Username not found. Please register.");
@@ -163,48 +169,29 @@ on(qs("loginForm"), "submit", async e => {
     // 2. Sign In
     await signInWithEmailAndPassword(auth, email, password);
     
-    // Auth state listener will handle the UI update
     qs("loginModal").classList.add("hidden");
     showSection("feed");
   } catch (err) { alert(err.message); }
 });
 
-// Handle Auth State Changes
+// Handle Auth State Changes (FIXED: Immediate Fetch)
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // Fetch extended profile (Role)
+        // Fast path: Fetch user doc immediately so UI updates instantly
         const docRef = doc(db, "users", user.uid);
-        const docSnap = await getDocs(query(collection(db, "users"))); // Simplified: reload users
-        const myData = state.users.find(u => u.id === user.uid);
+        const snapshot = await getDoc(docRef);
         
-        // Wait for listener to catch up if needed, or fetch directly
-        // For simplicity in this structure, we assume listeners are running
-        
-        // Note: On first load, listeners might not be ready. Let's fetch self.
-        if(!myData) {
-             // quick fetch self
-             // (Logic handled by startListeners mostly)
+        if (snapshot.exists()) {
+            state.currentUser = { id: snapshot.id, ...snapshot.data() };
+            updateAuthUI();
+            renderFeed(); // Re-render to show "Created by you" correctly
         }
-        
-        // We need the role. Let's attach it to currentUser when found.
-        // We defer updateAuthUI until we have the user data from Firestore
     } else {
         state.currentUser = null;
         updateAuthUI();
+        renderFeed();
     }
 });
-
-// Watch state.users to sync current user
-setInterval(() => {
-    if(auth.currentUser && state.users.length > 0) {
-        const u = state.users.find(x => x.id === auth.currentUser.uid);
-        if(u && JSON.stringify(state.currentUser) !== JSON.stringify(u)) {
-            state.currentUser = u;
-            updateAuthUI();
-        }
-    }
-}, 500);
-
 
 // --- POSTS ---
 on(qs("uploadForm"), "submit", async e => {
@@ -298,15 +285,20 @@ const renderFeed = () => {
       </div>
     `}).join("");
     
-    // User Listings
+    // User Listings (FIXED: Handles filtering correctly)
     if(!qs("userListings").classList.contains("hidden")) {
         const myPosts = state.posts.filter(p => p.user === state.currentUser?.name);
-        qs("userListings").innerHTML = myPosts.map(p => `
-            <div class="bg-slate-900 p-2 border border-slate-700 rounded mb-2 flex justify-between text-xs items-center">
-                <span>${p.title}</span>
-                <button class="text-emerald-400 underline" onclick="window.editPost('${p.id}')">Edit</button>
-            </div>
-        `).join("");
+        
+        if (myPosts.length === 0) {
+            qs("userListings").innerHTML = '<p class="text-slate-400 text-xs">No listings found.</p>';
+        } else {
+            qs("userListings").innerHTML = myPosts.map(p => `
+                <div class="bg-slate-900 p-2 border border-slate-700 rounded mb-2 flex justify-between text-xs items-center">
+                    <span>${p.title}</span>
+                    <button class="text-emerald-400 underline" onclick="window.editPost('${p.id}')">Edit</button>
+                </div>
+            `).join("");
+        }
     }
 };
 
@@ -496,30 +488,4 @@ on(qs("tabLogin"), "click", () => { qs("loginForm").classList.remove("hidden"); 
 qsa(".nav-btn").forEach(b => on(b, "click", () => {
     if(b.classList.contains("protected-nav") && !requireLogin()) return;
     showSection(b.dataset.section);
-    if(b.dataset.section === 'upload') qs("yourListingsTab").click();
-}));
-on(qs("createListingTab"), "click", () => { qs("uploadWrapper").classList.remove("hidden"); qs("userListings").classList.add("hidden"); qs("createListingTab").classList.add("text-white","bg-slate-800"); qs("yourListingsTab").classList.remove("text-white","bg-slate-800"); });
-on(qs("yourListingsTab"), "click", () => { qs("uploadWrapper").classList.add("hidden"); qs("userListings").classList.remove("hidden"); qs("yourListingsTab").classList.add("text-white","bg-slate-800"); qs("createListingTab").classList.remove("text-white","bg-slate-800"); });
-
-// Calculator
-qsa('input[name="calcMethod"]').forEach(r =>
-  on(r, "change", () => {
-    const v = document.querySelector('input[name="calcMethod"]:checked').value;
-    qs("treeForm").classList.toggle("hidden", v !== "trees");
-    qs("landForm").classList.toggle("hidden", v !== "land");
-    qs("calcResult").classList.add("hidden");
-  })
-);
-on(qs("calcTreesBtn"), "click", () => {
-    const res = (qs("treeCount").value * qs("treeType").value * qs("treeYears").value)/1000;
-    qs("calcResult").classList.remove("hidden");
-    qs("totalCredits").textContent = res.toFixed(2) + " Tons CO2";
-});
-on(qs("calcLandBtn"), "click", () => {
-    const factor = qs("landUnit").value === 'hectares' ? 6 : 2.4; 
-    const res = qs("landArea").value * factor * qs("landYears").value;
-    qs("calcResult").classList.remove("hidden");
-    qs("totalCredits").textContent = res.toFixed(2) + " Tons CO2";
-});
-on(qs("priceFilter"), "change", renderFeed);
-on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
+    if(b.dataset.section === 'upload') qs
