@@ -1,1013 +1,1411 @@
-// import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-// import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-// import { getFirestore, collection, addDoc, getDocs, getDoc, doc, updateDoc, arrayUnion, query, orderBy, onSnapshot, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+// // import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+// // import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+// // import { getFirestore, collection, addDoc, getDocs, getDoc, doc, updateDoc, arrayUnion, query, orderBy, onSnapshot, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// // 🔴 CONFIG
-// const firebaseConfig = {
-//   apiKey: "AIzaSyAAfBZtKGSWsC7WH90i0Xd9487CEtduuX0",
-//   authDomain: "carbon-credit-f6e72.firebaseapp.com",
-//   projectId: "carbon-credit-f6e72",
-//   storageBucket: "carbon-credit-f6e72.firebasestorage.app",
-//   messagingSenderId: "26922591570",
-//   appId: "1:26922591570:web:cb0c8d76e0695fcd29c68b",
-//   measurementId: "G-QBM9MF9T54"
-// };
+// // // 🔴 CONFIG
+// // const firebaseConfig = {
+// //   apiKey: "AIzaSyAAfBZtKGSWsC7WH90i0Xd9487CEtduuX0",
+// //   authDomain: "carbon-credit-f6e72.firebaseapp.com",
+// //   projectId: "carbon-credit-f6e72",
+// //   storageBucket: "carbon-credit-f6e72.firebasestorage.app",
+// //   messagingSenderId: "26922591570",
+// //   appId: "1:26922591570:web:cb0c8d76e0695fcd29c68b",
+// //   measurementId: "G-QBM9MF9T54"
+// // };
 
-// const app = initializeApp(firebaseConfig);
-// const auth = getAuth(app);
-// const db = getFirestore(app);
+// // const app = initializeApp(firebaseConfig);
+// // const auth = getAuth(app);
+// // const db = getFirestore(app);
 
-// // --- HELPERS ---
-// const qs = id => document.getElementById(id);
-// const qsa = sel => [...document.querySelectorAll(sel)];
-// const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
+// // // --- HELPERS ---
+// // const qs = id => document.getElementById(id);
+// // const qsa = sel => [...document.querySelectorAll(sel)];
+// // const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 
-// // Safe Toggle
-// const safeToggle = (id, action) => {
-//     const el = qs(id);
-//     if (!el) return;
-//     if (action === "show") el.classList.remove("hidden");
-//     if (action === "hide") el.classList.add("hidden");
-// };
+// // // Safe Toggle
+// // const safeToggle = (id, action) => {
+// //     const el = qs(id);
+// //     if (!el) return;
+// //     if (action === "show") el.classList.remove("hidden");
+// //     if (action === "hide") el.classList.add("hidden");
+// // };
 
-// const LAST_SECTION_KEY = "ccx_last_section_v4"; // Updated version key
-// const PROTECTED_SECTIONS = ["feed", "upload", "calculator", "admin", "inbox"];
+// // const LAST_SECTION_KEY = "ccx_last_section_v4"; // Updated version key
+// // const PROTECTED_SECTIONS = ["feed", "upload", "calculator", "admin", "inbox"];
 
-// let state = { users: [], posts: [], currentUser: null };
-// let editPostId = null;
-// let currentChatPostId = null;
+// // let state = { users: [], posts: [], currentUser: null };
+// // let editPostId = null;
+// // let currentChatPostId = null;
 
-// // --- UTILS (Fixed Highlighting) ---
-// const showSection = name => {
-//   qsa(".section").forEach(s => s.classList.add("hidden"));
-//   const sec = qs("section-" + name);
-//   if (sec) sec.classList.remove("hidden");
-//   localStorage.setItem(LAST_SECTION_KEY, name);
+// // // --- UTILS (Fixed Highlighting) ---
+// // const showSection = name => {
+// //   qsa(".section").forEach(s => s.classList.add("hidden"));
+// //   const sec = qs("section-" + name);
+// //   if (sec) sec.classList.remove("hidden");
+// //   localStorage.setItem(LAST_SECTION_KEY, name);
   
-//   // [FIX] Robust Button Highlighting (Background Color Change)
-//   qsa(".nav-btn").forEach(btn => {
-//     const isActive = btn.dataset.section === name;
-//     if (isActive) {
-//         btn.classList.remove("bg-slate-900", "text-slate-100", "border-b-transparent");
-//         btn.classList.add("bg-emerald-600", "text-white", "font-bold");
-//     } else {
-//         btn.classList.add("bg-slate-900", "text-slate-100", "border-b-transparent");
-//         btn.classList.remove("bg-emerald-600", "text-white", "font-bold");
-//     }
-//   });
-// };
+// //   // [FIX] Robust Button Highlighting (Background Color Change)
+// //   qsa(".nav-btn").forEach(btn => {
+// //     const isActive = btn.dataset.section === name;
+// //     if (isActive) {
+// //         btn.classList.remove("bg-slate-900", "text-slate-100", "border-b-transparent");
+// //         btn.classList.add("bg-emerald-600", "text-white", "font-bold");
+// //     } else {
+// //         btn.classList.add("bg-slate-900", "text-slate-100", "border-b-transparent");
+// //         btn.classList.remove("bg-emerald-600", "text-white", "font-bold");
+// //     }
+// //   });
+// // };
 
-// const updateAuthUI = () => {
-//   const u = state.currentUser;
+// // const updateAuthUI = () => {
+// //   const u = state.currentUser;
   
-//   if (u) {
-//     safeToggle("loginBtn", "hide");
-//     safeToggle("logoutBtn", "show");
-//     safeToggle("userBadge", "show");
+// //   if (u) {
+// //     safeToggle("loginBtn", "hide");
+// //     safeToggle("logoutBtn", "show");
+// //     safeToggle("userBadge", "show");
     
-//     const nameEl = qs("badgeName");
-//     const roleEl = qs("badgeRole");
-//     if(nameEl) nameEl.textContent = u.name;
-//     if(roleEl) roleEl.textContent = u.role;
+// //     const nameEl = qs("badgeName");
+// //     const roleEl = qs("badgeRole");
+// //     if(nameEl) nameEl.textContent = u.name;
+// //     if(roleEl) roleEl.textContent = u.role;
     
-//     safeToggle("heroLoginBtn", "hide");
-//     safeToggle("welcomeWrapper", "show");
+// //     safeToggle("heroLoginBtn", "hide");
+// //     safeToggle("welcomeWrapper", "show");
     
-//     const welcomeName = qs("welcomeName");
-//     if(welcomeName) welcomeName.textContent = u.name;
+// //     const welcomeName = qs("welcomeName");
+// //     if(welcomeName) welcomeName.textContent = u.name;
     
-//     qsa(".protected-nav").forEach(b => b.classList.remove("hidden"));
+// //     qsa(".protected-nav").forEach(b => b.classList.remove("hidden"));
     
-//     if (u.role === "admin") safeToggle("adminTab", "show");
-//     else safeToggle("adminTab", "hide");
+// //     if (u.role === "admin") safeToggle("adminTab", "show");
+// //     else safeToggle("adminTab", "hide");
     
-//     safeToggle("feedFilters", "show");
-//   } else {
-//     safeToggle("loginBtn", "show");
-//     safeToggle("logoutBtn", "hide");
-//     safeToggle("userBadge", "hide");
-//     safeToggle("heroLoginBtn", "show");
-//     safeToggle("welcomeWrapper", "hide");
-//     safeToggle("adminTab", "hide");
-//     safeToggle("feedFilters", "hide");
-//     qsa(".protected-nav").forEach(b => b.classList.add("hidden"));
-//   }
-// };
+// //     safeToggle("feedFilters", "show");
+// //   } else {
+// //     safeToggle("loginBtn", "show");
+// //     safeToggle("logoutBtn", "hide");
+// //     safeToggle("userBadge", "hide");
+// //     safeToggle("heroLoginBtn", "show");
+// //     safeToggle("welcomeWrapper", "hide");
+// //     safeToggle("adminTab", "hide");
+// //     safeToggle("feedFilters", "hide");
+// //     qsa(".protected-nav").forEach(b => b.classList.add("hidden"));
+// //   }
+// // };
 
-// const requireLogin = () => {
-//   if (!state.currentUser) {
-//     alert("Please login first.");
-//     safeToggle("loginModal", "show");
-//     return false;
-//   }
-//   return true;
-// };
+// // const requireLogin = () => {
+// //   if (!state.currentUser) {
+// //     alert("Please login first.");
+// //     safeToggle("loginModal", "show");
+// //     return false;
+// //   }
+// //   return true;
+// // };
 
-// // --- DATA LISTENERS ---
-// const startListeners = () => {
-//     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
-//     onSnapshot(q, (snapshot) => {
-//         state.posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-//         renderFeed(); 
-//         renderInbox(); 
+// // // --- DATA LISTENERS ---
+// // const startListeners = () => {
+// //     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
+// //     onSnapshot(q, (snapshot) => {
+// //         state.posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+// //         renderFeed(); 
+// //         renderInbox(); 
         
-//         if (!qs("chatModal").classList.contains("hidden") && currentChatPostId) {
-//             const p = state.posts.find(x => x.id == currentChatPostId);
-//             if(p) renderChatMessages(p);
-//         }
-//     });
+// //         if (!qs("chatModal").classList.contains("hidden") && currentChatPostId) {
+// //             const p = state.posts.find(x => x.id == currentChatPostId);
+// //             if(p) renderChatMessages(p);
+// //         }
+// //     });
 
-//     onSnapshot(collection(db, "users"), (snapshot) => {
-//         state.users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+// //     onSnapshot(collection(db, "users"), (snapshot) => {
+// //         state.users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
-//         if (auth.currentUser) {
-//             const me = state.users.find(u => u.id === auth.currentUser.uid);
-//             if (me && JSON.stringify(state.currentUser) !== JSON.stringify(me)) {
-//                 state.currentUser = me;
-//                 updateAuthUI();
-//                 renderFeed();
-//                 renderInbox();
-//             }
-//         }
-//         if(state.currentUser?.role === 'admin') renderAdmin();
-//     });
-// };
+// //         if (auth.currentUser) {
+// //             const me = state.users.find(u => u.id === auth.currentUser.uid);
+// //             if (me && JSON.stringify(state.currentUser) !== JSON.stringify(me)) {
+// //                 state.currentUser = me;
+// //                 updateAuthUI();
+// //                 renderFeed();
+// //                 renderInbox();
+// //             }
+// //         }
+// //         if(state.currentUser?.role === 'admin') renderAdmin();
+// //     });
+// // };
 
-// // --- AUTH HANDLERS ---
-// on(qs("registerForm"), "submit", async e => {
-//   e.preventDefault();
-//   const name = qs("regName").value;
-//   const email = qs("regEmail").value;
-//   const password = qs("regPass").value;
+// // // --- AUTH HANDLERS ---
+// // on(qs("registerForm"), "submit", async e => {
+// //   e.preventDefault();
+// //   const name = qs("regName").value;
+// //   const email = qs("regEmail").value;
+// //   const password = qs("regPass").value;
   
-//   let role = "user";
-//   const roleEl = qs("regRole");
-//   if(roleEl) {
-//       const val = roleEl.value;
-//       if (name.toLowerCase() === "bajaish" && val === "admin") role = "admin";
-//   }
+// //   let role = "user";
+// //   const roleEl = qs("regRole");
+// //   if(roleEl) {
+// //       const val = roleEl.value;
+// //       if (name.toLowerCase() === "bajaish" && val === "admin") role = "admin";
+// //   }
 
-//   try {
-//     const userCred = await createUserWithEmailAndPassword(auth, email, password);
-//     const user = userCred.user;
+// //   try {
+// //     const userCred = await createUserWithEmailAndPassword(auth, email, password);
+// //     const user = userCred.user;
 
-//     await setDoc(doc(db, "users", user.uid), {
-//         id: user.uid,
-//         name: name,
-//         email: email,
-//         role: role,
-//         createdAt: Date.now()
-//     });
+// //     await setDoc(doc(db, "users", user.uid), {
+// //         id: user.uid,
+// //         name: name,
+// //         email: email,
+// //         role: role,
+// //         createdAt: Date.now()
+// //     });
 
-//     alert("Registered! Please login.");
-//     qs("tabLogin").click();
-//   } catch (err) { alert(err.message); }
-// });
+// //     alert("Registered! Please login.");
+// //     qs("tabLogin").click();
+// //   } catch (err) { alert(err.message); }
+// // });
 
-// on(qs("loginForm"), "submit", async e => {
-//   e.preventDefault();
-//   const name = qs("loginName").value; 
-//   const password = qs("loginPass").value;
+// // on(qs("loginForm"), "submit", async e => {
+// //   e.preventDefault();
+// //   const name = qs("loginName").value; 
+// //   const password = qs("loginPass").value;
 
-//   try {
-//     const usersRef = collection(db, "users");
-//     const snap = await getDocs(usersRef);
-//     const userDoc = snap.docs.find(d => d.data().name === name);
+// //   try {
+// //     const usersRef = collection(db, "users");
+// //     const snap = await getDocs(usersRef);
+// //     const userDoc = snap.docs.find(d => d.data().name === name);
 
-//     if (!userDoc) throw new Error("Username not found. Please register.");
+// //     if (!userDoc) throw new Error("Username not found. Please register.");
     
-//     const userData = userDoc.data();
-//     await signInWithEmailAndPassword(auth, userData.email, password);
+// //     const userData = userDoc.data();
+// //     await signInWithEmailAndPassword(auth, userData.email, password);
     
-//     state.currentUser = { id: userDoc.id, ...userData };
-//     updateAuthUI();
-//     renderFeed();
-//     renderInbox(); 
+// //     state.currentUser = { id: userDoc.id, ...userData };
+// //     updateAuthUI();
+// //     renderFeed();
+// //     renderInbox(); 
 
-//     safeToggle("loginModal", "hide");
-//     showSection("feed");
-//   } catch (err) { alert(err.message); }
-// });
+// //     safeToggle("loginModal", "hide");
+// //     showSection("feed");
+// //   } catch (err) { alert(err.message); }
+// // });
 
-// onAuthStateChanged(auth, async (user) => {
-//     if (user) {
-//         if (!state.currentUser) {
-//             const docRef = doc(db, "users", user.uid);
-//             const snapshot = await getDoc(docRef);
-//             if (snapshot.exists()) {
-//                 state.currentUser = { id: snapshot.id, ...snapshot.data() };
-//                 updateAuthUI();
-//                 renderFeed();
-//                 renderInbox();
-//             }
-//         }
-//     } else {
-//         state.currentUser = null;
-//         updateAuthUI();
-//         renderFeed();
-//         renderInbox();
-//     }
-// });
+// // onAuthStateChanged(auth, async (user) => {
+// //     if (user) {
+// //         if (!state.currentUser) {
+// //             const docRef = doc(db, "users", user.uid);
+// //             const snapshot = await getDoc(docRef);
+// //             if (snapshot.exists()) {
+// //                 state.currentUser = { id: snapshot.id, ...snapshot.data() };
+// //                 updateAuthUI();
+// //                 renderFeed();
+// //                 renderInbox();
+// //             }
+// //         }
+// //     } else {
+// //         state.currentUser = null;
+// //         updateAuthUI();
+// //         renderFeed();
+// //         renderInbox();
+// //     }
+// // });
 
-// // --- RENDERERS (Fixed Filters) ---
-// const renderFeed = () => {
-//     const con = qs("feedContainer");
-//     if(!state.posts.length) return con.innerHTML = "";
+// // // --- RENDERERS (Fixed Filters) ---
+// // const renderFeed = () => {
+// //     const con = qs("feedContainer");
+// //     if(!state.posts.length) return con.innerHTML = "";
     
-//     let arr = state.posts.filter(p => p.status !== 'removed');
+// //     let arr = state.posts.filter(p => p.status !== 'removed');
     
-//     // [FIX] Price Filter
-//     const pf = qs("priceFilter")?.value || "none";
-//     if (pf === "low-high") arr.sort((a,b) => a.price - b.price);
-//     if (pf === "high-low") arr.sort((a,b) => b.price - a.price);
+// //     // [FIX] Price Filter
+// //     const pf = qs("priceFilter")?.value || "none";
+// //     if (pf === "low-high") arr.sort((a,b) => a.price - b.price);
+// //     if (pf === "high-low") arr.sort((a,b) => b.price - a.price);
 
-//     // [FIX] Credit Filter Logic
-//     const cf = qs("creditsFilter")?.value || "all";
-//     if (cf === "1-10") arr = arr.filter(p => p.credits >= 1 && p.credits <= 10);
-//     if (cf === "50+") arr = arr.filter(p => p.credits >= 50);
+// //     // [FIX] Credit Filter Logic
+// //     const cf = qs("creditsFilter")?.value || "all";
+// //     if (cf === "1-10") arr = arr.filter(p => p.credits >= 1 && p.credits <= 10);
+// //     if (cf === "50+") arr = arr.filter(p => p.credits >= 50);
 
-//     con.innerHTML = arr.map(p => {
-//       const isMine = state.currentUser && p.user === state.currentUser.name;
-//       const timeStr = new Date(p.createdAt).toLocaleDateString();
-//       const badge = isMine 
-//         ? `<span class="bg-emerald-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded ml-2">CREATED BY YOU</span>` 
-//         : '';
+// //     con.innerHTML = arr.map(p => {
+// //       const isMine = state.currentUser && p.user === state.currentUser.name;
+// //       const timeStr = new Date(p.createdAt).toLocaleDateString();
+// //       const badge = isMine 
+// //         ? `<span class="bg-emerald-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded ml-2">CREATED BY YOU</span>` 
+// //         : '';
 
-//       const myName = state.currentUser?.name;
-//       const hasUnread = p.chatMessages?.some(m => m.from !== myName && !m.seen);
+// //       const myName = state.currentUser?.name;
+// //       const hasUnread = p.chatMessages?.some(m => m.from !== myName && !m.seen);
 
-//       return `
-//       <div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow flex flex-col">
-//         <img src="${p.image}" class="w-full h-44 object-cover">
-//         <div class="p-3 flex flex-col flex-1">
-//           <div class="flex justify-between items-start mb-1">
-//              <h3 class="font-bold text-sm truncate flex-1">${p.title}</h3>
-//              ${badge}
-//           </div>
-//           <p class="text-[10px] text-slate-500 mb-2">By ${p.user} • ${timeStr}</p>
-//           <p class="text-xs text-slate-400 mb-2 truncate">${p.desc}</p>
-//           <div class="flex justify-between text-[11px] mb-2">
-//              <span class="text-emerald-300 bg-emerald-900/30 px-2 py-0.5 rounded-full">${p.credits} Credits</span>
-//              <span class="text-white font-bold">₹${p.price}</span>
-//           </div>
-//           <div class="mt-auto">
-//              <button onclick="window.openChat('${p.id}')" class="w-full py-2 bg-slate-800 text-xs rounded border border-slate-600 relative hover:bg-slate-700">
-//                 💬 Chat
-//                 ${ hasUnread ? '<span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-slate-900"></span>' : '' }
-//              </button>
-//           </div>
-//         </div>
-//       </div>
-//     `}).join("");
+// //       return `
+// //       <div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow flex flex-col">
+// //         <img src="${p.image}" class="w-full h-44 object-cover">
+// //         <div class="p-3 flex flex-col flex-1">
+// //           <div class="flex justify-between items-start mb-1">
+// //              <h3 class="font-bold text-sm truncate flex-1">${p.title}</h3>
+// //              ${badge}
+// //           </div>
+// //           <p class="text-[10px] text-slate-500 mb-2">By ${p.user} • ${timeStr}</p>
+// //           <p class="text-xs text-slate-400 mb-2 truncate">${p.desc}</p>
+// //           <div class="flex justify-between text-[11px] mb-2">
+// //              <span class="text-emerald-300 bg-emerald-900/30 px-2 py-0.5 rounded-full">${p.credits} Credits</span>
+// //              <span class="text-white font-bold">₹${p.price}</span>
+// //           </div>
+// //           <div class="mt-auto">
+// //              <button onclick="window.openChat('${p.id}')" class="w-full py-2 bg-slate-800 text-xs rounded border border-slate-600 relative hover:bg-slate-700">
+// //                 💬 Chat
+// //                 ${ hasUnread ? '<span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-slate-900"></span>' : '' }
+// //              </button>
+// //           </div>
+// //         </div>
+// //       </div>
+// //     `}).join("");
     
-//     if(!qs("userListings").classList.contains("hidden")) {
-//         const myName = state.currentUser ? state.currentUser.name : "";
-//         const myPosts = state.posts.filter(p => p.user === myName);
+// //     if(!qs("userListings").classList.contains("hidden")) {
+// //         const myName = state.currentUser ? state.currentUser.name : "";
+// //         const myPosts = state.posts.filter(p => p.user === myName);
         
-//         if (myPosts.length === 0) {
-//             qs("userListings").innerHTML = '<p class="text-slate-400 text-xs">No listings found.</p>';
-//         } else {
-//             qs("userListings").innerHTML = myPosts.map(p => `
-//                 <div class="bg-slate-900 p-2 border border-slate-700 rounded mb-2 flex justify-between text-xs items-center">
-//                     <span>${p.title}</span>
-//                     <button class="text-emerald-400 underline" onclick="window.editPost('${p.id}')">Edit</button>
-//                 </div>
-//             `).join("");
-//         }
-//     }
-// };
+// //         if (myPosts.length === 0) {
+// //             qs("userListings").innerHTML = '<p class="text-slate-400 text-xs">No listings found.</p>';
+// //         } else {
+// //             qs("userListings").innerHTML = myPosts.map(p => `
+// //                 <div class="bg-slate-900 p-2 border border-slate-700 rounded mb-2 flex justify-between text-xs items-center">
+// //                     <span>${p.title}</span>
+// //                     <button class="text-emerald-400 underline" onclick="window.editPost('${p.id}')">Edit</button>
+// //                 </div>
+// //             `).join("");
+// //         }
+// //     }
+// // };
 
-// const renderInbox = () => {
-//     const list = qs("inboxList");
-//     if(!list) return; 
+// // const renderInbox = () => {
+// //     const list = qs("inboxList");
+// //     if(!list) return; 
     
-//     if(!state.currentUser) {
-//         list.innerHTML = `<p class="text-slate-400 text-sm">Please login.</p>`;
-//         return;
-//     }
+// //     if(!state.currentUser) {
+// //         list.innerHTML = `<p class="text-slate-400 text-sm">Please login.</p>`;
+// //         return;
+// //     }
     
-//     const myName = state.currentUser.name;
-//     const items = state.posts.filter(p => 
-//         p.chatMessages?.length && (p.user === myName || p.chatMessages.some(m => m.from === myName))
-//     );
+// //     const myName = state.currentUser.name;
+// //     const items = state.posts.filter(p => 
+// //         p.chatMessages?.length && (p.user === myName || p.chatMessages.some(m => m.from === myName))
+// //     );
     
-//     // Sort Inbox by latest message
-//     items.sort((a,b) => {
-//         const lastA = a.chatMessages[a.chatMessages.length-1].time;
-//         const lastB = b.chatMessages[b.chatMessages.length-1].time;
-//         return lastB - lastA;
-//     });
+// //     // Sort Inbox by latest message
+// //     items.sort((a,b) => {
+// //         const lastA = a.chatMessages[a.chatMessages.length-1].time;
+// //         const lastB = b.chatMessages[b.chatMessages.length-1].time;
+// //         return lastB - lastA;
+// //     });
 
-//     const totalUnread = items.reduce((acc, p) => acc + p.chatMessages.filter(m => m.from !== myName && !m.seen).length, 0);
-//     const ind = qs("inboxIndicator");
-//     if(ind) {
-//         if(totalUnread > 0) ind.classList.remove("hidden");
-//         else ind.classList.add("hidden");
-//     }
+// //     const totalUnread = items.reduce((acc, p) => acc + p.chatMessages.filter(m => m.from !== myName && !m.seen).length, 0);
+// //     const ind = qs("inboxIndicator");
+// //     if(ind) {
+// //         if(totalUnread > 0) ind.classList.remove("hidden");
+// //         else ind.classList.add("hidden");
+// //     }
 
-//     if(items.length === 0) {
-//         list.innerHTML = '<p class="text-slate-400 text-sm">No messages yet.</p>';
-//         return;
-//     }
+// //     if(items.length === 0) {
+// //         list.innerHTML = '<p class="text-slate-400 text-sm">No messages yet.</p>';
+// //         return;
+// //     }
 
-//     list.innerHTML = items.map(p => {
-//         const last = p.chatMessages[p.chatMessages.length-1];
-//         const unreadCount = p.chatMessages.filter(m => m.from !== myName && !m.seen).length;
+// //     list.innerHTML = items.map(p => {
+// //         const last = p.chatMessages[p.chatMessages.length-1];
+// //         const unreadCount = p.chatMessages.filter(m => m.from !== myName && !m.seen).length;
         
-//         return `<div onclick="window.openChat('${p.id}')" class="bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-pointer flex justify-between items-center hover:bg-slate-800">
-//             <div>
-//                <div class="text-sm font-bold text-emerald-100 flex items-center gap-2">
-//                  ${p.title} 
-//                  ${unreadCount > 0 ? `<span class="bg-red-500 text-white text-[9px] px-1.5 rounded-full">${unreadCount}</span>` : ''}
-//                </div>
-//                <div class="text-xs text-slate-400">Last: ${last.from}: ${last.text}</div>
-//             </div>
-//             <div class="text-xs text-emerald-500">Open</div>
-//         </div>`
-//     }).join("");
-// };
+// //         return `<div onclick="window.openChat('${p.id}')" class="bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-pointer flex justify-between items-center hover:bg-slate-800">
+// //             <div>
+// //                <div class="text-sm font-bold text-emerald-100 flex items-center gap-2">
+// //                  ${p.title} 
+// //                  ${unreadCount > 0 ? `<span class="bg-red-500 text-white text-[9px] px-1.5 rounded-full">${unreadCount}</span>` : ''}
+// //                </div>
+// //                <div class="text-xs text-slate-400">Last: ${last.from}: ${last.text}</div>
+// //             </div>
+// //             <div class="text-xs text-emerald-500">Open</div>
+// //         </div>`
+// //     }).join("");
+// // };
 
-// const renderAdmin = () => {
-//     if(state.currentUser?.role !== 'admin') return;
+// // const renderAdmin = () => {
+// //     if(state.currentUser?.role !== 'admin') return;
     
-//     const uHtml = state.users.map(u => `
-//         <tr class="text-xs border-b border-slate-700">
-//             <td class="p-2">${u.name}</td>
-//             <td class="p-2">${u.role}</td>
-//             <td class="p-2 text-right"><button onclick="window.deleteUser('${u.id}')" class="text-red-400 hover:text-red-300">Remove</button></td>
-//         </tr>
-//     `).join("");
+// //     const uHtml = state.users.map(u => `
+// //         <tr class="text-xs border-b border-slate-700">
+// //             <td class="p-2">${u.name}</td>
+// //             <td class="p-2">${u.role}</td>
+// //             <td class="p-2 text-right"><button onclick="window.deleteUser('${u.id}')" class="text-red-400 hover:text-red-300">Remove</button></td>
+// //         </tr>
+// //     `).join("");
 
-//     const pHtml = state.posts.map(p => `
-//         <div class="flex justify-between items-center bg-slate-900 p-2 text-xs border border-slate-700 rounded mb-1">
-//             <div class="flex flex-col">
-//                 <span class="font-bold">${p.title}</span>
-//                 <span class="text-[10px] text-slate-400">By ${p.user} • ${p.chatMessages?.length || 0} msgs</span>
-//             </div>
-//             <div class="flex gap-2">
-//                 <button onclick="window.viewAdminChat('${p.id}')" class="text-blue-400 hover:text-blue-300">View Chat</button>
-//                 <button onclick="window.deletePost('${p.id}')" class="text-red-400 hover:text-red-300">Delete</button>
-//             </div>
-//         </div>
-//     `).join("");
+// //     const pHtml = state.posts.map(p => `
+// //         <div class="flex justify-between items-center bg-slate-900 p-2 text-xs border border-slate-700 rounded mb-1">
+// //             <div class="flex flex-col">
+// //                 <span class="font-bold">${p.title}</span>
+// //                 <span class="text-[10px] text-slate-400">By ${p.user} • ${p.chatMessages?.length || 0} msgs</span>
+// //             </div>
+// //             <div class="flex gap-2">
+// //                 <button onclick="window.viewAdminChat('${p.id}')" class="text-blue-400 hover:text-blue-300">View Chat</button>
+// //                 <button onclick="window.deletePost('${p.id}')" class="text-red-400 hover:text-red-300">Delete</button>
+// //             </div>
+// //         </div>
+// //     `).join("");
 
-//     qs("adminList").innerHTML = `
-//       <div class="mb-4">
-//         <h3 class="font-bold text-sm mb-2 text-emerald-400">Users</h3>
-//         <table class="w-full text-left">${uHtml}</table>
-//       </div>
-//       <div>
-//         <h3 class="font-bold text-sm mb-2 text-emerald-400">Posts</h3>
-//         ${pHtml}
-//       </div>
-//     `;
-// };
+// //     qs("adminList").innerHTML = `
+// //       <div class="mb-4">
+// //         <h3 class="font-bold text-sm mb-2 text-emerald-400">Users</h3>
+// //         <table class="w-full text-left">${uHtml}</table>
+// //       </div>
+// //       <div>
+// //         <h3 class="font-bold text-sm mb-2 text-emerald-400">Posts</h3>
+// //         ${pHtml}
+// //       </div>
+// //     `;
+// // };
 
-// // --- CHAT & ACTIONS ---
-// window.openChat = async (pid) => {
-//     if(!requireLogin()) return;
-//     const p = state.posts.find(x => x.id == pid);
-//     if(!p) return;
+// // // --- CHAT & ACTIONS ---
+// // window.openChat = async (pid) => {
+// //     if(!requireLogin()) return;
+// //     const p = state.posts.find(x => x.id == pid);
+// //     if(!p) return;
     
-//     currentChatPostId = pid;
-//     safeToggle("chatModal", "show");
-//     const titleEl = qs("chatPostTitle");
-//     if(titleEl) titleEl.textContent = p.title;
-//     safeToggle("chatForm", "show");
+// //     currentChatPostId = pid;
+// //     safeToggle("chatModal", "show");
+// //     const titleEl = qs("chatPostTitle");
+// //     if(titleEl) titleEl.textContent = p.title;
+// //     safeToggle("chatForm", "show");
 
-//     renderChatMessages(p);
+// //     renderChatMessages(p);
     
-//     // Mark as seen
-//     const msgs = p.chatMessages || [];
-//     let needsUpdate = false;
-//     const updated = msgs.map(m => {
-//         if(m.from !== state.currentUser.name && !m.seen) {
-//             needsUpdate = true;
-//             return {...m, seen: true};
-//         }
-//         return m;
-//     });
+// //     // Mark as seen
+// //     const msgs = p.chatMessages || [];
+// //     let needsUpdate = false;
+// //     const updated = msgs.map(m => {
+// //         if(m.from !== state.currentUser.name && !m.seen) {
+// //             needsUpdate = true;
+// //             return {...m, seen: true};
+// //         }
+// //         return m;
+// //     });
     
-//     if(needsUpdate) {
-//         await updateDoc(doc(db, "posts", pid), { chatMessages: updated });
-//     }
-// };
+// //     if(needsUpdate) {
+// //         await updateDoc(doc(db, "posts", pid), { chatMessages: updated });
+// //     }
+// // };
 
-// window.viewAdminChat = (pid) => {
-//     const p = state.posts.find(x => x.id == pid);
-//     if(!p) return;
-//     currentChatPostId = null;
-//     safeToggle("chatModal", "show");
-//     qs("chatPostTitle").textContent = `Admin View: ${p.title}`;
-//     safeToggle("chatForm", "hide");
-//     renderChatMessages(p);
-// };
+// // window.viewAdminChat = (pid) => {
+// //     const p = state.posts.find(x => x.id == pid);
+// //     if(!p) return;
+// //     currentChatPostId = null;
+// //     safeToggle("chatModal", "show");
+// //     qs("chatPostTitle").textContent = `Admin View: ${p.title}`;
+// //     safeToggle("chatForm", "hide");
+// //     renderChatMessages(p);
+// // };
 
-// const renderChatMessages = (p) => {
-//     const box = qs("chatMessages");
-//     if(!box) return;
+// // const renderChatMessages = (p) => {
+// //     const box = qs("chatMessages");
+// //     if(!box) return;
     
-//     box.innerHTML = (p.chatMessages||[]).map(m => {
-//         const isMe = state.currentUser && m.from === state.currentUser.name;
-//         return `<div class="flex ${isMe?'justify-end':'justify-start'}"><div class="px-2 py-1 rounded mb-1 text-xs max-w-[80%] ${isMe?'bg-emerald-600 text-white':'bg-slate-800 text-slate-300'}">
-//             <div class="font-bold opacity-50 text-[9px] mb-0.5">${m.from}</div>
-//             ${m.text}
-//             <div class="text-[9px] opacity-60 text-right">${isMe && m.seen ? 'Seen' : ''}</div>
-//         </div></div>`;
-//     }).join("");
-//     box.scrollTop = box.scrollHeight;
-// };
+// //     box.innerHTML = (p.chatMessages||[]).map(m => {
+// //         const isMe = state.currentUser && m.from === state.currentUser.name;
+// //         return `<div class="flex ${isMe?'justify-end':'justify-start'}"><div class="px-2 py-1 rounded mb-1 text-xs max-w-[80%] ${isMe?'bg-emerald-600 text-white':'bg-slate-800 text-slate-300'}">
+// //             <div class="font-bold opacity-50 text-[9px] mb-0.5">${m.from}</div>
+// //             ${m.text}
+// //             <div class="text-[9px] opacity-60 text-right">${isMe && m.seen ? 'Seen' : ''}</div>
+// //         </div></div>`;
+// //     }).join("");
+// //     box.scrollTop = box.scrollHeight;
+// // };
 
-// on(qs("chatForm"), "submit", async e => {
-//     e.preventDefault();
-//     const text = qs("chatInput").value.trim();
-//     if(!text) return;
+// // on(qs("chatForm"), "submit", async e => {
+// //     e.preventDefault();
+// //     const text = qs("chatInput").value.trim();
+// //     if(!text) return;
     
-//     const msg = {
-//         from: state.currentUser.name,
-//         text,
-//         time: Date.now(),
-//         seen: false
-//     };
+// //     const msg = {
+// //         from: state.currentUser.name,
+// //         text,
+// //         time: Date.now(),
+// //         seen: false
+// //     };
     
-//     await updateDoc(doc(db, "posts", currentChatPostId), {
-//         chatMessages: arrayUnion(msg)
-//     });
+// //     await updateDoc(doc(db, "posts", currentChatPostId), {
+// //         chatMessages: arrayUnion(msg)
+// //     });
     
-//     qs("chatInput").value = "";
-// });
+// //     qs("chatInput").value = "";
+// // });
 
-// // Edit / Delete Handlers
-// window.editPost = (id) => {
-//     const p = state.posts.find(x => x.id == id);
-//     if(!p) return;
-//     editPostId = id;
-//     qs("postTitle").value = p.title;
-//     qs("postDesc").value = p.desc;
-//     qs("postPrice").value = p.price;
-//     qs("postCredits").value = p.credits;
-//     qs("uploadFormBtn").textContent = "Update Listing";
-//     qs("createListingTab").click();
-// };
+// // // Edit / Delete Handlers
+// // window.editPost = (id) => {
+// //     const p = state.posts.find(x => x.id == id);
+// //     if(!p) return;
+// //     editPostId = id;
+// //     qs("postTitle").value = p.title;
+// //     qs("postDesc").value = p.desc;
+// //     qs("postPrice").value = p.price;
+// //     qs("postCredits").value = p.credits;
+// //     qs("uploadFormBtn").textContent = "Update Listing";
+// //     qs("createListingTab").click();
+// // };
 
-// window.deleteUser = async (id) => {
-//     if(!confirm("Delete user?")) return;
-//     await deleteDoc(doc(db, "users", id));
-// };
-// window.deletePost = async (id) => {
-//     if(!confirm("Delete post?")) return;
-//     await deleteDoc(doc(db, "posts", id));
-// };
+// // window.deleteUser = async (id) => {
+// //     if(!confirm("Delete user?")) return;
+// //     await deleteDoc(doc(db, "users", id));
+// // };
+// // window.deletePost = async (id) => {
+// //     if(!confirm("Delete post?")) return;
+// //     await deleteDoc(doc(db, "posts", id));
+// // };
 
-// // --- POSTS (UPLOAD) ---
-// on(qs("uploadForm"), "submit", async e => {
-//   e.preventDefault();
-//   if(!requireLogin()) return;
+// // // --- POSTS (UPLOAD) ---
+// // on(qs("uploadForm"), "submit", async e => {
+// //   e.preventDefault();
+// //   if(!requireLogin()) return;
   
-//   const title = qs("postTitle").value;
-//   const desc = qs("postDesc").value;
-//   const price = Number(qs("postPrice").value);
-//   const credits = Number(qs("postCredits").value);
-//   const file = qs("postImage").files[0];
+// //   const title = qs("postTitle").value;
+// //   const desc = qs("postDesc").value;
+// //   const price = Number(qs("postPrice").value);
+// //   const credits = Number(qs("postCredits").value);
+// //   const file = qs("postImage").files[0];
   
-//   const process = async (img) => {
-//     const payload = { 
-//         title, desc, price, credits, 
-//         user: state.currentUser.name, 
-//         image: img,
-//         createdAt: Date.now(),
-//         chatMessages: [],
-//         status: "active"
-//     };
+// //   const process = async (img) => {
+// //     const payload = { 
+// //         title, desc, price, credits, 
+// //         user: state.currentUser.name, 
+// //         image: img,
+// //         createdAt: Date.now(),
+// //         chatMessages: [],
+// //         status: "active"
+// //     };
     
-//     if(editPostId) {
-//         if(!img) delete payload.image; 
-//         const ref = doc(db, "posts", editPostId);
-//         await updateDoc(ref, payload);
-//         alert("Updated!");
-//     } else {
-//         if(!img) return alert("Image required");
-//         await addDoc(collection(db, "posts"), payload);
-//         alert("Posted!");
-//     }
+// //     if(editPostId) {
+// //         if(!img) delete payload.image; 
+// //         const ref = doc(db, "posts", editPostId);
+// //         await updateDoc(ref, payload);
+// //         alert("Updated!");
+// //     } else {
+// //         if(!img) return alert("Image required");
+// //         await addDoc(collection(db, "posts"), payload);
+// //         alert("Posted!");
+// //     }
     
-//     qs("uploadForm").reset();
-//     editPostId = null;
-//     qs("uploadFormBtn").textContent = "Upload Listing";
-//     qs("yourListingsTab").click();
-//   };
+// //     qs("uploadForm").reset();
+// //     editPostId = null;
+// //     qs("uploadFormBtn").textContent = "Upload Listing";
+// //     qs("yourListingsTab").click();
+// //   };
 
-//   if(file) {
-//     if(file.size > 100 * 1024) return alert("Image too large (Max 100KB)");
-//     const r = new FileReader();
-//     r.onload = ev => process(ev.target.result);
-//     r.readAsDataURL(file);
-//   } else process(null);
-// });
+// //   if(file) {
+// //     if(file.size > 100 * 1024) return alert("Image too large (Max 100KB)");
+// //     const r = new FileReader();
+// //     r.onload = ev => process(ev.target.result);
+// //     r.readAsDataURL(file);
+// //   } else process(null);
+// // });
 
-// // --- INIT ---
-// const lastSec = localStorage.getItem(LAST_SECTION_KEY);
-// startListeners(); 
-// if(lastSec) showSection(lastSec);
-// else showSection("landing");
+// // // --- INIT ---
+// // const lastSec = localStorage.getItem(LAST_SECTION_KEY);
+// // startListeners(); 
+// // if(lastSec) showSection(lastSec);
+// // else showSection("landing");
 
-// // UI Listeners
-// on(qs("loginBtn"), "click", () => safeToggle("loginModal", "show"));
-// on(qs("closeLogin"), "click", () => safeToggle("loginModal", "hide"));
-// on(qs("closeChat"), "click", () => safeToggle("chatModal", "hide"));
-// on(qs("logoutBtn"), "click", () => {
-//     signOut(auth);
-//     showSection("landing");
-// });
-// on(qs("heroExploreBtn"), "click", () => { if(requireLogin()) showSection("feed"); });
-// on(qs("heroLoginBtn"), "click", () => safeToggle("loginModal", "show"));
+// // // UI Listeners
+// // on(qs("loginBtn"), "click", () => safeToggle("loginModal", "show"));
+// // on(qs("closeLogin"), "click", () => safeToggle("loginModal", "hide"));
+// // on(qs("closeChat"), "click", () => safeToggle("chatModal", "hide"));
+// // on(qs("logoutBtn"), "click", () => {
+// //     signOut(auth);
+// //     showSection("landing");
+// // });
+// // on(qs("heroExploreBtn"), "click", () => { if(requireLogin()) showSection("feed"); });
+// // on(qs("heroLoginBtn"), "click", () => safeToggle("loginModal", "show"));
 
-// // Tabs
-// on(qs("tabRegister"), "click", () => { 
-//     safeToggle("registerForm", "show"); 
-//     safeToggle("loginForm", "hide"); 
-// });
-// on(qs("tabLogin"), "click", () => { 
-//     safeToggle("loginForm", "show"); 
-//     safeToggle("registerForm", "hide"); 
-// });
+// // // Tabs
+// // on(qs("tabRegister"), "click", () => { 
+// //     safeToggle("registerForm", "show"); 
+// //     safeToggle("loginForm", "hide"); 
+// // });
+// // on(qs("tabLogin"), "click", () => { 
+// //     safeToggle("loginForm", "show"); 
+// //     safeToggle("registerForm", "hide"); 
+// // });
 
-// // Nav
-// qsa(".nav-btn").forEach(b => on(b, "click", () => {
-//     if(b.classList.contains("protected-nav") && !requireLogin()) return;
-//     showSection(b.dataset.section);
-//     if(b.dataset.section === 'upload') qs("yourListingsTab").click();
-// }));
+// // // Nav
+// // qsa(".nav-btn").forEach(b => on(b, "click", () => {
+// //     if(b.classList.contains("protected-nav") && !requireLogin()) return;
+// //     showSection(b.dataset.section);
+// //     if(b.dataset.section === 'upload') qs("yourListingsTab").click();
+// // }));
 
-// on(qs("createListingTab"), "click", () => { 
-//     safeToggle("uploadWrapper", "show"); 
-//     safeToggle("userListings", "hide"); 
-//     qs("createListingTab").classList.add("text-white","bg-slate-800"); 
-//     qs("createListingTab").classList.remove("text-slate-300");
-//     qs("yourListingsTab").classList.remove("text-white","bg-slate-800"); 
-//     qs("yourListingsTab").classList.add("text-slate-300");
-// });
+// // on(qs("createListingTab"), "click", () => { 
+// //     safeToggle("uploadWrapper", "show"); 
+// //     safeToggle("userListings", "hide"); 
+// //     qs("createListingTab").classList.add("text-white","bg-slate-800"); 
+// //     qs("createListingTab").classList.remove("text-slate-300");
+// //     qs("yourListingsTab").classList.remove("text-white","bg-slate-800"); 
+// //     qs("yourListingsTab").classList.add("text-slate-300");
+// // });
 
-// on(qs("yourListingsTab"), "click", () => { 
-//     safeToggle("uploadWrapper", "hide"); 
-//     safeToggle("userListings", "show"); 
-//     qs("yourListingsTab").classList.add("text-white","bg-slate-800"); 
-//     qs("yourListingsTab").classList.remove("text-slate-300");
-//     qs("createListingTab").classList.remove("text-white","bg-slate-800"); 
-//     qs("createListingTab").classList.add("text-slate-300");
-//     renderFeed();
-// });
+// // on(qs("yourListingsTab"), "click", () => { 
+// //     safeToggle("uploadWrapper", "hide"); 
+// //     safeToggle("userListings", "show"); 
+// //     qs("yourListingsTab").classList.add("text-white","bg-slate-800"); 
+// //     qs("yourListingsTab").classList.remove("text-slate-300");
+// //     qs("createListingTab").classList.remove("text-white","bg-slate-800"); 
+// //     qs("createListingTab").classList.add("text-slate-300");
+// //     renderFeed();
+// // });
 
-// // Calculator
-// qsa('input[name="calcMethod"]').forEach(r =>
-//   on(r, "change", () => {
-//     const v = document.querySelector('input[name="calcMethod"]:checked').value;
-//     const treeForm = qs("treeForm");
-//     const landForm = qs("landForm");
-//     if(v === "trees") {
-//         if(treeForm) treeForm.classList.remove("hidden");
-//         if(landForm) landForm.classList.add("hidden");
-//     } else {
-//         if(treeForm) treeForm.classList.add("hidden");
-//         if(landForm) landForm.classList.remove("hidden");
-//     }
-//     qs("calcResult").classList.add("hidden");
-//   })
-// );
-// on(qs("calcTreesBtn"), "click", () => {
-//     const res = (qs("treeCount").value * qs("treeType").value * qs("treeYears").value)/1000;
-//     qs("calcResult").classList.remove("hidden");
-//     qs("totalCredits").textContent = res.toFixed(2) + " Tons CO2";
-// });
-// on(qs("calcLandBtn"), "click", () => {
-//     const factor = qs("landUnit").value === 'hectares' ? 6 : 2.4; 
-//     const res = qs("landArea").value * factor * qs("landYears").value;
-//     qs("calcResult").classList.remove("hidden");
-//     qs("totalCredits").textContent = res.toFixed(2) + " Tons CO2";
-// });
+// // // Calculator
+// // qsa('input[name="calcMethod"]').forEach(r =>
+// //   on(r, "change", () => {
+// //     const v = document.querySelector('input[name="calcMethod"]:checked').value;
+// //     const treeForm = qs("treeForm");
+// //     const landForm = qs("landForm");
+// //     if(v === "trees") {
+// //         if(treeForm) treeForm.classList.remove("hidden");
+// //         if(landForm) landForm.classList.add("hidden");
+// //     } else {
+// //         if(treeForm) treeForm.classList.add("hidden");
+// //         if(landForm) landForm.classList.remove("hidden");
+// //     }
+// //     qs("calcResult").classList.add("hidden");
+// //   })
+// // );
+// // on(qs("calcTreesBtn"), "click", () => {
+// //     const res = (qs("treeCount").value * qs("treeType").value * qs("treeYears").value)/1000;
+// //     qs("calcResult").classList.remove("hidden");
+// //     qs("totalCredits").textContent = res.toFixed(2) + " Tons CO2";
+// // });
+// // on(qs("calcLandBtn"), "click", () => {
+// //     const factor = qs("landUnit").value === 'hectares' ? 6 : 2.4; 
+// //     const res = qs("landArea").value * factor * qs("landYears").value;
+// //     qs("calcResult").classList.remove("hidden");
+// //     qs("totalCredits").textContent = res.toFixed(2) + " Tons CO2";
+// // });
 
-// // [FIX] Add Listener for both filters
-// on(qs("priceFilter"), "change", renderFeed);
-// on(qs("creditsFilter"), "change", renderFeed);
+// // // [FIX] Add Listener for both filters
+// // on(qs("priceFilter"), "change", renderFeed);
+// // on(qs("creditsFilter"), "change", renderFeed);
 
-// on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
-
-
-
-//****************************************************************
+// // on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
 
 
 
+// //****************************************************************
 
-// ==========================================
-// 1. IMPORTS & CONFIGURATION
-// ==========================================
-// import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-// import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-// import { getFirestore, collection, addDoc, getDocs, getDoc, doc, updateDoc, arrayUnion, query, orderBy, onSnapshot, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// const firebaseConfig = {
-//   apiKey: "AIzaSyAAfBZtKGSWsC7WH90i0Xd9487CEtduuX0",
-//   authDomain: "carbon-credit-f6e72.firebaseapp.com",
-//   projectId: "carbon-credit-f6e72",
-//   storageBucket: "carbon-credit-f6e72.firebasestorage.app",
-//   messagingSenderId: "26922591570",
-//   appId: "1:26922591570:web:cb0c8d76e0695fcd29c68b",
-//   measurementId: "G-QBM9MF9T54"
-// };
 
-// const app = initializeApp(firebaseConfig);
-// const auth = getAuth(app);
-// const db = getFirestore(app);
 
 // // ==========================================
-// // 2. CORE UTILITIES & STATE
+// // 1. IMPORTS & CONFIGURATION
 // // ==========================================
-// const qs = id => document.getElementById(id);
-// const qsa = sel => document.querySelectorAll(sel);
-// const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
-// const show = (id) => qs(id)?.classList.remove("hidden");
-// const hide = (id) => qs(id)?.classList.add("hidden");
-// const toggle = (id, condition) => condition ? show(id) : hide(id);
+// // import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+// // import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+// // import { getFirestore, collection, addDoc, getDocs, getDoc, doc, updateDoc, arrayUnion, query, orderBy, onSnapshot, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// const LAST_SECTION_KEY = "ccx_last_section_v4";
-// let state = { users: [], posts: [], currentUser: null };
-// let editPostId = null, currentChatPostId = null;
+// // const firebaseConfig = {
+// //   apiKey: "AIzaSyAAfBZtKGSWsC7WH90i0Xd9487CEtduuX0",
+// //   authDomain: "carbon-credit-f6e72.firebaseapp.com",
+// //   projectId: "carbon-credit-f6e72",
+// //   storageBucket: "carbon-credit-f6e72.firebasestorage.app",
+// //   messagingSenderId: "26922591570",
+// //   appId: "1:26922591570:web:cb0c8d76e0695fcd29c68b",
+// //   measurementId: "G-QBM9MF9T54"
+// // };
 
-// // ==========================================
-// // 3. NAVIGATION & UI LOGIC
-// // ==========================================
-// const showSection = name => {
-//   qsa(".section").forEach(s => s.classList.add("hidden"));
-//   show("section-" + name);
-//   localStorage.setItem(LAST_SECTION_KEY, name);
+// // const app = initializeApp(firebaseConfig);
+// // const auth = getAuth(app);
+// // const db = getFirestore(app);
+
+// // // ==========================================
+// // // 2. CORE UTILITIES & STATE
+// // // ==========================================
+// // const qs = id => document.getElementById(id);
+// // const qsa = sel => document.querySelectorAll(sel);
+// // const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
+// // const show = (id) => qs(id)?.classList.remove("hidden");
+// // const hide = (id) => qs(id)?.classList.add("hidden");
+// // const toggle = (id, condition) => condition ? show(id) : hide(id);
+
+// // const LAST_SECTION_KEY = "ccx_last_section_v4";
+// // let state = { users: [], posts: [], currentUser: null };
+// // let editPostId = null, currentChatPostId = null;
+
+// // // ==========================================
+// // // 3. NAVIGATION & UI LOGIC
+// // // ==========================================
+// // const showSection = name => {
+// //   qsa(".section").forEach(s => s.classList.add("hidden"));
+// //   show("section-" + name);
+// //   localStorage.setItem(LAST_SECTION_KEY, name);
   
-//   // Highlight Active Button
-//   qsa(".nav-btn").forEach(btn => {
-//     const active = btn.dataset.section === name;
-//     btn.className = active 
-//       ? "nav-btn bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-full text-sm"
-//       : "nav-btn bg-slate-900 text-slate-100 border-b-transparent px-3 py-1.5 rounded-full text-sm";
-//   });
-// };
+// //   // Highlight Active Button
+// //   qsa(".nav-btn").forEach(btn => {
+// //     const active = btn.dataset.section === name;
+// //     btn.className = active 
+// //       ? "nav-btn bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-full text-sm"
+// //       : "nav-btn bg-slate-900 text-slate-100 border-b-transparent px-3 py-1.5 rounded-full text-sm";
+// //   });
+// // };
 
-// const updateAuthUI = () => {
-//   const u = state.currentUser;
-//   toggle("loginBtn", !u);
-//   toggle("logoutBtn", u);
-//   toggle("userBadge", u);
-//   toggle("heroLoginBtn", !u);
-//   toggle("welcomeWrapper", u);
-//   toggle("adminTab", u?.role === "admin");
-//   toggle("feedFilters", u);
+// // const updateAuthUI = () => {
+// //   const u = state.currentUser;
+// //   toggle("loginBtn", !u);
+// //   toggle("logoutBtn", u);
+// //   toggle("userBadge", u);
+// //   toggle("heroLoginBtn", !u);
+// //   toggle("welcomeWrapper", u);
+// //   toggle("adminTab", u?.role === "admin");
+// //   toggle("feedFilters", u);
   
-//   if (u) {
-//     qs("badgeName").textContent = u.name;
-//     qs("badgeRole").textContent = u.role;
-//     qs("welcomeName").textContent = u.name;
-//     qsa(".protected-nav").forEach(b => b.classList.remove("hidden"));
-//   } else {
-//     qsa(".protected-nav").forEach(b => b.classList.add("hidden"));
-//   }
-// };
+// //   if (u) {
+// //     qs("badgeName").textContent = u.name;
+// //     qs("badgeRole").textContent = u.role;
+// //     qs("welcomeName").textContent = u.name;
+// //     qsa(".protected-nav").forEach(b => b.classList.remove("hidden"));
+// //   } else {
+// //     qsa(".protected-nav").forEach(b => b.classList.add("hidden"));
+// //   }
+// // };
 
-// const requireLogin = () => {
-//   if (!state.currentUser) {
-//     alert("Please login first.");
-//     show("loginModal");
-//     return false;
-//   }
-//   return true;
-// };
+// // const requireLogin = () => {
+// //   if (!state.currentUser) {
+// //     alert("Please login first.");
+// //     show("loginModal");
+// //     return false;
+// //   }
+// //   return true;
+// // };
 
-// // ==========================================
-// // 4. DATA HANDLERS (LISTENERS)
-// // ==========================================
-// const startListeners = () => {
-//     // Posts Listener
-//     onSnapshot(query(collection(db, "posts"), orderBy("createdAt", "desc")), (snap) => {
-//         state.posts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-//         renderFeed(); 
-//         renderInbox();
+// // // ==========================================
+// // // 4. DATA HANDLERS (LISTENERS)
+// // // ==========================================
+// // const startListeners = () => {
+// //     // Posts Listener
+// //     onSnapshot(query(collection(db, "posts"), orderBy("createdAt", "desc")), (snap) => {
+// //         state.posts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+// //         renderFeed(); 
+// //         renderInbox();
         
-//         // Live Chat Update
-//         if (currentChatPostId && !qs("chatModal").classList.contains("hidden")) {
-//             const p = state.posts.find(x => x.id == currentChatPostId);
-//             if(p) renderChatMessages(p);
-//         }
-//     });
+// //         // Live Chat Update
+// //         if (currentChatPostId && !qs("chatModal").classList.contains("hidden")) {
+// //             const p = state.posts.find(x => x.id == currentChatPostId);
+// //             if(p) renderChatMessages(p);
+// //         }
+// //     });
 
-//     // Users Listener (Syncs Profile)
-//     onSnapshot(collection(db, "users"), (snap) => {
-//         state.users = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+// //     // Users Listener (Syncs Profile)
+// //     onSnapshot(collection(db, "users"), (snap) => {
+// //         state.users = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
-//         if (auth.currentUser) {
-//             const me = state.users.find(u => u.id === auth.currentUser.uid);
-//             if (me && JSON.stringify(state.currentUser) !== JSON.stringify(me)) {
-//                 state.currentUser = me;
-//                 updateAuthUI();
-//                 renderFeed();
-//                 renderInbox();
-//             }
-//         }
-//         if(state.currentUser?.role === 'admin') renderAdmin();
-//     });
-// };
+// //         if (auth.currentUser) {
+// //             const me = state.users.find(u => u.id === auth.currentUser.uid);
+// //             if (me && JSON.stringify(state.currentUser) !== JSON.stringify(me)) {
+// //                 state.currentUser = me;
+// //                 updateAuthUI();
+// //                 renderFeed();
+// //                 renderInbox();
+// //             }
+// //         }
+// //         if(state.currentUser?.role === 'admin') renderAdmin();
+// //     });
+// // };
 
-// // ==========================================
-// // 5. AUTHENTICATION
-// // ==========================================
-// on(qs("registerForm"), "submit", async e => {
-//   e.preventDefault();
-//   const [name, email, pass] = [qs("regName").value, qs("regEmail").value, qs("regPass").value];
-//   const reqRole = qs("regRole")?.value || "user";
+// // // ==========================================
+// // // 5. AUTHENTICATION
+// // // ==========================================
+// // on(qs("registerForm"), "submit", async e => {
+// //   e.preventDefault();
+// //   const [name, email, pass] = [qs("regName").value, qs("regEmail").value, qs("regPass").value];
+// //   const reqRole = qs("regRole")?.value || "user";
   
-//   try {
-//     const { user } = await createUserWithEmailAndPassword(auth, email, pass);
-//     const role = (name.toLowerCase() === "bajaish" && reqRole === "admin") ? "admin" : "user";
+// //   try {
+// //     const { user } = await createUserWithEmailAndPassword(auth, email, pass);
+// //     const role = (name.toLowerCase() === "bajaish" && reqRole === "admin") ? "admin" : "user";
     
-//     await setDoc(doc(db, "users", user.uid), { id: user.uid, name, email, role, createdAt: Date.now() });
-//     alert("Registered! Please login.");
-//     qs("tabLogin").click();
-//   } catch (err) { alert(err.message); }
-// });
+// //     await setDoc(doc(db, "users", user.uid), { id: user.uid, name, email, role, createdAt: Date.now() });
+// //     alert("Registered! Please login.");
+// //     qs("tabLogin").click();
+// //   } catch (err) { alert(err.message); }
+// // });
 
-// on(qs("loginForm"), "submit", async e => {
-//   e.preventDefault();
-//   const name = qs("loginName").value;
-//   try {
-//     const snap = await getDocs(collection(db, "users"));
-//     const userDoc = snap.docs.find(d => d.data().name === name);
-//     if (!userDoc) throw new Error("User not found.");
+// // on(qs("loginForm"), "submit", async e => {
+// //   e.preventDefault();
+// //   const name = qs("loginName").value;
+// //   try {
+// //     const snap = await getDocs(collection(db, "users"));
+// //     const userDoc = snap.docs.find(d => d.data().name === name);
+// //     if (!userDoc) throw new Error("User not found.");
     
-//     await signInWithEmailAndPassword(auth, userDoc.data().email, qs("loginPass").value);
+// //     await signInWithEmailAndPassword(auth, userDoc.data().email, qs("loginPass").value);
     
-//     // Immediate UI Update
-//     state.currentUser = { id: userDoc.id, ...userDoc.data() };
-//     updateAuthUI();
-//     renderFeed();
-//     renderInbox();
-//     hide("loginModal");
-//     showSection("feed");
-//   } catch (err) { alert(err.message); }
-// });
+// //     // Immediate UI Update
+// //     state.currentUser = { id: userDoc.id, ...userDoc.data() };
+// //     updateAuthUI();
+// //     renderFeed();
+// //     renderInbox();
+// //     hide("loginModal");
+// //     showSection("feed");
+// //   } catch (err) { alert(err.message); }
+// // });
 
-// onAuthStateChanged(auth, async (user) => {
-//     if (user && !state.currentUser) {
-//         const snap = await getDoc(doc(db, "users", user.uid));
-//         if (snap.exists()) {
-//             state.currentUser = { id: snap.id, ...snap.data() };
-//             updateAuthUI(); renderFeed(); renderInbox();
-//         }
-//     } else if (!user) {
-//         state.currentUser = null;
-//         updateAuthUI(); renderFeed(); renderInbox();
-//     }
-// });
+// // onAuthStateChanged(auth, async (user) => {
+// //     if (user && !state.currentUser) {
+// //         const snap = await getDoc(doc(db, "users", user.uid));
+// //         if (snap.exists()) {
+// //             state.currentUser = { id: snap.id, ...snap.data() };
+// //             updateAuthUI(); renderFeed(); renderInbox();
+// //         }
+// //     } else if (!user) {
+// //         state.currentUser = null;
+// //         updateAuthUI(); renderFeed(); renderInbox();
+// //     }
+// // });
 
-// // ==========================================
-// // 6. MAIN RENDERERS
-// // ==========================================
-// const renderFeed = () => {
-//     if(!state.posts.length) return qs("feedContainer").innerHTML = "";
+// // // ==========================================
+// // // 6. MAIN RENDERERS
+// // // ==========================================
+// // const renderFeed = () => {
+// //     if(!state.posts.length) return qs("feedContainer").innerHTML = "";
     
-//     let arr = state.posts.filter(p => p.status !== 'removed');
+// //     let arr = state.posts.filter(p => p.status !== 'removed');
     
-//     // Filters
-//     const pf = qs("priceFilter")?.value || "none";
-//     if (pf === "low-high") arr.sort((a,b) => a.price - b.price);
-//     if (pf === "high-low") arr.sort((a,b) => b.price - a.price);
+// //     // Filters
+// //     const pf = qs("priceFilter")?.value || "none";
+// //     if (pf === "low-high") arr.sort((a,b) => a.price - b.price);
+// //     if (pf === "high-low") arr.sort((a,b) => b.price - a.price);
 
-//     const cf = qs("creditsFilter")?.value || "all";
-//     if (cf === "1-10") arr = arr.filter(p => p.credits >= 1 && p.credits <= 10);
-//     if (cf === "50+") arr = arr.filter(p => p.credits >= 50);
+// //     const cf = qs("creditsFilter")?.value || "all";
+// //     if (cf === "1-10") arr = arr.filter(p => p.credits >= 1 && p.credits <= 10);
+// //     if (cf === "50+") arr = arr.filter(p => p.credits >= 50);
 
-//     qs("feedContainer").innerHTML = arr.map(createPostHTML).join("");
+// //     qs("feedContainer").innerHTML = arr.map(createPostHTML).join("");
     
-//     // User Listings
-//     const myName = state.currentUser?.name;
-//     const myPosts = state.posts.filter(p => p.user === myName);
-//     qs("userListings").innerHTML = myPosts.length 
-//         ? myPosts.map(createListRowHTML).join("") 
-//         : '<p class="text-slate-400 text-xs">No listings.</p>';
-// };
+// //     // User Listings
+// //     const myName = state.currentUser?.name;
+// //     const myPosts = state.posts.filter(p => p.user === myName);
+// //     qs("userListings").innerHTML = myPosts.length 
+// //         ? myPosts.map(createListRowHTML).join("") 
+// //         : '<p class="text-slate-400 text-xs">No listings.</p>';
+// // };
 
-// const renderInbox = () => {
-//     if(!state.currentUser) return qs("inboxList").innerHTML = `<p class="text-slate-400 text-sm">Login required.</p>`;
+// // const renderInbox = () => {
+// //     if(!state.currentUser) return qs("inboxList").innerHTML = `<p class="text-slate-400 text-sm">Login required.</p>`;
     
-//     const myName = state.currentUser.name;
-//     const items = state.posts.filter(p => 
-//         p.chatMessages?.length && (p.user === myName || p.chatMessages.some(m => m.from === myName))
-//     );
+// //     const myName = state.currentUser.name;
+// //     const items = state.posts.filter(p => 
+// //         p.chatMessages?.length && (p.user === myName || p.chatMessages.some(m => m.from === myName))
+// //     );
     
-//     items.sort((a,b) => (b.chatMessages.at(-1)?.time || 0) - (a.chatMessages.at(-1)?.time || 0));
+// //     items.sort((a,b) => (b.chatMessages.at(-1)?.time || 0) - (a.chatMessages.at(-1)?.time || 0));
     
-//     const unread = items.reduce((acc, p) => acc + p.chatMessages.filter(m => m.from !== myName && !m.seen).length, 0);
-//     toggle("inboxIndicator", unread > 0);
+// //     const unread = items.reduce((acc, p) => acc + p.chatMessages.filter(m => m.from !== myName && !m.seen).length, 0);
+// //     toggle("inboxIndicator", unread > 0);
 
-//     qs("inboxList").innerHTML = items.length ? items.map(p => createInboxItemHTML(p, myName)).join("") : '<p class="text-slate-400 text-sm">No messages.</p>';
-// };
+// //     qs("inboxList").innerHTML = items.length ? items.map(p => createInboxItemHTML(p, myName)).join("") : '<p class="text-slate-400 text-sm">No messages.</p>';
+// // };
 
-// const renderAdmin = () => {
-//     if(state.currentUser?.role !== 'admin') return;
-//     qs("adminList").innerHTML = `
-//       <div class="mb-4"><h3 class="font-bold text-sm mb-2 text-emerald-400">Users</h3><table class="w-full text-left">${state.users.map(createAdminUserRow).join("")}</table></div>
-//       <div><h3 class="font-bold text-sm mb-2 text-emerald-400">Posts</h3>${state.posts.map(createAdminPostRow).join("")}</div>`;
-// };
+// // const renderAdmin = () => {
+// //     if(state.currentUser?.role !== 'admin') return;
+// //     qs("adminList").innerHTML = `
+// //       <div class="mb-4"><h3 class="font-bold text-sm mb-2 text-emerald-400">Users</h3><table class="w-full text-left">${state.users.map(createAdminUserRow).join("")}</table></div>
+// //       <div><h3 class="font-bold text-sm mb-2 text-emerald-400">Posts</h3>${state.posts.map(createAdminPostRow).join("")}</div>`;
+// // };
 
-// // ==========================================
-// // 7. ACTIONS (CHAT, POST, CALCULATOR)
-// // ==========================================
-// window.openChat = async (pid) => {
-//     if(!requireLogin()) return;
-//     const p = state.posts.find(x => x.id == pid);
-//     if(!p) return;
+// // // ==========================================
+// // // 7. ACTIONS (CHAT, POST, CALCULATOR)
+// // // ==========================================
+// // window.openChat = async (pid) => {
+// //     if(!requireLogin()) return;
+// //     const p = state.posts.find(x => x.id == pid);
+// //     if(!p) return;
     
-//     currentChatPostId = pid;
-//     qs("chatPostTitle").textContent = p.title;
-//     show("chatModal"); show("chatForm");
-//     renderChatMessages(p);
+// //     currentChatPostId = pid;
+// //     qs("chatPostTitle").textContent = p.title;
+// //     show("chatModal"); show("chatForm");
+// //     renderChatMessages(p);
     
-//     // Mark as seen
-//     const msgs = p.chatMessages || [];
-//     if (msgs.some(m => m.from !== state.currentUser.name && !m.seen)) {
-//         const updated = msgs.map(m => (m.from !== state.currentUser.name && !m.seen) ? {...m, seen: true} : m);
-//         await updateDoc(doc(db, "posts", pid), { chatMessages: updated });
-//     }
-// };
+// //     // Mark as seen
+// //     const msgs = p.chatMessages || [];
+// //     if (msgs.some(m => m.from !== state.currentUser.name && !m.seen)) {
+// //         const updated = msgs.map(m => (m.from !== state.currentUser.name && !m.seen) ? {...m, seen: true} : m);
+// //         await updateDoc(doc(db, "posts", pid), { chatMessages: updated });
+// //     }
+// // };
 
-// window.viewAdminChat = (pid) => {
-//     const p = state.posts.find(x => x.id == pid);
-//     currentChatPostId = null;
-//     qs("chatPostTitle").textContent = `Admin: ${p.title}`;
-//     show("chatModal"); hide("chatForm");
-//     renderChatMessages(p);
-// };
+// // window.viewAdminChat = (pid) => {
+// //     const p = state.posts.find(x => x.id == pid);
+// //     currentChatPostId = null;
+// //     qs("chatPostTitle").textContent = `Admin: ${p.title}`;
+// //     show("chatModal"); hide("chatForm");
+// //     renderChatMessages(p);
+// // };
 
-// const renderChatMessages = (p) => {
-//     qs("chatMessages").innerHTML = (p.chatMessages||[]).map(m => {
-//         const isMe = state.currentUser && m.from === state.currentUser.name;
-//         return `<div class="flex ${isMe?'justify-end':'justify-start'}"><div class="px-2 py-1 rounded mb-1 text-xs max-w-[80%] ${isMe?'bg-emerald-600 text-white':'bg-slate-800 text-slate-300'}">
-//             <div class="font-bold opacity-50 text-[9px]">${m.from}</div>${m.text}<div class="text-[9px] opacity-60 text-right">${isMe && m.seen ? 'Seen' : ''}</div></div></div>`;
-//     }).join("");
-//     qs("chatMessages").scrollTop = qs("chatMessages").scrollHeight;
-// };
+// // const renderChatMessages = (p) => {
+// //     qs("chatMessages").innerHTML = (p.chatMessages||[]).map(m => {
+// //         const isMe = state.currentUser && m.from === state.currentUser.name;
+// //         return `<div class="flex ${isMe?'justify-end':'justify-start'}"><div class="px-2 py-1 rounded mb-1 text-xs max-w-[80%] ${isMe?'bg-emerald-600 text-white':'bg-slate-800 text-slate-300'}">
+// //             <div class="font-bold opacity-50 text-[9px]">${m.from}</div>${m.text}<div class="text-[9px] opacity-60 text-right">${isMe && m.seen ? 'Seen' : ''}</div></div></div>`;
+// //     }).join("");
+// //     qs("chatMessages").scrollTop = qs("chatMessages").scrollHeight;
+// // };
 
-// // --- Form Submissions ---
-// on(qs("chatForm"), "submit", async e => {
-//     e.preventDefault();
-//     const text = qs("chatInput").value.trim();
-//     if(!text) return;
-//     await updateDoc(doc(db, "posts", currentChatPostId), { chatMessages: arrayUnion({ from: state.currentUser.name, text, time: Date.now(), seen: false }) });
-//     qs("chatInput").value = "";
-// });
+// // // --- Form Submissions ---
+// // on(qs("chatForm"), "submit", async e => {
+// //     e.preventDefault();
+// //     const text = qs("chatInput").value.trim();
+// //     if(!text) return;
+// //     await updateDoc(doc(db, "posts", currentChatPostId), { chatMessages: arrayUnion({ from: state.currentUser.name, text, time: Date.now(), seen: false }) });
+// //     qs("chatInput").value = "";
+// // });
 
-// on(qs("uploadForm"), "submit", async e => {
-//   e.preventDefault();
-//   if(!requireLogin()) return;
+// // on(qs("uploadForm"), "submit", async e => {
+// //   e.preventDefault();
+// //   if(!requireLogin()) return;
   
-//   const file = qs("postImage").files[0];
-//   const reader = new FileReader();
+// //   const file = qs("postImage").files[0];
+// //   const reader = new FileReader();
   
-//   const savePost = async (img) => {
-//     const payload = { 
-//         title: qs("postTitle").value, desc: qs("postDesc").value, 
-//         price: Number(qs("postPrice").value), credits: Number(qs("postCredits").value),
-//         user: state.currentUser.name, image: img, createdAt: Date.now(), chatMessages: [], status: "active"
-//     };
+// //   const savePost = async (img) => {
+// //     const payload = { 
+// //         title: qs("postTitle").value, desc: qs("postDesc").value, 
+// //         price: Number(qs("postPrice").value), credits: Number(qs("postCredits").value),
+// //         user: state.currentUser.name, image: img, createdAt: Date.now(), chatMessages: [], status: "active"
+// //     };
     
-//     if(editPostId) {
-//         if(!img) delete payload.image;
-//         await updateDoc(doc(db, "posts", editPostId), payload);
-//     } else {
-//         if(!img) return alert("Image required");
-//         await addDoc(collection(db, "posts"), payload);
-//     }
+// //     if(editPostId) {
+// //         if(!img) delete payload.image;
+// //         await updateDoc(doc(db, "posts", editPostId), payload);
+// //     } else {
+// //         if(!img) return alert("Image required");
+// //         await addDoc(collection(db, "posts"), payload);
+// //     }
     
-//     qs("uploadForm").reset(); editPostId = null; qs("uploadFormBtn").textContent = "Upload Listing";
-//     qs("yourListingsTab").click();
-//   };
+// //     qs("uploadForm").reset(); editPostId = null; qs("uploadFormBtn").textContent = "Upload Listing";
+// //     qs("yourListingsTab").click();
+// //   };
 
-//   if(file) { reader.onload = ev => savePost(ev.target.result); reader.readAsDataURL(file); }
-//   else savePost(null);
-// });
+// //   if(file) { reader.onload = ev => savePost(ev.target.result); reader.readAsDataURL(file); }
+// //   else savePost(null);
+// // });
 
-// // ==========================================
-// // 8. EVENT LISTENERS (CLICKS & TABS)
-// // ==========================================
-// on(qs("loginBtn"), "click", () => show("loginModal"));
-// on(qs("heroLoginBtn"), "click", () => show("loginModal"));
-// on(qs("closeLogin"), "click", () => hide("loginModal"));
-// on(qs("closeChat"), "click", () => hide("chatModal"));
-// on(qs("logoutBtn"), "click", () => { signOut(auth); showSection("landing"); });
-// on(qs("heroExploreBtn"), "click", () => { if(requireLogin()) showSection("feed"); });
+// // // ==========================================
+// // // 8. EVENT LISTENERS (CLICKS & TABS)
+// // // ==========================================
+// // on(qs("loginBtn"), "click", () => show("loginModal"));
+// // on(qs("heroLoginBtn"), "click", () => show("loginModal"));
+// // on(qs("closeLogin"), "click", () => hide("loginModal"));
+// // on(qs("closeChat"), "click", () => hide("chatModal"));
+// // on(qs("logoutBtn"), "click", () => { signOut(auth); showSection("landing"); });
+// // on(qs("heroExploreBtn"), "click", () => { if(requireLogin()) showSection("feed"); });
 
-// // Tabs
-// on(qs("tabRegister"), "click", () => { show("registerForm"); hide("loginForm"); });
-// on(qs("tabLogin"), "click", () => { show("loginForm"); hide("registerForm"); });
+// // // Tabs
+// // on(qs("tabRegister"), "click", () => { show("registerForm"); hide("loginForm"); });
+// // on(qs("tabLogin"), "click", () => { show("loginForm"); hide("registerForm"); });
 
-// on(qs("createListingTab"), "click", () => { 
-//     show("uploadWrapper"); hide("userListings"); 
-//     qs("createListingTab").classList.replace("text-slate-300", "text-white"); qs("createListingTab").classList.add("bg-slate-800");
-//     qs("yourListingsTab").classList.replace("text-white", "text-slate-300"); qs("yourListingsTab").classList.remove("bg-slate-800");
-// });
-// on(qs("yourListingsTab"), "click", () => { 
-//     hide("uploadWrapper"); show("userListings"); 
-//     qs("yourListingsTab").classList.replace("text-slate-300", "text-white"); qs("yourListingsTab").classList.add("bg-slate-800");
-//     qs("createListingTab").classList.replace("text-white", "text-slate-300"); qs("createListingTab").classList.remove("bg-slate-800");
-//     renderFeed(); 
-// });
+// // on(qs("createListingTab"), "click", () => { 
+// //     show("uploadWrapper"); hide("userListings"); 
+// //     qs("createListingTab").classList.replace("text-slate-300", "text-white"); qs("createListingTab").classList.add("bg-slate-800");
+// //     qs("yourListingsTab").classList.replace("text-white", "text-slate-300"); qs("yourListingsTab").classList.remove("bg-slate-800");
+// // });
+// // on(qs("yourListingsTab"), "click", () => { 
+// //     hide("uploadWrapper"); show("userListings"); 
+// //     qs("yourListingsTab").classList.replace("text-slate-300", "text-white"); qs("yourListingsTab").classList.add("bg-slate-800");
+// //     qs("createListingTab").classList.replace("text-white", "text-slate-300"); qs("createListingTab").classList.remove("bg-slate-800");
+// //     renderFeed(); 
+// // });
 
-// // Navbar
-// qsa(".nav-btn").forEach(b => on(b, "click", () => {
-//     if(b.classList.contains("protected-nav") && !requireLogin()) return;
-//     showSection(b.dataset.section);
-//     if(b.dataset.section === 'upload') qs("yourListingsTab").click();
-// }));
+// // // Navbar
+// // qsa(".nav-btn").forEach(b => on(b, "click", () => {
+// //     if(b.classList.contains("protected-nav") && !requireLogin()) return;
+// //     showSection(b.dataset.section);
+// //     if(b.dataset.section === 'upload') qs("yourListingsTab").click();
+// // }));
 
-// // Calculator
-// qsa('input[name="calcMethod"]').forEach(r => on(r, "change", () => {
-//     const v = document.querySelector('input[name="calcMethod"]:checked').value;
-//     toggle("treeForm", v === "trees"); toggle("landForm", v !== "trees"); hide("calcResult");
-// }));
-// on(qs("calcTreesBtn"), "click", () => {
-//     const res = (qs("treeCount").value * qs("treeType").value * qs("treeYears").value)/1000;
-//     show("calcResult"); qs("totalCredits").textContent = res.toFixed(2) + " Tons CO2";
-// });
-// on(qs("calcLandBtn"), "click", () => {
-//     const factor = qs("landUnit").value === 'hectares' ? 6 : 2.4; 
-//     const res = qs("landArea").value * factor * qs("landYears").value;
-//     show("calcResult"); qs("totalCredits").textContent = res.toFixed(2) + " Tons CO2";
-// });
+// // // Calculator
+// // qsa('input[name="calcMethod"]').forEach(r => on(r, "change", () => {
+// //     const v = document.querySelector('input[name="calcMethod"]:checked').value;
+// //     toggle("treeForm", v === "trees"); toggle("landForm", v !== "trees"); hide("calcResult");
+// // }));
+// // on(qs("calcTreesBtn"), "click", () => {
+// //     const res = (qs("treeCount").value * qs("treeType").value * qs("treeYears").value)/1000;
+// //     show("calcResult"); qs("totalCredits").textContent = res.toFixed(2) + " Tons CO2";
+// // });
+// // on(qs("calcLandBtn"), "click", () => {
+// //     const factor = qs("landUnit").value === 'hectares' ? 6 : 2.4; 
+// //     const res = qs("landArea").value * factor * qs("landYears").value;
+// //     show("calcResult"); qs("totalCredits").textContent = res.toFixed(2) + " Tons CO2";
+// // });
 
-// on(qs("priceFilter"), "change", renderFeed);
-// on(qs("creditsFilter"), "change", renderFeed);
-// on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
+// // on(qs("priceFilter"), "change", renderFeed);
+// // on(qs("creditsFilter"), "change", renderFeed);
+// // on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
 
-// // Global Actions
-// window.editPost = (id) => {
-//     const p = state.posts.find(x => x.id == id);
-//     if(!p) return;
-//     editPostId = id;
-//     qs("postTitle").value = p.title; qs("postDesc").value = p.desc;
-//     qs("postPrice").value = p.price; qs("postCredits").value = p.credits;
-//     qs("uploadFormBtn").textContent = "Update Listing"; qs("createListingTab").click();
-// };
-// window.deleteUser = async (id) => { if(confirm("Delete?")) await deleteDoc(doc(db, "users", id)); };
-// window.deletePost = async (id) => { if(confirm("Delete?")) await deleteDoc(doc(db, "posts", id)); };
+// // // Global Actions
+// // window.editPost = (id) => {
+// //     const p = state.posts.find(x => x.id == id);
+// //     if(!p) return;
+// //     editPostId = id;
+// //     qs("postTitle").value = p.title; qs("postDesc").value = p.desc;
+// //     qs("postPrice").value = p.price; qs("postCredits").value = p.credits;
+// //     qs("uploadFormBtn").textContent = "Update Listing"; qs("createListingTab").click();
+// // };
+// // window.deleteUser = async (id) => { if(confirm("Delete?")) await deleteDoc(doc(db, "users", id)); };
+// // window.deletePost = async (id) => { if(confirm("Delete?")) await deleteDoc(doc(db, "posts", id)); };
 
-// // Init
-// startListeners();
-// const lastSec = localStorage.getItem(LAST_SECTION_KEY);
-// if(lastSec) showSection(lastSec); else showSection("landing");
+// // // Init
+// // startListeners();
+// // const lastSec = localStorage.getItem(LAST_SECTION_KEY);
+// // if(lastSec) showSection(lastSec); else showSection("landing");
 
-// // ==========================================
-// // 9. HTML TEMPLATE HELPERS (Minified)
-// // ==========================================
-// function createPostHTML(p) {
-//     const isMine = state.currentUser && p.user === state.currentUser.name;
-//     const hasUnread = state.currentUser && p.chatMessages?.some(m => m.from !== state.currentUser.name && !m.seen);
-//     const badge = isMine ? `<span class="bg-emerald-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded ml-2">CREATED BY YOU</span>` : '';
-//     const timeStr = new Date(p.createdAt).toLocaleDateString();
+// // // ==========================================
+// // // 9. HTML TEMPLATE HELPERS (Minified)
+// // // ==========================================
+// // function createPostHTML(p) {
+// //     const isMine = state.currentUser && p.user === state.currentUser.name;
+// //     const hasUnread = state.currentUser && p.chatMessages?.some(m => m.from !== state.currentUser.name && !m.seen);
+// //     const badge = isMine ? `<span class="bg-emerald-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded ml-2">CREATED BY YOU</span>` : '';
+// //     const timeStr = new Date(p.createdAt).toLocaleDateString();
     
-//     return `<div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow flex flex-col">
-//       <img src="${p.image}" class="w-full h-44 object-cover">
-//       <div class="p-3 flex flex-col flex-1">
-//         <div class="flex justify-between items-start mb-1"><h3 class="font-bold text-sm truncate flex-1">${p.title}</h3>${badge}</div>
-//         <p class="text-[10px] text-slate-500 mb-2">By ${p.user} • ${timeStr}</p>
-//         <p class="text-xs text-slate-400 mb-2 truncate">${p.desc}</p>
-//         <div class="flex justify-between text-[11px] mb-2"><span class="text-emerald-300 bg-emerald-900/30 px-2 py-0.5 rounded-full">${p.credits} Credits</span><span class="text-white font-bold">₹${p.price}</span></div>
-//         <div class="mt-auto"><button onclick="window.openChat('${p.id}')" class="w-full py-2 bg-slate-800 text-xs rounded border border-slate-600 relative hover:bg-slate-700">💬 Chat ${hasUnread?'<span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-slate-900"></span>':''}</button></div>
-//       </div></div>`;
-// }
+// //     return `<div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow flex flex-col">
+// //       <img src="${p.image}" class="w-full h-44 object-cover">
+// //       <div class="p-3 flex flex-col flex-1">
+// //         <div class="flex justify-between items-start mb-1"><h3 class="font-bold text-sm truncate flex-1">${p.title}</h3>${badge}</div>
+// //         <p class="text-[10px] text-slate-500 mb-2">By ${p.user} • ${timeStr}</p>
+// //         <p class="text-xs text-slate-400 mb-2 truncate">${p.desc}</p>
+// //         <div class="flex justify-between text-[11px] mb-2"><span class="text-emerald-300 bg-emerald-900/30 px-2 py-0.5 rounded-full">${p.credits} Credits</span><span class="text-white font-bold">₹${p.price}</span></div>
+// //         <div class="mt-auto"><button onclick="window.openChat('${p.id}')" class="w-full py-2 bg-slate-800 text-xs rounded border border-slate-600 relative hover:bg-slate-700">💬 Chat ${hasUnread?'<span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-slate-900"></span>':''}</button></div>
+// //       </div></div>`;
+// // }
 
-// function createListRowHTML(p) {
-//     return `<div class="bg-slate-900 p-2 border border-slate-700 rounded mb-2 flex justify-between text-xs items-center"><span>${p.title}</span><button class="text-emerald-400 underline" onclick="window.editPost('${p.id}')">Edit</button></div>`;
-// }
+// // function createListRowHTML(p) {
+// //     return `<div class="bg-slate-900 p-2 border border-slate-700 rounded mb-2 flex justify-between text-xs items-center"><span>${p.title}</span><button class="text-emerald-400 underline" onclick="window.editPost('${p.id}')">Edit</button></div>`;
+// // }
 
-// function createInboxItemHTML(p, myName) {
-//     const last = p.chatMessages.at(-1);
-//     const unread = p.chatMessages.filter(m => m.from !== myName && !m.seen).length;
-//     return `<div onclick="window.openChat('${p.id}')" class="bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-pointer flex justify-between items-center hover:bg-slate-800">
-//         <div><div class="text-sm font-bold text-emerald-100 flex items-center gap-2">${p.title} ${unread>0?`<span class="bg-red-500 text-white text-[9px] px-1.5 rounded-full">${unread}</span>`:''}</div><div class="text-xs text-slate-400">Last: ${last.from}: ${last.text}</div></div><div class="text-xs text-emerald-500">Open</div></div>`;
-// }
+// // function createInboxItemHTML(p, myName) {
+// //     const last = p.chatMessages.at(-1);
+// //     const unread = p.chatMessages.filter(m => m.from !== myName && !m.seen).length;
+// //     return `<div onclick="window.openChat('${p.id}')" class="bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-pointer flex justify-between items-center hover:bg-slate-800">
+// //         <div><div class="text-sm font-bold text-emerald-100 flex items-center gap-2">${p.title} ${unread>0?`<span class="bg-red-500 text-white text-[9px] px-1.5 rounded-full">${unread}</span>`:''}</div><div class="text-xs text-slate-400">Last: ${last.from}: ${last.text}</div></div><div class="text-xs text-emerald-500">Open</div></div>`;
+// // }
 
-// function createAdminUserRow(u) {
-//     return `<tr class="text-xs border-b border-slate-700"><td class="p-2">${u.name}</td><td class="p-2">${u.role}</td><td class="p-2 text-right"><button onclick="window.deleteUser('${u.id}')" class="text-red-400 hover:text-red-300">Remove</button></td></tr>`;
-// }
+// // function createAdminUserRow(u) {
+// //     return `<tr class="text-xs border-b border-slate-700"><td class="p-2">${u.name}</td><td class="p-2">${u.role}</td><td class="p-2 text-right"><button onclick="window.deleteUser('${u.id}')" class="text-red-400 hover:text-red-300">Remove</button></td></tr>`;
+// // }
 
-// function createAdminPostRow(p) {
-//     return `<div class="flex justify-between items-center bg-slate-900 p-2 text-xs border border-slate-700 rounded mb-1"><div class="flex flex-col"><span class="font-bold">${p.title}</span><span class="text-[10px] text-slate-400">By ${p.user} • ${p.chatMessages?.length||0} msgs</span></div><div class="flex gap-2"><button onclick="window.viewAdminChat('${p.id}')" class="text-blue-400">View</button><button onclick="window.deletePost('${p.id}')" class="text-red-400">Delete</button></div></div>`;
-// }
-
-
-
-//******************************************************************************************
+// // function createAdminPostRow(p) {
+// //     return `<div class="flex justify-between items-center bg-slate-900 p-2 text-xs border border-slate-700 rounded mb-1"><div class="flex flex-col"><span class="font-bold">${p.title}</span><span class="text-[10px] text-slate-400">By ${p.user} • ${p.chatMessages?.length||0} msgs</span></div><div class="flex gap-2"><button onclick="window.viewAdminChat('${p.id}')" class="text-blue-400">View</button><button onclick="window.deletePost('${p.id}')" class="text-red-400">Delete</button></div></div>`;
+// // }
 
 
-// ==========================================
-// 1. IMPORTS & CONFIG
-// ==========================================
+
+// //******************************************************************************************
+
+
+// // ==========================================
+// // 1. IMPORTS & CONFIG
+// // ==========================================
+// // import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+// // import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+// // import { getFirestore, collection, addDoc, getDocs, getDoc, doc, updateDoc, arrayUnion, query, orderBy, onSnapshot, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+// // const firebaseConfig = {
+// //   apiKey: "AIzaSyAAfBZtKGSWsC7WH90i0Xd9487CEtduuX0",
+// //   authDomain: "carbon-credit-f6e72.firebaseapp.com",
+// //   projectId: "carbon-credit-f6e72",
+// //   storageBucket: "carbon-credit-f6e72.firebasestorage.app",
+// //   messagingSenderId: "26922591570",
+// //   appId: "1:26922591570:web:cb0c8d76e0695fcd29c68b",
+// //   measurementId: "G-QBM9MF9T54"
+// // };
+
+// // const app = initializeApp(firebaseConfig);
+// // const auth = getAuth(app);
+// // const db = getFirestore(app);
+
+// // // ==========================================
+// // // 2. CORE UTILITIES & STATE
+// // // ==========================================
+// // const qs = id => document.getElementById(id);
+// // const qsa = sel => document.querySelectorAll(sel);
+// // const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
+// // const show = id => qs(id)?.classList.remove("hidden");
+// // const hide = id => qs(id)?.classList.add("hidden");
+// // const toggle = (id, condition) => condition ? show(id) : hide(id);
+
+// // const LAST_SECTION_KEY = "ccx_last_section_v5";
+// // let state = { users: [], posts: [], currentUser: null };
+// // let editPostId = null, currentChatPostId = null;
+
+// // // ==========================================
+// // // 3. UI LOGIC & NAVIGATION
+// // // ==========================================
+// // const showSection = name => {
+// //   qsa(".section").forEach(s => s.classList.add("hidden"));
+// //   show("section-" + name);
+// //   localStorage.setItem(LAST_SECTION_KEY, name);
+  
+// //   // Highlight Active Button
+// //   qsa(".nav-btn").forEach(btn => {
+// //     const active = btn.dataset.section === name;
+// //     btn.className = active 
+// //       ? "nav-btn bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-full text-sm transition-colors"
+// //       : "nav-btn bg-slate-900 text-slate-100 border-b-transparent px-3 py-1.5 rounded-full text-sm hover:bg-slate-800 transition-colors";
+// //   });
+// // };
+
+// // const updateAuthUI = () => {
+// //   const u = state.currentUser;
+// //   const isAdmin = u?.role === 'admin';
+
+// //   // Toggle Header Elements
+// //   toggle("loginBtn", !u);
+// //   toggle("heroLoginBtn", !u);
+// //   toggle("logoutBtn", u);
+// //   toggle("userBadge", u);
+// //   toggle("welcomeWrapper", u);
+// //   toggle("feedFilters", u);
+
+// //   // Toggle Navigation Links
+// //   qsa(".protected-nav").forEach(el => {
+// //       // Special check for Admin Tab
+// //       if(el.id === "adminTab") toggle("adminTab", isAdmin); 
+// //       else toggle(el.id || el, !!u); // Show others if logged in
+// //   });
+
+// //   if (u) {
+// //     qs("badgeName").textContent = u.name;
+// //     qs("badgeRole").textContent = u.role;
+// //     qs("welcomeName").textContent = u.name;
+// //   }
+// // };
+
+// // const requireLogin = () => {
+// //   if (!state.currentUser) {
+// //     alert("Please login first.");
+// //     show("loginModal");
+// //     return false;
+// //   }
+// //   return true;
+// // };
+
+// // // ==========================================
+// // // 4. DATA LAYER (LISTENERS)
+// // // ==========================================
+// // const startListeners = () => {
+// //     // Posts Listener (Real-time Feed/Inbox)
+// //     onSnapshot(query(collection(db, "posts"), orderBy("createdAt", "desc")), (snap) => {
+// //         state.posts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+// //         renderFeed(); 
+// //         renderInbox();
+        
+// //         // Update open chat
+// //         if (currentChatPostId && !qs("chatModal").classList.contains("hidden")) {
+// //             const p = state.posts.find(x => x.id == currentChatPostId);
+// //             if(p) renderChatMessages(p);
+// //         }
+// //     });
+
+// //     // Users Listener (Sync Profile & Admin)
+// //     onSnapshot(collection(db, "users"), (snap) => {
+// //         state.users = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+// //         if (auth.currentUser) {
+// //             const me = state.users.find(u => u.id === auth.currentUser.uid);
+// //             // Sync state if changed
+// //             if (me && JSON.stringify(state.currentUser) !== JSON.stringify(me)) {
+// //                 state.currentUser = me;
+// //                 updateAuthUI();
+// //                 renderFeed(); 
+// //                 renderInbox();
+// //             }
+// //         }
+// //         if(state.currentUser?.role === 'admin') renderAdmin();
+// //     });
+// // };
+
+// // // ==========================================
+// // // 5. AUTH HANDLERS
+// // // ==========================================
+// // on(qs("registerForm"), "submit", async e => {
+// //   e.preventDefault();
+// //   const [name, email, pass] = [qs("regName").value, qs("regEmail").value, qs("regPass").value];
+// //   const reqRole = qs("regRole")?.value || "user";
+  
+// //   try {
+// //     const { user } = await createUserWithEmailAndPassword(auth, email, pass);
+// //     // Secure Admin Check
+// //     const role = (name.toLowerCase() === "bajaish" && reqRole === "admin") ? "admin" : "user";
+    
+// //     await setDoc(doc(db, "users", user.uid), { id: user.uid, name, email, role, createdAt: Date.now() });
+// //     alert("Registered! Please login.");
+// //     qs("tabLogin").click();
+// //   } catch (err) { alert(err.message); }
+// // });
+
+// // on(qs("loginForm"), "submit", async e => {
+// //   e.preventDefault();
+// //   const name = qs("loginName").value;
+// //   try {
+// //     const snap = await getDocs(collection(db, "users"));
+// //     const userDoc = snap.docs.find(d => d.data().name === name);
+// //     if (!userDoc) throw new Error("User not found.");
+    
+// //     await signInWithEmailAndPassword(auth, userDoc.data().email, qs("loginPass").value);
+    
+// //     // Immediate UI Update (Fixes "No buttons on first login")
+// //     state.currentUser = { id: userDoc.id, ...userDoc.data() };
+// //     updateAuthUI();
+// //     renderFeed();
+// //     renderInbox();
+// //     hide("loginModal");
+// //     showSection("feed");
+// //   } catch (err) { alert(err.message); }
+// // });
+
+// // onAuthStateChanged(auth, async (user) => {
+// //     if (user && !state.currentUser) {
+// //         const snap = await getDoc(doc(db, "users", user.uid));
+// //         if (snap.exists()) {
+// //             state.currentUser = { id: snap.id, ...snap.data() };
+// //             updateAuthUI(); renderFeed(); renderInbox();
+// //         }
+// //     } else if (!user) {
+// //         state.currentUser = null;
+// //         updateAuthUI(); renderFeed(); renderInbox();
+// //     }
+// // });
+
+// // // ==========================================
+// // // 6. RENDERERS
+// // // ==========================================
+// // const renderFeed = () => {
+// //     if(!state.posts.length) return qs("feedContainer").innerHTML = "";
+    
+// //     let arr = state.posts.filter(p => p.status !== 'removed');
+    
+// //     // Filters
+// //     const pf = qs("priceFilter")?.value || "none";
+// //     if (pf === "low-high") arr.sort((a,b) => a.price - b.price);
+// //     if (pf === "high-low") arr.sort((a,b) => b.price - a.price);
+
+// //     const cf = qs("creditsFilter")?.value || "all";
+// //     if (cf === "1-10") arr = arr.filter(p => p.credits >= 1 && p.credits <= 10);
+// //     if (cf === "50+") arr = arr.filter(p => p.credits >= 50);
+
+// //     qs("feedContainer").innerHTML = arr.map(htmlPost).join("");
+    
+// //     // User Listings
+// //     const myName = state.currentUser?.name;
+// //     if(!qs("userListings").classList.contains("hidden")) {
+// //         const myPosts = state.posts.filter(p => p.user === myName);
+// //         qs("userListings").innerHTML = myPosts.length 
+// //             ? myPosts.map(htmlListRow).join("") 
+// //             : '<p class="text-slate-400 text-xs">No listings found.</p>';
+// //     }
+// // };
+
+// // const renderInbox = () => {
+// //     const list = qs("inboxList");
+// //     if(!state.currentUser) return list.innerHTML = `<p class="text-slate-400 text-sm">Login required.</p>`;
+    
+// //     const myName = state.currentUser.name;
+// //     const items = state.posts.filter(p => 
+// //         p.chatMessages?.length && (p.user === myName || p.chatMessages.some(m => m.from === myName))
+// //     );
+    
+// //     items.sort((a,b) => (b.chatMessages.at(-1)?.time || 0) - (a.chatMessages.at(-1)?.time || 0));
+    
+// //     const unread = items.reduce((acc, p) => acc + p.chatMessages.filter(m => m.from !== myName && !m.seen).length, 0);
+// //     toggle("inboxIndicator", unread > 0);
+
+// //     list.innerHTML = items.length ? items.map(p => htmlInboxItem(p, myName)).join("") : '<p class="text-slate-400 text-sm">No messages yet.</p>';
+// // };
+
+// // const renderAdmin = () => {
+// //     if(state.currentUser?.role !== 'admin') return;
+// //     qs("adminList").innerHTML = `
+// //       <div class="mb-4"><h3 class="font-bold text-sm mb-2 text-emerald-400">Users</h3><table class="w-full text-left">${state.users.map(htmlAdminUser).join("")}</table></div>
+// //       <div><h3 class="font-bold text-sm mb-2 text-emerald-400">Posts</h3>${state.posts.map(htmlAdminPost).join("")}</div>`;
+// // };
+
+// // // ==========================================
+// // // 7. ACTIONS (CHAT, POSTS, ETC)
+// // // ==========================================
+// // window.openChat = async (pid) => {
+// //     if(!requireLogin()) return;
+// //     const p = state.posts.find(x => x.id == pid);
+// //     if(!p) return;
+    
+// //     currentChatPostId = pid;
+// //     qs("chatPostTitle").textContent = p.title;
+// //     show("chatModal"); show("chatForm");
+// //     renderChatMessages(p);
+    
+// //     // Mark as seen
+// //     const msgs = p.chatMessages || [];
+// //     if (msgs.some(m => m.from !== state.currentUser.name && !m.seen)) {
+// //         const updated = msgs.map(m => (m.from !== state.currentUser.name && !m.seen) ? {...m, seen: true} : m);
+// //         await updateDoc(doc(db, "posts", pid), { chatMessages: updated });
+// //     }
+// // };
+
+// // window.viewAdminChat = (pid) => {
+// //     const p = state.posts.find(x => x.id == pid);
+// //     currentChatPostId = null;
+// //     qs("chatPostTitle").textContent = `Admin: ${p.title}`;
+// //     show("chatModal"); hide("chatForm");
+// //     renderChatMessages(p);
+// // };
+
+// // const renderChatMessages = (p) => {
+// //     const box = qs("chatMessages");
+// //     box.innerHTML = (p.chatMessages||[]).map(m => {
+// //         const isMe = state.currentUser && m.from === state.currentUser.name;
+// //         return `<div class="flex ${isMe?'justify-end':'justify-start'}"><div class="px-2 py-1 rounded mb-1 text-xs max-w-[80%] ${isMe?'bg-emerald-600 text-white':'bg-slate-800 text-slate-300'}">
+// //             <div class="font-bold opacity-50 text-[9px]">${m.from}</div>${m.text}<div class="text-[9px] opacity-60 text-right">${isMe && m.seen ? 'Seen' : ''}</div></div></div>`;
+// //     }).join("");
+// //     box.scrollTop = box.scrollHeight;
+// // };
+
+// // // Global Handlers
+// // window.editPost = (id) => {
+// //     const p = state.posts.find(x => x.id == id);
+// //     if(!p) return;
+// //     editPostId = id;
+// //     qs("postTitle").value = p.title; qs("postDesc").value = p.desc;
+// //     qs("postPrice").value = p.price; qs("postCredits").value = p.credits;
+// //     qs("uploadFormBtn").textContent = "Update Listing"; qs("createListingTab").click();
+// // };
+// // window.deleteUser = async (id) => { if(confirm("Delete?")) await deleteDoc(doc(db, "users", id)); };
+// // window.deletePost = async (id) => { if(confirm("Delete?")) await deleteDoc(doc(db, "posts", id)); };
+
+// // // ==========================================
+// // // 8. EVENT BINDINGS
+// // // ==========================================
+// // // Forms
+// // on(qs("chatForm"), "submit", async e => {
+// //     e.preventDefault();
+// //     const text = qs("chatInput").value.trim();
+// //     if(!text) return;
+// //     await updateDoc(doc(db, "posts", currentChatPostId), { chatMessages: arrayUnion({ from: state.currentUser.name, text, time: Date.now(), seen: false }) });
+// //     qs("chatInput").value = "";
+// // });
+
+// // on(qs("uploadForm"), "submit", async e => {
+// //   e.preventDefault();
+// //   if(!requireLogin()) return;
+// //   const file = qs("postImage").files[0];
+// //   const reader = new FileReader();
+  
+// //   const save = async (img) => {
+// //     const data = { 
+// //         title: qs("postTitle").value, desc: qs("postDesc").value, 
+// //         price: Number(qs("postPrice").value), credits: Number(qs("postCredits").value),
+// //         user: state.currentUser.name, image: img, createdAt: Date.now(), chatMessages: [], status: "active"
+// //     };
+// //     if(editPostId) { if(!img) delete data.image; await updateDoc(doc(db, "posts", editPostId), data); }
+// //     else { if(!img) return alert("Image required"); await addDoc(collection(db, "posts"), data); }
+    
+// //     qs("uploadForm").reset(); editPostId = null; qs("uploadFormBtn").textContent = "Upload Listing";
+// //     qs("yourListingsTab").click();
+// //   };
+// //   if(file) { reader.onload = ev => save(ev.target.result); reader.readAsDataURL(file); } else save(null);
+// // });
+
+// // // UI Interactions
+// // on(qs("loginBtn"), "click", () => show("loginModal"));
+// // on(qs("heroLoginBtn"), "click", () => show("loginModal"));
+// // on(qs("closeLogin"), "click", () => hide("loginModal"));
+// // on(qs("closeChat"), "click", () => hide("chatModal"));
+// // on(qs("logoutBtn"), "click", () => { signOut(auth); showSection("landing"); });
+// // on(qs("heroExploreBtn"), "click", () => { if(requireLogin()) showSection("feed"); });
+
+// // // Tabs & Nav
+// // on(qs("tabRegister"), "click", () => { show("registerForm"); hide("loginForm"); });
+// // on(qs("tabLogin"), "click", () => { show("loginForm"); hide("registerForm"); });
+
+// // on(qs("createListingTab"), "click", () => { 
+// //     show("uploadWrapper"); hide("userListings"); 
+// //     qs("createListingTab").classList.replace("text-slate-300", "text-white"); qs("createListingTab").classList.add("bg-slate-800");
+// //     qs("yourListingsTab").classList.replace("text-white", "text-slate-300"); qs("yourListingsTab").classList.remove("bg-slate-800");
+// // });
+// // on(qs("yourListingsTab"), "click", () => { 
+// //     hide("uploadWrapper"); show("userListings"); 
+// //     qs("yourListingsTab").classList.replace("text-slate-300", "text-white"); qs("yourListingsTab").classList.add("bg-slate-800");
+// //     qs("createListingTab").classList.replace("text-white", "text-slate-300"); qs("createListingTab").classList.remove("bg-slate-800");
+// //     renderFeed(); // Force refresh for user posts
+// // });
+
+// // qsa(".nav-btn").forEach(b => on(b, "click", () => {
+// //     if(b.classList.contains("protected-nav") && !requireLogin()) return;
+// //     showSection(b.dataset.section);
+// //     if(b.dataset.section === 'upload') qs("yourListingsTab").click();
+// // }));
+
+// // // Calculator
+// // qsa('input[name="calcMethod"]').forEach(r => on(r, "change", () => {
+// //     const v = document.querySelector('input[name="calcMethod"]:checked').value;
+// //     toggle("treeForm", v === "trees"); toggle("landForm", v !== "trees"); hide("calcResult");
+// // }));
+// // on(qs("calcTreesBtn"), "click", () => {
+// //     show("calcResult"); 
+// //     qs("totalCredits").textContent = ((qs("treeCount").value * qs("treeType").value * qs("treeYears").value)/1000).toFixed(2) + " Tons CO2";
+// // });
+// // on(qs("calcLandBtn"), "click", () => {
+// //     const factor = qs("landUnit").value === 'hectares' ? 6 : 2.4; 
+// //     show("calcResult"); 
+// //     qs("totalCredits").textContent = (qs("landArea").value * factor * qs("landYears").value).toFixed(2) + " Tons CO2";
+// // });
+
+// // // Filters
+// // on(qs("priceFilter"), "change", renderFeed);
+// // on(qs("creditsFilter"), "change", renderFeed);
+// // on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
+
+// // // Init
+// // startListeners();
+// // const lastSec = localStorage.getItem(LAST_SECTION_KEY);
+// // if(lastSec) showSection(lastSec); else showSection("landing");
+
+// // // ==========================================
+// // // 9. HTML TEMPLATES (MINIFIED)
+// // // ==========================================
+// // const htmlPost = (p) => {
+// //     const isMine = state.currentUser && p.user === state.currentUser.name;
+// //     const hasUnread = state.currentUser && p.chatMessages?.some(m => m.from !== state.currentUser.name && !m.seen);
+// //     const badge = isMine ? `<span class="bg-emerald-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded ml-2">CREATED BY YOU</span>` : '';
+    
+// //     return `<div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow flex flex-col">
+// //       <img src="${p.image}" class="w-full h-44 object-cover">
+// //       <div class="p-3 flex flex-col flex-1">
+// //         <div class="flex justify-between items-start mb-1"><h3 class="font-bold text-sm truncate flex-1">${p.title}</h3>${badge}</div>
+// //         <p class="text-[10px] text-slate-500 mb-2">By ${p.user} • ${new Date(p.createdAt).toLocaleDateString()}</p>
+// //         <p class="text-xs text-slate-400 mb-2 truncate">${p.desc}</p>
+// //         <div class="flex justify-between text-[11px] mb-2"><span class="text-emerald-300 bg-emerald-900/30 px-2 py-0.5 rounded-full">${p.credits} Credits</span><span class="text-white font-bold">₹${p.price}</span></div>
+// //         <div class="mt-auto"><button onclick="window.openChat('${p.id}')" class="w-full py-2 bg-slate-800 text-xs rounded border border-slate-600 relative hover:bg-slate-700">💬 Chat ${hasUnread?'<span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-slate-900"></span>':''}</button></div>
+// //       </div></div>`;
+// // };
+
+// // const htmlListRow = (p) => `<div class="bg-slate-900 p-2 border border-slate-700 rounded mb-2 flex justify-between text-xs items-center"><span>${p.title}</span><button class="text-emerald-400 underline" onclick="window.editPost('${p.id}')">Edit</button></div>`;
+
+// // const htmlInboxItem = (p, myName) => {
+// //     const last = p.chatMessages.at(-1);
+// //     const unread = p.chatMessages.filter(m => m.from !== myName && !m.seen).length;
+// //     return `<div onclick="window.openChat('${p.id}')" class="bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-pointer flex justify-between items-center hover:bg-slate-800">
+// //         <div><div class="text-sm font-bold text-emerald-100 flex items-center gap-2">${p.title} ${unread>0?`<span class="bg-red-500 text-white text-[9px] px-1.5 rounded-full">${unread}</span>`:''}</div><div class="text-xs text-slate-400">Last: ${last.from}: ${last.text}</div></div><div class="text-xs text-emerald-500">Open</div></div>`;
+// // };
+
+// // const htmlAdminUser = (u) => `<tr class="text-xs border-b border-slate-700"><td class="p-2">${u.name}</td><td class="p-2">${u.role}</td><td class="p-2 text-right"><button onclick="window.deleteUser('${u.id}')" class="text-red-400 hover:text-red-300">Remove</button></td></tr>`;
+
+// // const htmlAdminPost = (p) => `<div class="flex justify-between items-center bg-slate-900 p-2 text-xs border border-slate-700 rounded mb-1"><div class="flex flex-col"><span class="font-bold">${p.title}</span><span class="text-[10px] text-slate-400">By ${p.user} • ${p.chatMessages?.length||0} msgs</span></div><div class="flex gap-2"><button onclick="window.viewAdminChat('${p.id}')" class="text-blue-400">View</button><button onclick="window.deletePost('${p.id}')" class="text-red-400">Delete</button></div></div>`;
+
+// // ==========================================
+// // 1. IMPORTS & CONFIG
+// // ==========================================
 // import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 // import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 // import { getFirestore, collection, addDoc, getDocs, getDoc, doc, updateDoc, arrayUnion, query, orderBy, onSnapshot, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -1403,8 +1801,15 @@
 
 // const htmlAdminPost = (p) => `<div class="flex justify-between items-center bg-slate-900 p-2 text-xs border border-slate-700 rounded mb-1"><div class="flex flex-col"><span class="font-bold">${p.title}</span><span class="text-[10px] text-slate-400">By ${p.user} • ${p.chatMessages?.length||0} msgs</span></div><div class="flex gap-2"><button onclick="window.viewAdminChat('${p.id}')" class="text-blue-400">View</button><button onclick="window.deletePost('${p.id}')" class="text-red-400">Delete</button></div></div>`;
 
+
+
+
+
+//********************************************
+
+
 // ==========================================
-// 1. IMPORTS & CONFIG
+// 1. IMPORTS & CONFIGURATION
 // ==========================================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
@@ -1430,28 +1835,35 @@ const db = getFirestore(app);
 const qs = id => document.getElementById(id);
 const qsa = sel => document.querySelectorAll(sel);
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
-const show = id => qs(id)?.classList.remove("hidden");
-const hide = id => qs(id)?.classList.add("hidden");
-const toggle = (id, condition) => condition ? show(id) : hide(id);
+
+// [FIX] Helper to handle both String IDs and DOM Elements safely
+const getEl = (input) => (typeof input === 'string' ? qs(input) : input);
+const show = (input) => getEl(input)?.classList.remove("hidden");
+const hide = (input) => getEl(input)?.classList.add("hidden");
+const toggle = (input, condition) => condition ? show(input) : hide(input);
 
 const LAST_SECTION_KEY = "ccx_last_section_v5";
 let state = { users: [], posts: [], currentUser: null };
 let editPostId = null, currentChatPostId = null;
 
 // ==========================================
-// 3. UI LOGIC & NAVIGATION
+// 3. UI NAVIGATION (Safe Highlighting)
 // ==========================================
 const showSection = name => {
   qsa(".section").forEach(s => s.classList.add("hidden"));
   show("section-" + name);
   localStorage.setItem(LAST_SECTION_KEY, name);
   
-  // Highlight Active Button
+  // [FIX] Highlight Active Button without destroying other classes (like 'hidden' or 'protected-nav')
   qsa(".nav-btn").forEach(btn => {
-    const active = btn.dataset.section === name;
-    btn.className = active 
-      ? "nav-btn bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-full text-sm transition-colors"
-      : "nav-btn bg-slate-900 text-slate-100 border-b-transparent px-3 py-1.5 rounded-full text-sm hover:bg-slate-800 transition-colors";
+    const isActive = btn.dataset.section === name;
+    if (isActive) {
+        btn.classList.remove("bg-slate-900", "text-slate-100", "border-b-transparent", "hover:bg-slate-800");
+        btn.classList.add("bg-emerald-600", "text-white", "font-bold");
+    } else {
+        btn.classList.add("bg-slate-900", "text-slate-100", "border-b-transparent", "hover:bg-slate-800");
+        btn.classList.remove("bg-emerald-600", "text-white", "font-bold");
+    }
   });
 };
 
@@ -1459,7 +1871,7 @@ const updateAuthUI = () => {
   const u = state.currentUser;
   const isAdmin = u?.role === 'admin';
 
-  // Toggle Header Elements
+  // 1. Toggle Header Elements
   toggle("loginBtn", !u);
   toggle("heroLoginBtn", !u);
   toggle("logoutBtn", u);
@@ -1467,11 +1879,14 @@ const updateAuthUI = () => {
   toggle("welcomeWrapper", u);
   toggle("feedFilters", u);
 
-  // Toggle Navigation Links
+  // 2. Toggle Protected Navigation
   qsa(".protected-nav").forEach(el => {
-      // Special check for Admin Tab
-      if(el.id === "adminTab") toggle("adminTab", isAdmin); 
-      else toggle(el.id || el, !!u); // Show others if logged in
+      // [FIX] Strict Admin Check: Only show Admin tab if role is 'admin'
+      if (el.id === "adminTab") {
+          toggle(el, u && isAdmin);
+      } else {
+          toggle(el, !!u); // Show other protected tabs if logged in
+      }
   });
 
   if (u) {
@@ -1491,29 +1906,27 @@ const requireLogin = () => {
 };
 
 // ==========================================
-// 4. DATA LAYER (LISTENERS)
+// 4. DATA LISTENERS (Real-time)
 // ==========================================
 const startListeners = () => {
-    // Posts Listener (Real-time Feed/Inbox)
+    // Posts Listener
     onSnapshot(query(collection(db, "posts"), orderBy("createdAt", "desc")), (snap) => {
         state.posts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         renderFeed(); 
         renderInbox();
         
-        // Update open chat
         if (currentChatPostId && !qs("chatModal").classList.contains("hidden")) {
             const p = state.posts.find(x => x.id == currentChatPostId);
             if(p) renderChatMessages(p);
         }
     });
 
-    // Users Listener (Sync Profile & Admin)
+    // Users Listener (Sync Profile)
     onSnapshot(collection(db, "users"), (snap) => {
         state.users = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
         if (auth.currentUser) {
             const me = state.users.find(u => u.id === auth.currentUser.uid);
-            // Sync state if changed
             if (me && JSON.stringify(state.currentUser) !== JSON.stringify(me)) {
                 state.currentUser = me;
                 updateAuthUI();
@@ -1535,7 +1948,6 @@ on(qs("registerForm"), "submit", async e => {
   
   try {
     const { user } = await createUserWithEmailAndPassword(auth, email, pass);
-    // Secure Admin Check
     const role = (name.toLowerCase() === "bajaish" && reqRole === "admin") ? "admin" : "user";
     
     await setDoc(doc(db, "users", user.uid), { id: user.uid, name, email, role, createdAt: Date.now() });
@@ -1554,7 +1966,7 @@ on(qs("loginForm"), "submit", async e => {
     
     await signInWithEmailAndPassword(auth, userDoc.data().email, qs("loginPass").value);
     
-    // Immediate UI Update (Fixes "No buttons on first login")
+    // Immediate UI Update
     state.currentUser = { id: userDoc.id, ...userDoc.data() };
     updateAuthUI();
     renderFeed();
@@ -1600,15 +2012,12 @@ const renderFeed = () => {
     const myName = state.currentUser?.name;
     if(!qs("userListings").classList.contains("hidden")) {
         const myPosts = state.posts.filter(p => p.user === myName);
-        qs("userListings").innerHTML = myPosts.length 
-            ? myPosts.map(htmlListRow).join("") 
-            : '<p class="text-slate-400 text-xs">No listings found.</p>';
+        qs("userListings").innerHTML = myPosts.length ? myPosts.map(htmlListRow).join("") : '<p class="text-slate-400 text-xs">No listings.</p>';
     }
 };
 
 const renderInbox = () => {
-    const list = qs("inboxList");
-    if(!state.currentUser) return list.innerHTML = `<p class="text-slate-400 text-sm">Login required.</p>`;
+    if(!state.currentUser) return qs("inboxList").innerHTML = `<p class="text-slate-400 text-sm">Login required.</p>`;
     
     const myName = state.currentUser.name;
     const items = state.posts.filter(p => 
@@ -1616,11 +2025,9 @@ const renderInbox = () => {
     );
     
     items.sort((a,b) => (b.chatMessages.at(-1)?.time || 0) - (a.chatMessages.at(-1)?.time || 0));
-    
-    const unread = items.reduce((acc, p) => acc + p.chatMessages.filter(m => m.from !== myName && !m.seen).length, 0);
-    toggle("inboxIndicator", unread > 0);
+    toggle("inboxIndicator", items.reduce((acc, p) => acc + p.chatMessages.filter(m => m.from !== myName && !m.seen).length, 0) > 0);
 
-    list.innerHTML = items.length ? items.map(p => htmlInboxItem(p, myName)).join("") : '<p class="text-slate-400 text-sm">No messages yet.</p>';
+    qs("inboxList").innerHTML = items.length ? items.map(p => htmlInboxItem(p, myName)).join("") : '<p class="text-slate-400 text-sm">No messages.</p>';
 };
 
 const renderAdmin = () => {
@@ -1631,13 +2038,13 @@ const renderAdmin = () => {
 };
 
 // ==========================================
-// 7. ACTIONS (CHAT, POSTS, ETC)
+// 7. ACTIONS & EVENTS
 // ==========================================
+// Global Action Helpers
 window.openChat = async (pid) => {
     if(!requireLogin()) return;
     const p = state.posts.find(x => x.id == pid);
     if(!p) return;
-    
     currentChatPostId = pid;
     qs("chatPostTitle").textContent = p.title;
     show("chatModal"); show("chatForm");
@@ -1663,13 +2070,11 @@ const renderChatMessages = (p) => {
     const box = qs("chatMessages");
     box.innerHTML = (p.chatMessages||[]).map(m => {
         const isMe = state.currentUser && m.from === state.currentUser.name;
-        return `<div class="flex ${isMe?'justify-end':'justify-start'}"><div class="px-2 py-1 rounded mb-1 text-xs max-w-[80%] ${isMe?'bg-emerald-600 text-white':'bg-slate-800 text-slate-300'}">
-            <div class="font-bold opacity-50 text-[9px]">${m.from}</div>${m.text}<div class="text-[9px] opacity-60 text-right">${isMe && m.seen ? 'Seen' : ''}</div></div></div>`;
+        return `<div class="flex ${isMe?'justify-end':'justify-start'}"><div class="px-2 py-1 rounded mb-1 text-xs max-w-[80%] ${isMe?'bg-emerald-600 text-white':'bg-slate-800 text-slate-300'}"><div class="font-bold opacity-50 text-[9px]">${m.from}</div>${m.text}<div class="text-[9px] opacity-60 text-right">${isMe && m.seen ? 'Seen' : ''}</div></div></div>`;
     }).join("");
     box.scrollTop = box.scrollHeight;
 };
 
-// Global Handlers
 window.editPost = (id) => {
     const p = state.posts.find(x => x.id == id);
     if(!p) return;
@@ -1681,10 +2086,7 @@ window.editPost = (id) => {
 window.deleteUser = async (id) => { if(confirm("Delete?")) await deleteDoc(doc(db, "users", id)); };
 window.deletePost = async (id) => { if(confirm("Delete?")) await deleteDoc(doc(db, "posts", id)); };
 
-// ==========================================
-// 8. EVENT BINDINGS
-// ==========================================
-// Forms
+// Event Listeners
 on(qs("chatForm"), "submit", async e => {
     e.preventDefault();
     const text = qs("chatInput").value.trim();
@@ -1698,7 +2100,6 @@ on(qs("uploadForm"), "submit", async e => {
   if(!requireLogin()) return;
   const file = qs("postImage").files[0];
   const reader = new FileReader();
-  
   const save = async (img) => {
     const data = { 
         title: qs("postTitle").value, desc: qs("postDesc").value, 
@@ -1707,14 +2108,12 @@ on(qs("uploadForm"), "submit", async e => {
     };
     if(editPostId) { if(!img) delete data.image; await updateDoc(doc(db, "posts", editPostId), data); }
     else { if(!img) return alert("Image required"); await addDoc(collection(db, "posts"), data); }
-    
-    qs("uploadForm").reset(); editPostId = null; qs("uploadFormBtn").textContent = "Upload Listing";
-    qs("yourListingsTab").click();
+    qs("uploadForm").reset(); editPostId = null; qs("uploadFormBtn").textContent = "Upload Listing"; qs("yourListingsTab").click();
   };
   if(file) { reader.onload = ev => save(ev.target.result); reader.readAsDataURL(file); } else save(null);
 });
 
-// UI Interactions
+// UI Buttons
 on(qs("loginBtn"), "click", () => show("loginModal"));
 on(qs("heroLoginBtn"), "click", () => show("loginModal"));
 on(qs("closeLogin"), "click", () => hide("loginModal"));
@@ -1722,10 +2121,9 @@ on(qs("closeChat"), "click", () => hide("chatModal"));
 on(qs("logoutBtn"), "click", () => { signOut(auth); showSection("landing"); });
 on(qs("heroExploreBtn"), "click", () => { if(requireLogin()) showSection("feed"); });
 
-// Tabs & Nav
+// Tabs & Filters
 on(qs("tabRegister"), "click", () => { show("registerForm"); hide("loginForm"); });
 on(qs("tabLogin"), "click", () => { show("loginForm"); hide("registerForm"); });
-
 on(qs("createListingTab"), "click", () => { 
     show("uploadWrapper"); hide("userListings"); 
     qs("createListingTab").classList.replace("text-slate-300", "text-white"); qs("createListingTab").classList.add("bg-slate-800");
@@ -1735,7 +2133,7 @@ on(qs("yourListingsTab"), "click", () => {
     hide("uploadWrapper"); show("userListings"); 
     qs("yourListingsTab").classList.replace("text-slate-300", "text-white"); qs("yourListingsTab").classList.add("bg-slate-800");
     qs("createListingTab").classList.replace("text-white", "text-slate-300"); qs("createListingTab").classList.remove("bg-slate-800");
-    renderFeed(); // Force refresh for user posts
+    renderFeed(); 
 });
 
 qsa(".nav-btn").forEach(b => on(b, "click", () => {
@@ -1744,62 +2142,44 @@ qsa(".nav-btn").forEach(b => on(b, "click", () => {
     if(b.dataset.section === 'upload') qs("yourListingsTab").click();
 }));
 
-// Calculator
+// Calculator & Filters
 qsa('input[name="calcMethod"]').forEach(r => on(r, "change", () => {
     const v = document.querySelector('input[name="calcMethod"]:checked').value;
     toggle("treeForm", v === "trees"); toggle("landForm", v !== "trees"); hide("calcResult");
 }));
 on(qs("calcTreesBtn"), "click", () => {
-    show("calcResult"); 
-    qs("totalCredits").textContent = ((qs("treeCount").value * qs("treeType").value * qs("treeYears").value)/1000).toFixed(2) + " Tons CO2";
+    show("calcResult"); qs("totalCredits").textContent = ((qs("treeCount").value * qs("treeType").value * qs("treeYears").value)/1000).toFixed(2) + " Tons CO2";
 });
 on(qs("calcLandBtn"), "click", () => {
     const factor = qs("landUnit").value === 'hectares' ? 6 : 2.4; 
-    show("calcResult"); 
-    qs("totalCredits").textContent = (qs("landArea").value * factor * qs("landYears").value).toFixed(2) + " Tons CO2";
+    show("calcResult"); qs("totalCredits").textContent = (qs("landArea").value * factor * qs("landYears").value).toFixed(2) + " Tons CO2";
 });
-
-// Filters
 on(qs("priceFilter"), "change", renderFeed);
 on(qs("creditsFilter"), "change", renderFeed);
 on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
 
-// Init
-startListeners();
-const lastSec = localStorage.getItem(LAST_SECTION_KEY);
-if(lastSec) showSection(lastSec); else showSection("landing");
-
 // ==========================================
-// 9. HTML TEMPLATES (MINIFIED)
+// 8. HTML TEMPLATES (Pure Functions)
 // ==========================================
 const htmlPost = (p) => {
     const isMine = state.currentUser && p.user === state.currentUser.name;
     const hasUnread = state.currentUser && p.chatMessages?.some(m => m.from !== state.currentUser.name && !m.seen);
     const badge = isMine ? `<span class="bg-emerald-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded ml-2">CREATED BY YOU</span>` : '';
-    
-    return `<div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow flex flex-col">
-      <img src="${p.image}" class="w-full h-44 object-cover">
-      <div class="p-3 flex flex-col flex-1">
-        <div class="flex justify-between items-start mb-1"><h3 class="font-bold text-sm truncate flex-1">${p.title}</h3>${badge}</div>
-        <p class="text-[10px] text-slate-500 mb-2">By ${p.user} • ${new Date(p.createdAt).toLocaleDateString()}</p>
-        <p class="text-xs text-slate-400 mb-2 truncate">${p.desc}</p>
-        <div class="flex justify-between text-[11px] mb-2"><span class="text-emerald-300 bg-emerald-900/30 px-2 py-0.5 rounded-full">${p.credits} Credits</span><span class="text-white font-bold">₹${p.price}</span></div>
-        <div class="mt-auto"><button onclick="window.openChat('${p.id}')" class="w-full py-2 bg-slate-800 text-xs rounded border border-slate-600 relative hover:bg-slate-700">💬 Chat ${hasUnread?'<span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-slate-900"></span>':''}</button></div>
-      </div></div>`;
+    return `<div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow flex flex-col"><img src="${p.image}" class="w-full h-44 object-cover"><div class="p-3 flex flex-col flex-1"><div class="flex justify-between items-start mb-1"><h3 class="font-bold text-sm truncate flex-1">${p.title}</h3>${badge}</div><p class="text-[10px] text-slate-500 mb-2">By ${p.user} • ${new Date(p.createdAt).toLocaleDateString()}</p><p class="text-xs text-slate-400 mb-2 truncate">${p.desc}</p><div class="flex justify-between text-[11px] mb-2"><span class="text-emerald-300 bg-emerald-900/30 px-2 py-0.5 rounded-full">${p.credits} Credits</span><span class="text-white font-bold">₹${p.price}</span></div><div class="mt-auto"><button onclick="window.openChat('${p.id}')" class="w-full py-2 bg-slate-800 text-xs rounded border border-slate-600 relative hover:bg-slate-700">💬 Chat ${hasUnread?'<span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-slate-900"></span>':''}</button></div></div></div>`;
 };
-
 const htmlListRow = (p) => `<div class="bg-slate-900 p-2 border border-slate-700 rounded mb-2 flex justify-between text-xs items-center"><span>${p.title}</span><button class="text-emerald-400 underline" onclick="window.editPost('${p.id}')">Edit</button></div>`;
-
 const htmlInboxItem = (p, myName) => {
     const last = p.chatMessages.at(-1);
     const unread = p.chatMessages.filter(m => m.from !== myName && !m.seen).length;
-    return `<div onclick="window.openChat('${p.id}')" class="bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-pointer flex justify-between items-center hover:bg-slate-800">
-        <div><div class="text-sm font-bold text-emerald-100 flex items-center gap-2">${p.title} ${unread>0?`<span class="bg-red-500 text-white text-[9px] px-1.5 rounded-full">${unread}</span>`:''}</div><div class="text-xs text-slate-400">Last: ${last.from}: ${last.text}</div></div><div class="text-xs text-emerald-500">Open</div></div>`;
+    return `<div onclick="window.openChat('${p.id}')" class="bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-pointer flex justify-between items-center hover:bg-slate-800"><div><div class="text-sm font-bold text-emerald-100 flex items-center gap-2">${p.title} ${unread>0?`<span class="bg-red-500 text-white text-[9px] px-1.5 rounded-full">${unread}</span>`:''}</div><div class="text-xs text-slate-400">Last: ${last.from}: ${last.text}</div></div><div class="text-xs text-emerald-500">Open</div></div>`;
 };
-
 const htmlAdminUser = (u) => `<tr class="text-xs border-b border-slate-700"><td class="p-2">${u.name}</td><td class="p-2">${u.role}</td><td class="p-2 text-right"><button onclick="window.deleteUser('${u.id}')" class="text-red-400 hover:text-red-300">Remove</button></td></tr>`;
-
 const htmlAdminPost = (p) => `<div class="flex justify-between items-center bg-slate-900 p-2 text-xs border border-slate-700 rounded mb-1"><div class="flex flex-col"><span class="font-bold">${p.title}</span><span class="text-[10px] text-slate-400">By ${p.user} • ${p.chatMessages?.length||0} msgs</span></div><div class="flex gap-2"><button onclick="window.viewAdminChat('${p.id}')" class="text-blue-400">View</button><button onclick="window.deletePost('${p.id}')" class="text-red-400">Delete</button></div></div>`;
 
+// --- INIT ---
+updateAuthUI(); // Ensures buttons are hidden immediately on load
+startListeners();
+const lastSec = localStorage.getItem(LAST_SECTION_KEY);
+if(lastSec) showSection(lastSec); else showSection("landing");
 
 
