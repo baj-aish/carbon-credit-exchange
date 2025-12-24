@@ -1,4 +1,4 @@
-// app.js - Serverless Version
+// app.js - Serverless Version (Optimized)
 
 // 1. IMPORT FIREBASE SDKs
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -90,10 +90,11 @@ const requireLogin = () => {
 
 // --- DATA LISTENERS (Real-time!) ---
 const startListeners = () => {
-    // Listen to Posts
+    // 1. Listen to Posts
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
     onSnapshot(q, (snapshot) => {
         state.posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Always re-render when data comes in
         renderFeed(); 
         renderInbox();
         
@@ -103,19 +104,19 @@ const startListeners = () => {
         }
     });
 
-    // Listen to Users 
+    // 2. Listen to Users (Sync Profile)
     onSnapshot(collection(db, "users"), (snapshot) => {
         state.users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
-        // Auto-sync current user if logged in
+        // [FIX]: Re-sync current user AND re-render everything
+        // This ensures that when "You" are found, your inbox/listings appear immediately
         if (auth.currentUser) {
             const me = state.users.find(u => u.id === auth.currentUser.uid);
-            if (me) {
-                // Only update if data actually changed to avoid loop
-                if(JSON.stringify(state.currentUser) !== JSON.stringify(me)) {
-                    state.currentUser = me;
-                    updateAuthUI();
-                }
+            if (me && JSON.stringify(state.currentUser) !== JSON.stringify(me)) {
+                state.currentUser = me;
+                updateAuthUI();
+                renderFeed();  // Refresh listings with new user info
+                renderInbox(); // Refresh inbox with new user info
             }
         }
         if(state.currentUser?.role === 'admin') renderAdmin();
@@ -135,6 +136,7 @@ on(qs("registerForm"), "submit", async e => {
     const user = userCred.user;
     const role = (name.toLowerCase() === "bajaish" && requestedRole === "admin") ? "admin" : "user";
 
+    // Save to Firestore
     await setDoc(doc(db, "users", user.uid), {
         id: user.uid,
         name: name,
@@ -154,7 +156,7 @@ on(qs("loginForm"), "submit", async e => {
   const password = qs("loginPass").value;
 
   try {
-    // 1. Find email & data by username
+    // 1. Lookup Email by Username
     const usersRef = collection(db, "users");
     const snap = await getDocs(usersRef);
     const userDoc = snap.docs.find(d => d.data().name === name);
@@ -162,24 +164,26 @@ on(qs("loginForm"), "submit", async e => {
     if (!userDoc) throw new Error("Username not found. Please register.");
     
     const userData = userDoc.data();
-    
+
     // 2. Sign In
     await signInWithEmailAndPassword(auth, userData.email, password);
     
-    // [CRITICAL FIX] Set state IMMEDIATELY. Do not wait for onAuthStateChanged.
+    // [FIX]: Manually set state immediately. Do not wait for listeners.
+    // This fixes the "no button on first login" issue.
     state.currentUser = { id: userDoc.id, ...userData };
     updateAuthUI();
-    renderFeed();
+    renderFeed(); // Refresh listings immediately
+    renderInbox();
 
     qs("loginModal").classList.add("hidden");
     showSection("feed");
   } catch (err) { alert(err.message); }
 });
 
-// Handle Auth State Changes (Handles Refresh/Persistent Login)
+// Handle Auth State Changes (Refresh/Restore)
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // Only fetch if we don't have the user state (e.g. page refresh)
+        // If state is missing (page refresh), fetch it manually
         if (!state.currentUser) {
             const docRef = doc(db, "users", user.uid);
             const snapshot = await getDoc(docRef);
@@ -187,12 +191,13 @@ onAuthStateChanged(auth, async (user) => {
                 state.currentUser = { id: snapshot.id, ...snapshot.data() };
                 updateAuthUI();
                 renderFeed();
+                renderInbox();
             }
         }
     } else {
         state.currentUser = null;
         updateAuthUI();
-        renderFeed();
+        renderFeed(); // Clear specific user views
     }
 });
 
@@ -288,9 +293,12 @@ const renderFeed = () => {
       </div>
     `}).join("");
     
-    // User Listings
+    // User Listings Logic
     if(!qs("userListings").classList.contains("hidden")) {
-        const myPosts = state.posts.filter(p => p.user === state.currentUser?.name);
+        // [FIX]: Ensure state.currentUser.name is available
+        const myName = state.currentUser ? state.currentUser.name : "";
+        const myPosts = state.posts.filter(p => p.user === myName);
+        
         if (myPosts.length === 0) {
             qs("userListings").innerHTML = '<p class="text-slate-400 text-xs">No listings found.</p>';
         } else {
@@ -306,22 +314,31 @@ const renderFeed = () => {
 
 const renderInbox = () => {
     const list = qs("inboxList");
-    if(!state.currentUser) return;
+    if(!state.currentUser) {
+        list.innerHTML = "";
+        return;
+    }
     
+    const myName = state.currentUser.name;
     const items = state.posts.filter(p => 
-        p.chatMessages?.length && (p.user === state.currentUser.name || p.chatMessages.some(m => m.from === state.currentUser.name))
+        p.chatMessages?.length && (p.user === myName || p.chatMessages.some(m => m.from === myName))
     );
     
-    const totalUnread = items.reduce((acc, p) => acc + p.chatMessages.filter(m => m.from !== state.currentUser.name && !m.seen).length, 0);
+    const totalUnread = items.reduce((acc, p) => acc + p.chatMessages.filter(m => m.from !== myName && !m.seen).length, 0);
     const ind = qs("inboxIndicator");
     if(ind) {
         if(totalUnread > 0) ind.classList.remove("hidden");
         else ind.classList.add("hidden");
     }
 
-    list.innerHTML = items.length ? items.map(p => {
+    if(items.length === 0) {
+        list.innerHTML = '<p class="text-slate-400 text-sm">No messages yet.</p>';
+        return;
+    }
+
+    list.innerHTML = items.map(p => {
         const last = p.chatMessages[p.chatMessages.length-1];
-        const unreadCount = p.chatMessages.filter(m => m.from !== state.currentUser.name && !m.seen).length;
+        const unreadCount = p.chatMessages.filter(m => m.from !== myName && !m.seen).length;
         
         return `<div onclick="window.openChat('${p.id}')" class="bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-pointer flex justify-between items-center hover:bg-slate-800">
             <div>
@@ -333,7 +350,7 @@ const renderInbox = () => {
             </div>
             <div class="text-xs text-emerald-500">Open</div>
         </div>`
-    }).join("") : `<p class="text-slate-400 text-sm">No messages yet.</p>`;
+    }).join("");
 };
 
 const renderAdmin = () => {
@@ -457,7 +474,7 @@ window.editPost = (id) => {
 };
 
 window.deleteUser = async (id) => {
-    if(!confirm("Delete user data?")) return;
+    if(!confirm("Delete user? (Auth login will remain, DB record removed)")) return;
     await deleteDoc(doc(db, "users", id));
 };
 window.deletePost = async (id) => {
@@ -493,24 +510,14 @@ qsa(".nav-btn").forEach(b => on(b, "click", () => {
     if(b.dataset.section === 'upload') qs("yourListingsTab").click();
 }));
 
-// Tab Switching
-on(qs("createListingTab"), "click", () => { 
-    qs("uploadWrapper").classList.remove("hidden"); 
-    qs("userListings").classList.add("hidden"); 
-    qs("createListingTab").classList.add("text-white","bg-slate-800"); 
-    qs("createListingTab").classList.remove("text-slate-300");
-    qs("yourListingsTab").classList.remove("text-white","bg-slate-800"); 
-    qs("yourListingsTab").classList.add("text-slate-300");
-});
-
+// Tab Switch
+on(qs("createListingTab"), "click", () => { qs("uploadWrapper").classList.remove("hidden"); qs("userListings").classList.add("hidden"); qs("createListingTab").classList.add("text-white","bg-slate-800"); qs("yourListingsTab").classList.remove("text-white","bg-slate-800"); });
 on(qs("yourListingsTab"), "click", () => { 
     qs("uploadWrapper").classList.add("hidden"); 
     qs("userListings").classList.remove("hidden"); 
     qs("yourListingsTab").classList.add("text-white","bg-slate-800"); 
-    qs("yourListingsTab").classList.remove("text-slate-300");
     qs("createListingTab").classList.remove("text-white","bg-slate-800"); 
-    qs("createListingTab").classList.add("text-slate-300");
-    renderFeed(); 
+    renderFeed(); // Force refresh listings
 });
 
 // Calculator
