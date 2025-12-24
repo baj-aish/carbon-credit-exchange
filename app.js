@@ -5,7 +5,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, getDoc, doc, updateDoc, arrayUnion, query, orderBy, onSnapshot, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// 🔴 2. PASTE YOUR CONFIG HERE (From Firebase Console)
+// 🔴 2. CONFIG (Already filled from your previous file)
 const firebaseConfig = {
   apiKey: "AIzaSyAAfBZtKGSWsC7WH90i0Xd9487CEtduuX0",
   authDomain: "carbon-credit-f6e72.firebaseapp.com",
@@ -58,7 +58,6 @@ const updateAuthUI = () => {
     qs("badgeRole").textContent = u.role;
     qs("heroLoginBtn").classList.add("hidden");
     
-    // Greeting
     if(qs("welcomeName")) {
         qs("welcomeName").textContent = u.name;
         qs("welcomeLine").classList.remove("hidden");
@@ -95,21 +94,20 @@ const startListeners = () => {
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
     onSnapshot(q, (snapshot) => {
         state.posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        renderFeed(); // Updates Main Feed AND User Listings if visible
+        renderFeed(); 
         renderInbox();
         
-        // Update active chat if open
         if (!qs("chatModal").classList.contains("hidden") && currentChatPostId) {
             const p = state.posts.find(x => x.id == currentChatPostId);
             if(p) renderChatMessages(p);
         }
     });
 
-    // Listen to Users (and sync current user state)
+    // Listen to Users 
     onSnapshot(collection(db, "users"), (snapshot) => {
         state.users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
-        // Auto-sync current user if logged in
+        // Sync current user role if updated
         if (auth.currentUser) {
             const me = state.users.find(u => u.id === auth.currentUser.uid);
             if (me) {
@@ -117,7 +115,6 @@ const startListeners = () => {
                 updateAuthUI();
             }
         }
-
         if(state.currentUser?.role === 'admin') renderAdmin();
     });
 };
@@ -153,7 +150,7 @@ on(qs("registerForm"), "submit", async e => {
 
 on(qs("loginForm"), "submit", async e => {
   e.preventDefault();
-  const name = qs("loginName").value; // Used for lookup in this app
+  const name = qs("loginName").value; 
   const password = qs("loginPass").value;
 
   try {
@@ -164,27 +161,35 @@ on(qs("loginForm"), "submit", async e => {
 
     if (!userDoc) throw new Error("Username not found. Please register.");
     
-    const email = userDoc.data().email;
+    const userData = userDoc.data();
+    const email = userData.email;
 
     // 2. Sign In
     await signInWithEmailAndPassword(auth, email, password);
     
+    // [FIX] Update UI immediately using the data we already found
+    // This prevents the delay before buttons appear
+    state.currentUser = { id: userDoc.id, ...userData };
+    updateAuthUI();
+    renderFeed();
+
     qs("loginModal").classList.add("hidden");
     showSection("feed");
   } catch (err) { alert(err.message); }
 });
 
-// Handle Auth State Changes (FIXED: Immediate Fetch)
+// Handle Auth State Changes (Backup/Refresh Logic)
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // Fast path: Fetch user doc immediately so UI updates instantly
-        const docRef = doc(db, "users", user.uid);
-        const snapshot = await getDoc(docRef);
-        
-        if (snapshot.exists()) {
-            state.currentUser = { id: snapshot.id, ...snapshot.data() };
-            updateAuthUI();
-            renderFeed(); // Re-render to show "Created by you" correctly
+        // If we haven't set the user manually in login yet, fetch it now
+        if (!state.currentUser) {
+            const docRef = doc(db, "users", user.uid);
+            const snapshot = await getDoc(docRef);
+            if (snapshot.exists()) {
+                state.currentUser = { id: snapshot.id, ...snapshot.data() };
+                updateAuthUI();
+                renderFeed();
+            }
         }
     } else {
         state.currentUser = null;
@@ -285,7 +290,7 @@ const renderFeed = () => {
       </div>
     `}).join("");
     
-    // User Listings (FIXED: Handles filtering correctly)
+    // [FIXED] User Listings Rendering Logic
     if(!qs("userListings").classList.contains("hidden")) {
         const myPosts = state.posts.filter(p => p.user === state.currentUser?.name);
         
@@ -488,4 +493,49 @@ on(qs("tabLogin"), "click", () => { qs("loginForm").classList.remove("hidden"); 
 qsa(".nav-btn").forEach(b => on(b, "click", () => {
     if(b.classList.contains("protected-nav") && !requireLogin()) return;
     showSection(b.dataset.section);
-    if(b.dataset.section === 'upload') qs
+    // [FIX] Force "Your Listings" tab click when opening the upload section
+    if(b.dataset.section === 'upload') qs("yourListingsTab").click();
+}));
+
+// [FIX] Correct Tab Switching Logic + Render Refresh
+on(qs("createListingTab"), "click", () => { 
+    qs("uploadWrapper").classList.remove("hidden"); 
+    qs("userListings").classList.add("hidden"); 
+    qs("createListingTab").classList.add("text-white","bg-slate-800"); 
+    qs("createListingTab").classList.remove("text-slate-300");
+    qs("yourListingsTab").classList.remove("text-white","bg-slate-800"); 
+    qs("yourListingsTab").classList.add("text-slate-300");
+});
+
+on(qs("yourListingsTab"), "click", () => { 
+    qs("uploadWrapper").classList.add("hidden"); 
+    qs("userListings").classList.remove("hidden"); 
+    qs("yourListingsTab").classList.add("text-white","bg-slate-800"); 
+    qs("yourListingsTab").classList.remove("text-slate-300");
+    qs("createListingTab").classList.remove("text-white","bg-slate-800"); 
+    qs("createListingTab").classList.add("text-slate-300");
+    renderFeed(); // <--- Forces "Your Listings" to populate
+});
+
+// Calculator
+qsa('input[name="calcMethod"]').forEach(r =>
+  on(r, "change", () => {
+    const v = document.querySelector('input[name="calcMethod"]:checked').value;
+    qs("treeForm").classList.toggle("hidden", v !== "trees");
+    qs("landForm").classList.toggle("hidden", v !== "land");
+    qs("calcResult").classList.add("hidden");
+  })
+);
+on(qs("calcTreesBtn"), "click", () => {
+    const res = (qs("treeCount").value * qs("treeType").value * qs("treeYears").value)/1000;
+    qs("calcResult").classList.remove("hidden");
+    qs("totalCredits").textContent = res.toFixed(2) + " Tons CO2";
+});
+on(qs("calcLandBtn"), "click", () => {
+    const factor = qs("landUnit").value === 'hectares' ? 6 : 2.4; 
+    const res = qs("landArea").value * factor * qs("landYears").value;
+    qs("calcResult").classList.remove("hidden");
+    qs("totalCredits").textContent = res.toFixed(2) + " Tons CO2";
+});
+on(qs("priceFilter"), "change", renderFeed);
+on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
