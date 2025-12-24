@@ -5,7 +5,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, getDoc, doc, updateDoc, arrayUnion, query, orderBy, onSnapshot, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// 🔴 2. PASTE YOUR CONFIG HERE (From Firebase Console)
+// 🔴 2. CONFIG
 const firebaseConfig = {
   apiKey: "AIzaSyAAfBZtKGSWsC7WH90i0Xd9487CEtduuX0",
   authDomain: "carbon-credit-f6e72.firebaseapp.com",
@@ -58,7 +58,6 @@ const updateAuthUI = () => {
     qs("badgeRole").textContent = u.role;
     qs("heroLoginBtn").classList.add("hidden");
     
-    // Greeting
     if(qs("welcomeName")) {
         qs("welcomeName").textContent = u.name;
         qs("welcomeLine").classList.remove("hidden");
@@ -95,17 +94,16 @@ const startListeners = () => {
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
     onSnapshot(q, (snapshot) => {
         state.posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        renderFeed(); // Updates Main Feed AND User Listings if visible
+        renderFeed(); 
         renderInbox();
         
-        // Update active chat if open
         if (!qs("chatModal").classList.contains("hidden") && currentChatPostId) {
             const p = state.posts.find(x => x.id == currentChatPostId);
             if(p) renderChatMessages(p);
         }
     });
 
-    // Listen to Users (and sync current user state)
+    // Listen to Users 
     onSnapshot(collection(db, "users"), (snapshot) => {
         state.users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
@@ -113,11 +111,13 @@ const startListeners = () => {
         if (auth.currentUser) {
             const me = state.users.find(u => u.id === auth.currentUser.uid);
             if (me) {
-                state.currentUser = me;
-                updateAuthUI();
+                // Only update if data actually changed to avoid loop
+                if(JSON.stringify(state.currentUser) !== JSON.stringify(me)) {
+                    state.currentUser = me;
+                    updateAuthUI();
+                }
             }
         }
-
         if(state.currentUser?.role === 'admin') renderAdmin();
     });
 };
@@ -133,11 +133,8 @@ on(qs("registerForm"), "submit", async e => {
   try {
     const userCred = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCred.user;
-    
-    // Secure Role Check
     const role = (name.toLowerCase() === "bajaish" && requestedRole === "admin") ? "admin" : "user";
 
-    // Save to Firestore
     await setDoc(doc(db, "users", user.uid), {
         id: user.uid,
         name: name,
@@ -153,38 +150,44 @@ on(qs("registerForm"), "submit", async e => {
 
 on(qs("loginForm"), "submit", async e => {
   e.preventDefault();
-  const name = qs("loginName").value; // Used for lookup in this app
+  const name = qs("loginName").value; 
   const password = qs("loginPass").value;
 
   try {
-    // 1. Find email by username
+    // 1. Find email & data by username
     const usersRef = collection(db, "users");
     const snap = await getDocs(usersRef);
     const userDoc = snap.docs.find(d => d.data().name === name);
 
     if (!userDoc) throw new Error("Username not found. Please register.");
     
-    const email = userDoc.data().email;
-
-    // 2. Sign In
-    await signInWithEmailAndPassword(auth, email, password);
+    const userData = userDoc.data();
     
+    // 2. Sign In
+    await signInWithEmailAndPassword(auth, userData.email, password);
+    
+    // [CRITICAL FIX] Set state IMMEDIATELY. Do not wait for onAuthStateChanged.
+    state.currentUser = { id: userDoc.id, ...userData };
+    updateAuthUI();
+    renderFeed();
+
     qs("loginModal").classList.add("hidden");
     showSection("feed");
   } catch (err) { alert(err.message); }
 });
 
-// Handle Auth State Changes (FIXED: Immediate Fetch)
+// Handle Auth State Changes (Handles Refresh/Persistent Login)
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // Fast path: Fetch user doc immediately so UI updates instantly
-        const docRef = doc(db, "users", user.uid);
-        const snapshot = await getDoc(docRef);
-        
-        if (snapshot.exists()) {
-            state.currentUser = { id: snapshot.id, ...snapshot.data() };
-            updateAuthUI();
-            renderFeed(); // Re-render to show "Created by you" correctly
+        // Only fetch if we don't have the user state (e.g. page refresh)
+        if (!state.currentUser) {
+            const docRef = doc(db, "users", user.uid);
+            const snapshot = await getDoc(docRef);
+            if (snapshot.exists()) {
+                state.currentUser = { id: snapshot.id, ...snapshot.data() };
+                updateAuthUI();
+                renderFeed();
+            }
         }
     } else {
         state.currentUser = null;
@@ -285,10 +288,9 @@ const renderFeed = () => {
       </div>
     `}).join("");
     
-    // User Listings (FIXED: Handles filtering correctly)
+    // User Listings
     if(!qs("userListings").classList.contains("hidden")) {
         const myPosts = state.posts.filter(p => p.user === state.currentUser?.name);
-        
         if (myPosts.length === 0) {
             qs("userListings").innerHTML = '<p class="text-slate-400 text-xs">No listings found.</p>';
         } else {
@@ -383,7 +385,7 @@ window.openChat = async (pid) => {
 
     renderChatMessages(p);
     
-    // Mark as seen locally and in DB
+    // Mark as seen
     const msgs = p.chatMessages || [];
     let needsUpdate = false;
     const updated = msgs.map(m => {
@@ -455,7 +457,7 @@ window.editPost = (id) => {
 };
 
 window.deleteUser = async (id) => {
-    if(!confirm("Delete user? (Auth login will remain, DB record removed)")) return;
+    if(!confirm("Delete user data?")) return;
     await deleteDoc(doc(db, "users", id));
 };
 window.deletePost = async (id) => {
@@ -491,14 +493,24 @@ qsa(".nav-btn").forEach(b => on(b, "click", () => {
     if(b.dataset.section === 'upload') qs("yourListingsTab").click();
 }));
 
-// FIXED: Added renderFeed() call to update list when tab is clicked
-on(qs("createListingTab"), "click", () => { qs("uploadWrapper").classList.remove("hidden"); qs("userListings").classList.add("hidden"); qs("createListingTab").classList.add("text-white","bg-slate-800"); qs("yourListingsTab").classList.remove("text-white","bg-slate-800"); });
+// Tab Switching
+on(qs("createListingTab"), "click", () => { 
+    qs("uploadWrapper").classList.remove("hidden"); 
+    qs("userListings").classList.add("hidden"); 
+    qs("createListingTab").classList.add("text-white","bg-slate-800"); 
+    qs("createListingTab").classList.remove("text-slate-300");
+    qs("yourListingsTab").classList.remove("text-white","bg-slate-800"); 
+    qs("yourListingsTab").classList.add("text-slate-300");
+});
+
 on(qs("yourListingsTab"), "click", () => { 
     qs("uploadWrapper").classList.add("hidden"); 
     qs("userListings").classList.remove("hidden"); 
     qs("yourListingsTab").classList.add("text-white","bg-slate-800"); 
+    qs("yourListingsTab").classList.remove("text-slate-300");
     qs("createListingTab").classList.remove("text-white","bg-slate-800"); 
-    renderFeed(); // <--- This forces the "Your Listings" to populate
+    qs("createListingTab").classList.add("text-slate-300");
+    renderFeed(); 
 });
 
 // Calculator
