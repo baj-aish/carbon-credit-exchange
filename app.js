@@ -4843,7 +4843,7 @@ const startListeners = () => {
                 if (!state.currentUser || state.currentUser.id !== me.id) {
                     state.currentUser = me;
                     updateAuthUI();
-                    subscribeToChats(me.id); // <--- Starts Inbox Listener
+                    // <--- Starts Inbox Listener
                     renderFeed();
                 }
             }
@@ -4914,6 +4914,9 @@ window.startChat = async (postId) => {
     show("chatModal"); show("chatForm");
     renderChatMessages(chat);
 };
+// ⬇️ ADD THIS LINE
+window.startChat = startChat;
+
 
 window.openExistingChat = (chatId) => {
     currentChatId = chatId;
@@ -5087,25 +5090,27 @@ on(qs("loginForm"), "submit", async e => {
     showSection("feed");
   } catch (err) { alert(err.message); }
 });
-
+ 
 onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        if (!state.currentUser) {
-            const snap = await getDoc(doc(db, "users", user.uid));
-            if (snap.exists()) {
-                state.currentUser = { id: snap.id, ...snap.data() };
-                updateAuthUI();
-                subscribeToChats(state.currentUser.id);
-                renderFeed();
-            }
-        }
-    } else {
-        state.currentUser = null;
-        state.chats = [];
-        updateAuthUI();
-        renderFeed();
-        renderInbox();
-    }
+  if (user) {
+    const snap = await getDoc(doc(db, "users", user.uid));
+    if (!snap.exists()) return;
+
+    state.currentUser = { id: snap.id, ...snap.data() };
+    updateAuthUI();
+
+    // 🔥 GUARANTEED CHAT LISTENER
+    subscribeToChats(state.currentUser.id);
+
+    renderFeed();
+    renderInbox();
+  } else {
+    state.currentUser = null;
+    state.chats = [];
+    updateAuthUI();
+    renderFeed();
+    renderInbox();
+  }
 });
 
 // Tabs
@@ -5197,6 +5202,7 @@ const init = () => {
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
 else init();
+
 
 
 
