@@ -434,7 +434,7 @@ const show = (input) => getEl(input)?.classList.remove("hidden");
 const hide = (input) => getEl(input)?.classList.add("hidden");
 const toggle = (input, condition) => condition ? show(input) : hide(input);
 
-const LAST_SECTION_KEY = "ccx_final_v5";
+const LAST_SECTION_KEY = "ccx_last_section_v11";
 let state = { users: [], posts: [], chats: [], currentUser: null };
 let editPostId = null, currentChatId = null, chatUnsubscribe = null;
 
@@ -452,11 +452,11 @@ const showSection = name => {
   qsa(".nav-btn").forEach(btn => {
     const isActive = btn.dataset.section === target;
     if (isActive) {
-        btn.classList.remove("bg-slate-900", "text-slate-100", "border-transparent", "hover:bg-slate-800");
-        btn.classList.add("bg-emerald-600", "text-white", "font-bold", "border-emerald-400");
+        btn.classList.remove("bg-slate-900", "text-slate-100", "border-b-transparent", "hover:bg-slate-800");
+        btn.classList.add("bg-emerald-600", "text-white", "font-bold");
     } else {
-        btn.classList.add("bg-slate-900", "text-slate-100", "border-transparent", "hover:bg-slate-800");
-        btn.classList.remove("bg-emerald-600", "text-white", "font-bold", "border-emerald-400");
+        btn.classList.add("bg-slate-900", "text-slate-100", "border-b-transparent", "hover:bg-slate-800");
+        btn.classList.remove("bg-emerald-600", "text-white", "font-bold");
     }
   });
 };
@@ -503,14 +503,12 @@ const startListeners = () => {
         renderFeed(); 
     });
 
-    // 2. Users Listener (Sync Profile)
+    // 2. Users Listener (Sync)
     onSnapshot(collection(db, "users"), (snap) => {
         state.users = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
         if (auth.currentUser) {
             const me = state.users.find(u => u.id === auth.currentUser.uid);
             if (me) {
-                // If user data loaded or changed, update state
                 if (!state.currentUser || state.currentUser.id !== me.id) {
                     state.currentUser = me;
                     updateAuthUI();
@@ -523,18 +521,18 @@ const startListeners = () => {
     });
 };
 
-// Private Chat Listener
+// [PRIVATE CHAT] Listener for MY chats only
 const subscribeToChats = (uid) => {
     if(chatUnsubscribe) chatUnsubscribe();
     
-    // Query: Find chats where 'participants' array contains my ID
+    // Query chats where 'participants' array contains my UID
     const q = query(collection(db, "chats"), where("participants", "array-contains", uid));
     
     chatUnsubscribe = onSnapshot(q, (snap) => {
         state.chats = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         renderInbox(); 
         
-        // Live update active chat window
+        // Update active chat window
         if (currentChatId && !qs("chatModal").classList.contains("hidden")) {
             const active = state.chats.find(c => c.id === currentChatId);
             if(active) renderChatMessages(active);
@@ -543,9 +541,9 @@ const subscribeToChats = (uid) => {
 };
 
 // ==========================================
-// 5. CHAT LOGIC (SMART & PRIVATE)
+// 5. CHAT LOGIC (PRIVATE ROOMS)
 // ==========================================
-const startChat = async (postId) => {
+window.startChat = async (postId) => {
     if(!requireLogin()) return;
     
     const post = state.posts.find(p => p.id === postId);
@@ -555,20 +553,20 @@ const startChat = async (postId) => {
     let targetId = post.ownerId; 
     let ownerName = post.user;
 
-    // Legacy Fallback (find by name if ID is missing)
+    // Legacy Fallback
     if (!targetId) {
         const targetUser = state.users.find(u => u.name === post.user);
         if (targetUser) targetId = targetUser.id;
-        else return alert("Seller info incomplete (Legacy Post). Cannot chat.");
+        else return alert("Seller info incomplete. Cannot chat.");
     }
 
     if(targetId === myId) return alert("You cannot chat with yourself.");
 
-    // Check existing chat
+    // Check existing chat (participants must include ME and THEM)
     let chat = state.chats.find(c => c.postId === postId && c.participants.includes(myId) && c.participants.includes(targetId));
     
     if(!chat) {
-        // Create new private chat document
+        // Create Private Chat Room
         const ref = await addDoc(collection(db, "chats"), {
             postId: postId,
             postTitle: post.title,
@@ -588,17 +586,6 @@ const startChat = async (postId) => {
     renderChatMessages(chat);
 };
 
-// Global Listener for Chat Buttons (Fixes onclick issue)
-document.addEventListener("click", (e) => {
-    const btn = e.target.closest(".chat-btn");
-    if(btn) {
-        e.preventDefault();
-        const pid = btn.dataset.id;
-        if(pid) startChat(pid);
-    }
-});
-
-// Open existing chat (from Inbox)
 window.openExistingChat = (chatId) => {
     currentChatId = chatId;
     const chat = state.chats.find(c => c.id === chatId);
@@ -614,12 +601,11 @@ const renderChatMessages = (chat) => {
     
     box.innerHTML = (chat.messages||[]).map(m => {
         const isMe = m.senderId === myId;
-        const seenTick = (isMe && m.seen) ? '<span class="ml-1 text-[8px] text-emerald-300">✓✓</span>' : '';
-        return `<div class="flex ${isMe?'justify-end':'justify-start'}"><div class="px-3 py-1.5 rounded-lg mb-1 text-xs max-w-[80%] ${isMe?'bg-emerald-600 text-white':'bg-slate-700 text-slate-200'}"><div class="font-bold opacity-50 text-[9px] mb-0.5">${m.senderName}</div>${m.text} ${seenTick}</div></div>`;
+        return `<div class="flex ${isMe?'justify-end':'justify-start'}"><div class="px-3 py-1.5 rounded-lg mb-1 text-xs max-w-[80%] ${isMe?'bg-emerald-600 text-white':'bg-slate-700 text-slate-200'}"><div class="font-bold opacity-50 text-[9px] mb-0.5">${m.senderName}</div>${m.text}</div></div>`;
     }).join("");
     box.scrollTop = box.scrollHeight;
 
-    // Mark as seen
+    // Mark seen
     const needsUpdate = (chat.messages||[]).some(m => m.senderId !== myId && !m.seen);
     if(needsUpdate) {
         const updatedMsgs = chat.messages.map(m => (m.senderId !== myId ? {...m, seen: true} : m));
@@ -666,23 +652,15 @@ const renderFeed = () => {
 const renderInbox = () => {
     const list = qs("inboxList");
     
-    // Check 1: User Logged Out
-    if(!auth.currentUser) {
+    if(!state.currentUser) {
         toggle("inboxIndicator", false);
         if(list) list.innerHTML = `<p class="text-slate-400 text-sm">Please login to see messages.</p>`;
-        return;
-    }
-    
-    // Check 2: User Logged In but Profile Loading
-    if(!state.currentUser) {
-        if(list) list.innerHTML = `<p class="text-slate-400 text-sm animate-pulse">Loading inbox...</p>`;
         return;
     }
     
     const myId = state.currentUser.id;
     const chats = state.chats || [];
     
-    // Count Unread
     let totalUnread = 0;
     chats.forEach(c => totalUnread += (c.messages || []).filter(m => m.senderId !== myId && !m.seen).length);
     toggle("inboxIndicator", totalUnread > 0);
@@ -702,7 +680,7 @@ const renderAdmin = () => {
 };
 
 // ==========================================
-// 7. POST ACTIONS (EDIT/DELETE)
+// 7. ACTIONS (EDIT / DELETE)
 // ==========================================
 window.editPost = (id) => {
     const p = state.posts.find(x => x.id == id);
@@ -712,12 +690,13 @@ window.editPost = (id) => {
     qs("postPrice").value = p.price; qs("postCredits").value = p.credits;
     qs("uploadFormBtn").textContent = "Update Listing"; 
     
-    // SHOW DELETE BUTTON
+    // [FIX] Show Delete Button
     show("deleteEditBtn"); 
     
     qs("createListingTab").click();
 };
 
+// [FIX] Delete Button Logic
 on(qs("deleteEditBtn"), "click", async () => {
     if(!editPostId) return;
     if(confirm("Delete this listing permanently?")) {
@@ -742,13 +721,18 @@ on(qs("uploadForm"), "submit", async e => {
         title: qs("postTitle").value, desc: qs("postDesc").value, 
         price: Number(qs("postPrice").value), credits: Number(qs("postCredits").value),
         user: state.currentUser.name, 
-        ownerId: state.currentUser.id, // ID for chat
+        ownerId: state.currentUser.id, // Store Owner ID for Chat
         image: img, createdAt: Date.now(), status: "active"
     };
     if(editPostId) { if(!img) delete data.image; await updateDoc(doc(db, "posts", editPostId), data); }
     else { if(!img) return alert("Image required"); await addDoc(collection(db, "posts"), data); }
+    
     qs("uploadForm").reset(); editPostId = null; 
-    qs("uploadFormBtn").textContent = "Upload Listing"; hide("deleteEditBtn");
+    qs("uploadFormBtn").textContent = "Upload Listing"; 
+    
+    // [FIX] Hide Delete Button on Reset
+    hide("deleteEditBtn");
+    
     qs("yourListingsTab").click();
   };
   if(file) { reader.onload = ev => save(ev.target.result); reader.readAsDataURL(file); } else save(null);
@@ -811,7 +795,17 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// Tabs
+// Global Listener for Chat Buttons
+document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".chat-btn");
+    if(btn) {
+        e.preventDefault();
+        const postId = btn.dataset.id;
+        if(postId) window.startChat(postId);
+    }
+});
+
+// Tabs & UI
 on(qs("tabRegister"), "click", () => {
     qs("tabRegister").className = "flex-1 py-2 text-xs font-bold rounded-md bg-slate-800 text-white transition-all shadow";
     qs("tabLogin").className = "flex-1 py-2 text-xs font-bold rounded-md text-slate-400 hover:text-white transition-all";
@@ -866,7 +860,7 @@ on(qs("calcLandBtn"), "click", () => { const factor = qs("landUnit").value === '
 const htmlPost = (p) => {
     const isMine = state.currentUser && p.user === state.currentUser.name;
     const badge = isMine ? `<span class="bg-emerald-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded ml-2">CREATED BY YOU</span>` : '';
-    // FIXED: Use class="chat-btn" and data-id. No onclick.
+    // FIXED: Use class "chat-btn" and data-id to trigger global listener
     const chatBtn = !isMine ? `<button class="chat-btn w-full py-2 bg-slate-800 text-xs rounded border border-slate-600 relative hover:bg-slate-700 font-semibold transition-colors" data-id="${p.id}">💬 Chat with Seller</button>` : '';
 
     return `<div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-lg flex flex-col hover:border-slate-600 transition-all"><img src="${p.image}" class="w-full h-44 object-cover"><div class="p-3 flex flex-col flex-1"><div class="flex justify-between items-start mb-1"><h3 class="font-bold text-sm truncate flex-1 text-slate-200">${p.title}</h3>${badge}</div><p class="text-[10px] text-slate-500 mb-2">By ${p.user} • ${new Date(p.createdAt).toLocaleDateString()}</p><p class="text-xs text-slate-400 mb-3 truncate">${p.desc}</p><div class="flex justify-between text-[11px] mb-3"><span class="text-emerald-300 bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-500/20">${p.credits} Credits</span><span class="text-white font-bold">₹${p.price}</span></div><div class="mt-auto">${chatBtn}</div></div></div>`;
@@ -882,8 +876,7 @@ const htmlInboxItem = (c, myId) => {
         if(otherIndex > -1) otherName = c.participantNames[otherIndex];
     }
     
-    // Uses class 'inbox-item' and data-id for global listener
-    return `<div class="inbox-item bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-pointer flex justify-between items-center hover:bg-slate-800 transition-colors" onclick="window.openExistingChat('${c.id}')"><div><div class="text-sm font-bold text-emerald-100 flex items-center gap-2">${c.postTitle} <span class="text-xs text-slate-400 font-normal">w/ ${otherName}</span> ${unread>0?`<span class="bg-red-500 text-white text-[9px] px-1.5 rounded-full shadow-sm">${unread}</span>`:''}</div><div class="text-xs text-slate-400 truncate max-w-[200px] mt-0.5">${last.senderName}: ${last.text}</div></div><div class="text-xs text-emerald-500 font-bold">Open</div></div>`;
+    return `<div onclick="window.openExistingChat('${c.id}')" class="bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-pointer flex justify-between items-center hover:bg-slate-800 transition-colors"><div><div class="text-sm font-bold text-emerald-100 flex items-center gap-2">${c.postTitle} <span class="text-xs text-slate-400 font-normal">w/ ${otherName}</span> ${unread>0?`<span class="bg-red-500 text-white text-[9px] px-1.5 rounded-full shadow-sm">${unread}</span>`:''}</div><div class="text-xs text-slate-400 truncate max-w-[200px] mt-0.5">${last.senderName}: ${last.text}</div></div><div class="text-xs text-emerald-500 font-bold">Open</div></div>`;
 };
 const htmlAdminUser = (u) => `<tr class="text-xs border-b border-slate-700"><td class="p-2 text-slate-300">${u.name}</td><td class="p-2 text-slate-400">${u.role}</td><td class="p-2 text-right"><button onclick="window.deleteUser('${u.id}')" class="text-red-400 hover:text-red-300 font-bold">Remove</button></td></tr>`;
 const htmlAdminPost = (p) => `<div class="flex justify-between items-center bg-slate-900 p-2 text-xs border border-slate-700 rounded mb-1"><div class="flex flex-col"><span class="font-bold text-slate-200">${p.title}</span><span class="text-[10px] text-slate-400">By ${p.user}</span></div><div class="flex gap-2"><button onclick="window.deletePost('${p.id}')" class="text-red-400 font-bold hover:text-red-300">Delete</button></div></div>`;
@@ -898,6 +891,7 @@ const init = () => {
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
 else init();
+
 
 
 
