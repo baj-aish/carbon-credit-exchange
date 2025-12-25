@@ -851,7 +851,7 @@
 
 
 
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -1059,6 +1059,226 @@
   </div>
 
   <script type="module" src="app.js?v=final"></script>
+</body>
+</html> -->
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Carbon Credit Hub</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-50 min-h-screen font-sans">
+  
+  <header class="bg-slate-950 border-b border-slate-800 sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-2">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center text-slate-950 font-bold text-lg">C</div>
+        <div class="flex flex-col leading-tight">
+          <span class="font-semibold text-slate-100 text-base">Carbon Credit Hub</span>
+          <span class="text-[11px] text-slate-400">Plant. Measure. Trade.</span>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
+          <button class="nav-btn border-b-2 border-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm hover:bg-slate-800 transition-all" data-section="landing">Home</button>
+        </div>
+
+        <div class="flex items-center gap-2 flex-wrap ml-auto">
+          <button class="nav-btn protected-nav hidden relative border-b-2 border-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm hover:bg-slate-800 transition-all" data-section="inbox">
+            Inbox 
+            <span id="inboxIndicator" class="hidden absolute -top-1 -right-1 flex h-3 w-3">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+            </span>
+          </button>
+          
+          <button class="nav-btn protected-nav hidden border-b-2 border-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm hover:bg-slate-800 transition-all" data-section="feed">Marketplace</button>
+          <button class="nav-btn protected-nav hidden border-b-2 border-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm hover:bg-slate-800 transition-all" data-section="upload">Post Listing</button>
+          <button class="nav-btn protected-nav hidden border-b-2 border-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm hover:bg-slate-800 transition-all" data-section="calculator">Calculator</button>
+          <button id="adminTab" class="nav-btn protected-nav hidden border-b-2 border-transparent bg-slate-900 text-slate-100 px-3 py-1.5 rounded-full text-sm hover:bg-slate-800 transition-all" data-section="admin">Admin</button>
+
+          <div class="flex items-center gap-2">
+            <div id="userBadge" class="hidden text-xs px-3 py-1.5 rounded-full bg-slate-800 border border-slate-600 text-slate-100">
+              <span id="badgeName" class="font-semibold"></span>
+              <span class="mx-1 text-slate-400">•</span>
+              <span id="badgeRole" class="uppercase text-[10px] tracking-wide"></span>
+            </div>
+            <button id="loginBtn" class="px-4 py-1.5 rounded-full bg-emerald-500 text-slate-950 text-sm font-semibold hover:bg-emerald-400 transition-colors">Login / Sign Up</button>
+            <button id="logoutBtn" class="px-4 py-1.5 rounded-full bg-red-500 text-white text-sm hidden hover:bg-red-400 transition-colors">Logout</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-4 sm:py-6 space-y-4">
+    <div id="welcomeWrapper" class="hidden bg-emerald-900/20 border border-emerald-500/20 rounded-2xl px-4 py-3 text-sm text-emerald-100">
+      Dear <span id="welcomeName" class="font-semibold text-emerald-300"></span>, thank you for registering and taking a step forward to make a better and greener tomorrow.
+    </div>
+
+    <section id="section-landing" class="section">
+      <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-900 rounded-3xl shadow-xl p-5 sm:p-8 flex flex-col gap-6 sm:gap-8">
+        <div class="max-w-3xl">
+          <p class="text-xs sm:text-sm uppercase tracking-[0.2em] text-emerald-300 mb-2">CARBON CREDIT EXCHANGE PLATFORM</p>
+          <h1 class="text-2xl sm:text-3xl md:text-4xl font-extrabold leading-snug mb-3">
+            Track your plantations. <br class="hidden sm:block" />
+            <span class="text-emerald-300">Calculate carbon credits.</span> Share impact.
+          </h1>
+          <p class="text-sm sm:text-base text-emerald-100 max-w-xl">
+            Upload plantation listings, calculate carbon credits with tree or land formulas, and explore community projects.
+          </p>
+          <div class="flex flex-wrap gap-3 mt-4">
+            <button id="heroLoginBtn" class="px-5 py-2.5 rounded-full bg-emerald-400 text-slate-900 text-sm font-bold hover:bg-emerald-300 transition-colors shadow-lg shadow-emerald-900/20">Login / Sign Up</button>
+            <button id="heroExploreBtn" class="px-5 py-2.5 rounded-full border border-emerald-300 text-emerald-200 text-sm hover:bg-emerald-900/30 transition-colors">Carbon Credit Marketplace</button>
+          </div>
+        </div>
+        
+        <div class="grid sm:grid-cols-3 gap-3 text-xs sm:text-sm">
+          <div class="bg-slate-900 rounded-2xl p-4 border border-white/5 shadow-lg"><p class="font-semibold mb-1 text-emerald-200">Calculator</p><p class="text-slate-400">Tree-based and land-based calculator with CO₂ absorption values.</p></div>
+          <div class="bg-slate-900 rounded-2xl p-4 border border-white/5 shadow-lg"><p class="font-semibold mb-1 text-emerald-200">Marketplace</p><p class="text-slate-400">Upload plantation images with credits & pricing, then filter listings.</p></div>
+          <div class="bg-slate-900 rounded-2xl p-4 border border-white/5 shadow-lg"><p class="font-semibold mb-1 text-emerald-200">Social Interaction</p><p class="text-slate-400">Private chat between buyers and sellers. Inbox shows unread messages.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="section-feed" class="section hidden">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <h2 class="text-xl sm:text-2xl font-semibold">Carbon Credit Marketplace</h2>
+        <p class="text-xs text-slate-300">Browse plantation listings.</p>
+      </div>
+      <div id="feedFilters" class="hidden bg-slate-900 rounded-2xl shadow px-4 py-3 mb-4 flex flex-wrap gap-4 items-center text-xs border border-slate-800">
+        <div class="flex flex-col"><span class="font-medium mb-1 text-slate-400">Sort by price</span><select id="priceFilter" class="bg-slate-950 border border-slate-700 rounded px-2 py-1.5 focus:border-emerald-500 outline-none"><option value="none">Default</option><option value="low-high">Low to High</option><option value="high-low">High to Low</option></select></div>
+        <div class="flex flex-col"><span class="font-medium mb-1 text-slate-400">Filter credits</span><select id="creditsFilter" class="bg-slate-950 border border-slate-700 rounded px-2 py-1.5 focus:border-emerald-500 outline-none"><option value="all">All</option><option value="1-10">1 - 10</option><option value="50+">50+</option></select></div>
+      </div>
+      <div id="feedContainer" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
+    </section>
+
+    <section id="section-inbox" class="section hidden">
+      <h2 class="text-xl sm:text-2xl font-semibold mb-3">Inbox</h2>
+      <div id="inboxList" class="space-y-3"></div>
+    </section>
+
+    <section id="section-upload" class="section hidden">
+      <h2 class="text-xl sm:text-2xl font-semibold mb-3">Post Listing</h2>
+      <div class="bg-slate-900 rounded-2xl shadow p-4 border border-slate-700 max-w-2xl">
+        <div class="flex mb-4 border border-slate-700 rounded-full overflow-hidden text-xs bg-slate-950">
+          <button id="yourListingsTab" class="flex-1 py-2 text-slate-400 transition-colors">Your listings</button>
+          <button id="createListingTab" class="flex-1 py-2 text-slate-400 transition-colors">Create new</button>
+        </div>
+        
+        <div id="userListings" class="space-y-3 text-sm hidden"></div>
+
+        <div id="uploadWrapper" class="hidden space-y-4">
+          <form id="uploadForm" class="space-y-3 text-sm">
+            <div class="grid sm:grid-cols-2 gap-3">
+              <div><label class="block mb-1 text-slate-400">Title</label><input required id="postTitle" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 outline-none focus:border-emerald-500" /></div>
+              <div><label class="block mb-1 text-slate-400">Price (₹)</label><input required id="postPrice" type="number" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 outline-none focus:border-emerald-500" /></div>
+            </div>
+            <div><label class="block mb-1 text-slate-400">Description</label><textarea required id="postDesc" rows="3" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 outline-none focus:border-emerald-500"></textarea></div>
+            <div class="grid sm:grid-cols-2 gap-3 items-end">
+              <div><label class="block mb-1 text-slate-400">Credits</label><input required id="postCredits" type="number" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 outline-none focus:border-emerald-500" /></div>
+              <button type="button" id="gotoCalcLink" class="text-xs text-emerald-400 underline mb-2">Open Calculator</button>
+            </div>
+            <div><label class="block mb-1 text-slate-400">Image (Max 100KB)</label><input id="postImage" type="file" accept="image/*" class="w-full text-slate-400 text-xs" /></div>
+            
+            <div class="flex gap-2 mt-4">
+              <button id="uploadFormBtn" type="submit" class="flex-1 rounded-lg bg-emerald-600 text-white py-2 font-semibold hover:bg-emerald-500 transition-colors">Upload Listing</button>
+              <button id="deleteEditBtn" type="button" class="hidden px-4 rounded-lg bg-red-500 text-white py-2 font-semibold hover:bg-red-400 transition-colors">Delete</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section id="section-calculator" class="section hidden">
+      <h2 class="text-xl sm:text-2xl font-semibold mb-3">Calculator</h2>
+      <div class="bg-slate-900 rounded-2xl shadow p-5 max-w-xl space-y-5 border border-slate-800">
+        <div class="flex gap-6 text-sm pb-2 border-b border-slate-800">
+          <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="calcMethod" value="trees" checked class="accent-emerald-500" /> Tree-based</label>
+          <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="calcMethod" value="land" class="accent-emerald-500" /> Land-based</label>
+        </div>
+        
+        <div id="treeForm" class="space-y-4">
+          <select id="treeType" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm outline-none"><option value="3.5">Small Trees</option><option value="12.5">Medium Trees</option><option value="22.5">Fast-Growing Trees</option></select>
+          <div class="grid sm:grid-cols-2 gap-3">
+             <input id="treeCount" type="number" placeholder="Count" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm outline-none" />
+             <input id="treeYears" type="number" placeholder="Years" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm outline-none" />
+          </div>
+          <button id="calcTreesBtn" class="w-full bg-emerald-600 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-emerald-500">Calculate</button>
+        </div>
+        
+        <div id="landForm" class="space-y-4 hidden">
+          <div class="grid sm:grid-cols-2 gap-3">
+            <input id="landArea" type="number" placeholder="Area Size" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm outline-none" />
+            <select id="landUnit" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm outline-none"><option value="hectares">Hectares</option><option value="acres">Acres</option></select>
+          </div>
+          <input id="landYears" type="number" placeholder="Years" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm outline-none" />
+          <button id="calcLandBtn" class="w-full bg-emerald-600 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-emerald-500">Calculate</button>
+        </div>
+        
+        <div id="calcResult" class="hidden bg-emerald-900/30 border border-emerald-500/30 p-3 rounded text-center text-emerald-100 font-bold"><p id="totalCredits"></p></div>
+      </div>
+    </section>
+
+    <section id="section-admin" class="section hidden">
+      <h2 class="text-xl font-semibold mb-3">Admin Panel</h2>
+      <div id="adminList" class="space-y-3"></div>
+    </section>
+  </main>
+
+  <div id="chatModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center px-4 z-[100] backdrop-blur-sm">
+    <div class="bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-0 flex flex-col border border-slate-700 h-[500px] overflow-hidden">
+      <div class="flex justify-between items-center bg-slate-800 p-3 border-b border-slate-700">
+        <h3 id="chatPostTitle" class="font-bold text-emerald-100">Chat</h3>
+        <button id="closeChat" class="text-xs text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-700">Close</button>
+      </div>
+      <div id="chatMessages" class="flex-1 overflow-y-auto p-3 space-y-2 text-sm bg-slate-950"></div>
+      <form id="chatForm" class="flex gap-2 p-3 bg-slate-800 border-t border-slate-700">
+        <input id="chatInput" class="flex-1 bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm outline-none text-white placeholder-slate-500" placeholder="Type a message..." />
+        <button class="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-500">Send</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="loginModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center px-4 z-[100] backdrop-blur-sm">
+    <div class="bg-slate-900 rounded-2xl shadow-2xl max-w-sm w-full p-6 border border-slate-700">
+      <div class="flex justify-between mb-5"><h3 class="text-xl font-bold text-white">Account Access</h3><button id="closeLogin" class="text-slate-400 hover:text-white">✕</button></div>
+      
+      <div class="flex mb-5 bg-slate-950 rounded-lg p-1 border border-slate-800">
+        <button id="tabRegister" class="flex-1 py-2 text-xs font-bold rounded-md bg-slate-800 text-white transition-all shadow">Register</button>
+        <button id="tabLogin" class="flex-1 py-2 text-xs font-bold rounded-md text-slate-400 hover:text-white transition-all">Login</button>
+      </div>
+      
+      <form id="registerForm" class="space-y-4">
+        <div><label class="text-xs text-slate-400 ml-1">Full Name</label><input required id="regName" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-emerald-500" /></div>
+        <div><label class="text-xs text-slate-400 ml-1">Email</label><input required id="regEmail" type="email" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-emerald-500" /></div>
+        <div><label class="text-xs text-slate-400 ml-1">Password</label><input required id="regPass" type="password" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-emerald-500" /></div>
+        <button class="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-bold hover:bg-blue-500 transition-colors mt-2">Create Account</button>
+      </form>
+
+      <form id="loginForm" class="hidden space-y-4">
+        <div><label class="text-xs text-slate-400 ml-1">Username (Name)</label><input required id="loginName" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-emerald-500" /></div>
+        <div><label class="text-xs text-slate-400 ml-1">Password</label><input required id="loginPass" type="password" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-emerald-500" /></div>
+        <div>
+            <label class="text-xs text-slate-400 ml-1">Role</label>
+            <select id="loginRole" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-emerald-500">
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+            </select>
+        </div>
+        <button class="w-full bg-emerald-600 text-white py-2.5 rounded-lg text-sm font-bold hover:bg-emerald-500 transition-colors mt-2">Log In</button>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="app.js?v=final_fix_v2"></script>
 </body>
 </html>
 
