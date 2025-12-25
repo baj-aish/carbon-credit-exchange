@@ -4873,49 +4873,49 @@ const subscribeToChats = (uid) => {
 // 5. CHAT LOGIC (SMART & ROBUST)
 // ==========================================
 // Takes just ONE argument: Post ID. Finds the rest securely.
-window.startChat = async (postId) => {
-    if(!requireLogin()) return;
-    
-    const post = state.posts.find(p => p.id === postId);
-    if(!post) return alert("Post not found");
+const startChat = async (postId) => {
+  if (!requireLogin()) return;
 
-    const myId = state.currentUser.id;
-    let targetId = post.ownerId; 
-    let ownerName = post.user;
+  const post = state.posts.find(p => p.id === postId);
+  if (!post) return alert("Post not found");
 
-    // LEGACY FALLBACK: Find owner by name if ID missing in post
-    if (!targetId) {
-        const targetUser = state.users.find(u => u.name === post.user);
-        if (targetUser) targetId = targetUser.id;
-        else return alert("Seller details missing (Legacy Post). Cannot chat.");
-    }
+  const myId = state.currentUser.id;
+  let targetId = post.ownerId;
+  const ownerName = post.user;
 
-    if(targetId === myId) return alert("You cannot chat with yourself.");
+  if (!targetId) {
+    const targetUser = state.users.find(u => u.name === post.user);
+    if (!targetUser) return alert("Seller not found");
+    targetId = targetUser.id;
+  }
 
-    // Check existing
-    let chat = state.chats.find(c => c.postId === postId && c.participants.includes(myId) && c.participants.includes(targetId));
-    
-    if(!chat) {
-        const ref = await addDoc(collection(db, "chats"), {
-            postId: postId,
-            postTitle: post.title,
-            participants: [myId, targetId],
-            participantNames: [state.currentUser.name, ownerName], // Store names for display
-            messages: [],
-            updatedAt: Date.now()
-        });
-        currentChatId = ref.id;
-        chat = { id: ref.id, postTitle: post.title, messages: [] };
-    } else {
-        currentChatId = chat.id;
-    }
+  if (targetId === myId) return alert("You cannot chat with yourself.");
 
-    qs("chatPostTitle").textContent = chat.postTitle;
-    show("chatModal"); show("chatForm");
-    renderChatMessages(chat);
+  let chat = state.chats.find(
+    c => c.postId === postId &&
+         c.participants.includes(myId) &&
+         c.participants.includes(targetId)
+  );
+
+  if (!chat) {
+    const ref = await addDoc(collection(db, "chats"), {
+      postId,
+      postTitle: post.title,
+      participants: [myId, targetId],
+      participantNames: [state.currentUser.name, ownerName],
+      messages: [],
+      updatedAt: Date.now()
+    });
+    chat = { id: ref.id, postTitle: post.title, messages: [] };
+  }
+
+  currentChatId = chat.id;
+  qs("chatPostTitle").textContent = chat.postTitle;
+  show("chatModal");
+  show("chatForm");
+  renderChatMessages(chat);
 };
-// ⬇️ ADD THIS LINE
-window.startChat = startChat;
+
 
 
 window.openExistingChat = (chatId) => {
@@ -5208,6 +5208,17 @@ const init = () => {
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
 else init();
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".chat-btn");
+  if (!btn) return;
+
+  const postId = btn.dataset.postId;
+  if (!postId) return;
+
+  startChat(postId);
+});
+
+
 
 
 
