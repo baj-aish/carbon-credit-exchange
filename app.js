@@ -436,7 +436,7 @@ const show = (input) => getEl(input)?.classList.remove("hidden");
 const hide = (input) => getEl(input)?.classList.add("hidden");
 const toggle = (input, condition) => condition ? show(input) : hide(input);
 
-const LAST_SECTION_KEY = "ccx_FINAL_v100";
+const LAST_SECTION_KEY = "ccx_FINAL_v101";
 let state = { users: [], posts: [], chats: [], currentUser: null };
 let editPostId = null, currentChatId = null, chatUnsubscribe = null;
 
@@ -449,6 +449,7 @@ const showSection = name => {
   show("section-" + target);
   localStorage.setItem(LAST_SECTION_KEY, target);
   
+  // Force inbox refresh when clicked
   if(target === 'inbox') renderInbox();
 
   qsa(".nav-btn").forEach(btn => {
@@ -487,7 +488,7 @@ const updateAuthUI = () => {
 };
 
 const requireLogin = () => {
-  if (!auth.currentUser) { // Check Auth directly
+  if (!state.currentUser) {
     alert("Please login first.");
     show("loginModal");
     return false;
@@ -499,20 +500,19 @@ const requireLogin = () => {
 // 4. DATA LISTENERS
 // ==========================================
 const startListeners = () => {
-    // 1. Posts
+    // 1. Posts Listener
     onSnapshot(query(collection(db, "posts"), orderBy("createdAt", "desc")), (snap) => {
         state.posts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         renderFeed(); 
     });
 
-    // 2. Users & Sync
+    // 2. Users Listener
     onSnapshot(collection(db, "users"), (snap) => {
         state.users = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
+        // If auth exists but state doesn't match, sync it
         if (auth.currentUser) {
             const me = state.users.find(u => u.id === auth.currentUser.uid);
             if (me) {
-                // If user data loaded or changed
                 if (!state.currentUser || state.currentUser.id !== me.id) {
                     state.currentUser = me;
                     updateAuthUI();
@@ -543,10 +543,11 @@ const subscribeToChats = (uid) => {
 };
 
 // ==========================================
-// 5. CHAT LOGIC (ROBUST)
+// 5. CHAT LOGIC (GLOBAL FUNCTIONS)
 // ==========================================
-// Triggered by Event Listener (Not inline onclick)
-const startChat = async (postId) => {
+
+// [CRITICAL] Attached to Window so HTML can see it
+window.startChat = async (postId) => {
     if(!requireLogin()) return;
     
     const post = state.posts.find(p => p.id === postId);
@@ -565,10 +566,11 @@ const startChat = async (postId) => {
 
     if(targetId === myId) return alert("You cannot chat with yourself.");
 
-    // Check existing
+    // Check existing chat
     let chat = state.chats.find(c => c.postId === postId && c.participants.includes(myId) && c.participants.includes(targetId));
     
     if(!chat) {
+        // Create new chat
         const ref = await addDoc(collection(db, "chats"), {
             postId: postId,
             postTitle: post.title,
@@ -608,7 +610,7 @@ const renderChatMessages = (chat) => {
     }).join("");
     box.scrollTop = box.scrollHeight;
 
-    // Mark as seen
+    // Mark as seen logic
     const needsUpdate = (chat.messages||[]).some(m => m.senderId !== myId && !m.seen);
     if(needsUpdate) {
         const updatedMsgs = chat.messages.map(m => (m.senderId !== myId ? {...m, seen: true} : m));
@@ -646,7 +648,6 @@ const renderFeed = () => {
 
     container.innerHTML = arr.length ? arr.map(htmlPost).join("") : '<p class="text-slate-400 text-sm mt-2 col-span-full">No posts yet.</p>';
     
-    // User Listings Update
     const myName = state.currentUser?.name;
     if(!qs("userListings").classList.contains("hidden")) {
         const myPosts = state.posts.filter(p => p.user === myName);
@@ -657,14 +658,14 @@ const renderFeed = () => {
 const renderInbox = () => {
     const list = qs("inboxList");
     
-    // Handle Loading State vs Logged Out State
+    // State Check 1: Auth not initialized or user not logged in
     if(!auth.currentUser) {
         toggle("inboxIndicator", false);
         if(list) list.innerHTML = `<p class="text-slate-400 text-sm">Please login to see messages.</p>`;
         return;
     }
     
-    // If auth exists but state.currentUser is null, we are still loading
+    // State Check 2: Auth exists, but Profile not loaded yet
     if(!state.currentUser) {
         if(list) list.innerHTML = `<p class="text-slate-400 text-sm animate-pulse">Loading inbox...</p>`;
         return;
@@ -693,8 +694,9 @@ const renderAdmin = () => {
 };
 
 // ==========================================
-// 7. POST & LISTING ACTIONS
+// 7. POST ACTIONS (EDIT/DELETE)
 // ==========================================
+// Attached to Window for HTML access
 window.editPost = (id) => {
     const p = state.posts.find(x => x.id == id);
     if(!p) return;
@@ -705,6 +707,9 @@ window.editPost = (id) => {
     show("deleteEditBtn"); 
     qs("createListingTab").click();
 };
+
+window.deletePost = async (id) => { if(confirm("Delete post?")) await deleteDoc(doc(db, "posts", id)); };
+window.deleteUser = async (id) => { if(confirm("Delete user?")) await deleteDoc(doc(db, "users", id)); };
 
 on(qs("deleteEditBtn"), "click", async () => {
     if(!editPostId) return;
@@ -717,9 +722,6 @@ on(qs("deleteEditBtn"), "click", async () => {
     }
 });
 
-window.deleteUser = async (id) => { if(confirm("Delete user?")) await deleteDoc(doc(db, "users", id)); };
-window.deletePost = async (id) => { if(confirm("Delete post?")) await deleteDoc(doc(db, "posts", id)); };
-
 on(qs("uploadForm"), "submit", async e => {
   e.preventDefault();
   if(!requireLogin()) return;
@@ -730,7 +732,7 @@ on(qs("uploadForm"), "submit", async e => {
         title: qs("postTitle").value, desc: qs("postDesc").value, 
         price: Number(qs("postPrice").value), credits: Number(qs("postCredits").value),
         user: state.currentUser.name, 
-        ownerId: state.currentUser.id, // Stores Owner ID
+        ownerId: state.currentUser.id, 
         image: img, createdAt: Date.now(), status: "active"
     };
     if(editPostId) { if(!img) delete data.image; await updateDoc(doc(db, "posts", editPostId), data); }
@@ -781,28 +783,14 @@ on(qs("loginForm"), "submit", async e => {
 });
 
 onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        // We do NOT set currentUser here immediately to avoid sync issues. 
-        // We let the Users listener handle the state update.
-        // But we DO update UI to 'loading' state if needed.
-    } else {
+    if (!user) {
         state.currentUser = null;
         state.chats = [];
         updateAuthUI();
         renderFeed();
         renderInbox();
     }
-});
-
-// [CRITICAL] GLOBAL CLICK LISTENER FOR CHAT BUTTONS
-// This replaces the inline 'onclick' which was failing
-document.addEventListener("click", (e) => {
-    const btn = e.target.closest(".chat-btn");
-    if(btn) {
-        e.preventDefault();
-        const pid = btn.dataset.id;
-        if(pid) startChat(pid);
-    }
+    // Note: If user exists, User Listener handles state update to avoid race conditions
 });
 
 // Tabs & UI
@@ -817,7 +805,6 @@ on(qs("tabLogin"), "click", () => {
     show("loginForm"); hide("registerForm");
 });
 
-// Listings Tabs
 on(qs("createListingTab"), "click", () => { 
     show("uploadWrapper"); hide("userListings"); 
     qs("createListingTab").classList.replace("text-slate-300", "text-white"); qs("createListingTab").classList.add("bg-slate-800");
@@ -848,7 +835,6 @@ on(qs("priceFilter"), "change", renderFeed);
 on(qs("creditsFilter"), "change", renderFeed);
 on(qs("gotoCalcLink"), "click", () => showSection("calculator"));
 
-// Calculator
 qsa('input[name="calcMethod"]').forEach(r => on(r, "change", () => {
     const v = document.querySelector('input[name="calcMethod"]:checked').value;
     toggle("treeForm", v === "trees"); toggle("landForm", v !== "trees"); hide("calcResult");
@@ -862,8 +848,8 @@ on(qs("calcLandBtn"), "click", () => { const factor = qs("landUnit").value === '
 const htmlPost = (p) => {
     const isMine = state.currentUser && p.user === state.currentUser.name;
     const badge = isMine ? `<span class="bg-emerald-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded ml-2">CREATED BY YOU</span>` : '';
-    // FIXED: Uses class 'chat-btn' and data attribute instead of onclick
-    const chatBtn = !isMine ? `<button class="chat-btn w-full py-2 bg-slate-800 text-xs rounded border border-slate-600 relative hover:bg-slate-700 font-semibold transition-colors" data-id="${p.id}">💬 Chat with Seller</button>` : '';
+    // FIXED: Use onclick directly to call window.startChat with just ID
+    const chatBtn = !isMine ? `<button onclick="window.startChat('${p.id}')" class="w-full py-2 bg-slate-800 text-xs rounded border border-slate-600 relative hover:bg-slate-700 font-semibold transition-colors">💬 Chat with Seller</button>` : '';
 
     return `<div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-lg flex flex-col hover:border-slate-600 transition-all"><img src="${p.image}" class="w-full h-44 object-cover"><div class="p-3 flex flex-col flex-1"><div class="flex justify-between items-start mb-1"><h3 class="font-bold text-sm truncate flex-1 text-slate-200">${p.title}</h3>${badge}</div><p class="text-[10px] text-slate-500 mb-2">By ${p.user} • ${new Date(p.createdAt).toLocaleDateString()}</p><p class="text-xs text-slate-400 mb-3 truncate">${p.desc}</p><div class="flex justify-between text-[11px] mb-3"><span class="text-emerald-300 bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-500/20">${p.credits} Credits</span><span class="text-white font-bold">₹${p.price}</span></div><div class="mt-auto">${chatBtn}</div></div></div>`;
 };
@@ -872,7 +858,6 @@ const htmlInboxItem = (c, myId) => {
     const msgs = c.messages || [];
     const last = msgs[msgs.length-1] || { text: 'No messages yet', senderName: '' };
     const unread = msgs.filter(m => m.senderId !== myId && !m.seen).length;
-    // Find name that IS NOT mine
     let otherName = "User";
     if(c.participantNames) {
         const otherIndex = c.participantNames.findIndex(n => n !== state.currentUser.name);
@@ -894,3 +879,4 @@ const init = () => {
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
 else init();
+
