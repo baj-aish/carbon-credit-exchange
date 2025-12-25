@@ -980,44 +980,52 @@ const subscribeToChats = (uid) => {
 // 5. CHAT LOGIC
 // ==========================================
 const startChat = async (postId) => {
-    if(!requireLogin()) return;
-    
-    const post = state.posts.find(p => p.id === postId);
-    if(!post) return alert("Post not found");
+  if (!requireLogin()) return;
 
-    const myId = state.currentUser.id;
-    let targetId = post.ownerId; 
-    let ownerName = post.user;
+  const post = state.posts.find(p => p.id === postId);
+  if (!post) return alert("Post not found");
 
-    // Legacy Fallback
-    if (!targetId) {
-        const targetUser = state.users.find(u => u.name === post.user);
-        if (targetUser) targetId = targetUser.id;
-        else return alert("Seller info incomplete. Cannot chat.");
-    }
+  const myId = state.currentUser.id;
+  const sellerId = post.ownerId;
 
-    if(targetId === myId) return alert("You cannot chat with yourself.");
+  if (!sellerId) {
+    alert("Seller information missing.");
+    return;
+  }
 
-    let chat = state.chats.find(c => c.postId === postId && c.participants.includes(myId) && c.participants.includes(targetId));
-    
-    if(!chat) {
-        const ref = await addDoc(collection(db, "chats"), {
-            postId: postId,
-            postTitle: post.title,
-            participants: [myId, targetId],
-            participantNames: [state.currentUser.name, ownerName],
-            messages: [],
-            updatedAt: Date.now()
-        });
-        currentChatId = ref.id;
-        chat = { id: ref.id, postTitle: post.title, messages: [] };
-    } else {
-        currentChatId = chat.id;
-    }
+  if (sellerId === myId) {
+    alert("You cannot chat with yourself.");
+    return;
+  }
 
-    qs("chatPostTitle").textContent = chat.postTitle;
-    show("chatModal"); show("chatForm");
-    renderChatMessages(chat);
+  // 🔒 ONLY find chats where I am a participant
+  let chat = state.chats.find(c =>
+    c.postId === postId &&
+    c.participants.includes(myId)
+  );
+
+  if (!chat) {
+    const ref = await addDoc(collection(db, "chats"), {
+      postId,
+      postTitle: post.title,
+      participants: [myId, sellerId],
+      participantNames: [state.currentUser.name, post.user],
+      messages: [],
+      updatedAt: Date.now()
+    });
+
+    chat = {
+      id: ref.id,
+      postTitle: post.title,
+      messages: []
+    };
+  }
+
+  currentChatId = chat.id;
+  qs("chatPostTitle").textContent = chat.postTitle;
+  show("chatModal");
+  show("chatForm");
+  renderChatMessages(chat);
 };
 
 // GLOBAL CLICK LISTENER
@@ -1041,7 +1049,15 @@ document.addEventListener("click", (e) => {
 
 const openExistingChat = (chatId) => {
     currentChatId = chatId;
-    const chat = state.chats.find(c => c.id === chatId);
+  const chat = state.chats.find(
+  c => c.id === chatId && c.participants.includes(state.currentUser.id)
+);
+
+if (!chat) {
+  alert("You are not allowed to view this chat.");
+  return;
+}
+
     if(!chat) return;
     qs("chatPostTitle").textContent = chat.postTitle;
     show("chatModal"); show("chatForm");
@@ -1336,6 +1352,7 @@ const init = () => {
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
 else init();
+
 
 
 
