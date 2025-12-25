@@ -423,7 +423,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 // ==========================================
-// 2. UTILITIES
+// 2. CORE UTILITIES
 // ==========================================
 const qs = id => document.getElementById(id);
 const qsa = sel => document.querySelectorAll(sel);
@@ -434,7 +434,7 @@ const show = (input) => getEl(input)?.classList.remove("hidden");
 const hide = (input) => getEl(input)?.classList.add("hidden");
 const toggle = (input, condition) => condition ? show(input) : hide(input);
 
-const LAST_SECTION_KEY = "ccx_FINAL_MERGED_v500";
+const LAST_SECTION_KEY = "ccx_final_v5";
 let state = { users: [], posts: [], chats: [], currentUser: null };
 let editPostId = null, currentChatId = null, chatUnsubscribe = null;
 
@@ -494,45 +494,47 @@ const requireLogin = () => {
 };
 
 // ==========================================
-// 4. DATA LISTENERS
+// 4. DATA LISTENERS (PRIVATE CHAT LOGIC)
 // ==========================================
 const startListeners = () => {
-    // 1. Posts
+    // 1. Posts Listener (Feed)
     onSnapshot(query(collection(db, "posts"), orderBy("createdAt", "desc")), (snap) => {
         state.posts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         renderFeed(); 
     });
 
-    // 2. Users & Sync
+    // 2. Users Listener (Sync Profile)
     onSnapshot(collection(db, "users"), (snap) => {
         state.users = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
         if (auth.currentUser) {
             const me = state.users.find(u => u.id === auth.currentUser.uid);
             if (me) {
-                // If user loaded/changed, update state & start inbox listener
+                // If user data loaded or changed, update state
                 if (!state.currentUser || state.currentUser.id !== me.id) {
                     state.currentUser = me;
                     updateAuthUI();
-                    subscribeToChats(me.id); // <--- Starts Inbox Listener
+                    subscribeToChats(me.id); // <--- Start Private Chat Listener
                     renderFeed();
                 }
             }
         }
+        if(state.currentUser?.role === 'admin') renderAdmin();
     });
 };
 
+// Private Chat Listener
 const subscribeToChats = (uid) => {
     if(chatUnsubscribe) chatUnsubscribe();
     
-    // Listen for chats where I am a participant
+    // Query: Find chats where 'participants' array contains my ID
     const q = query(collection(db, "chats"), where("participants", "array-contains", uid));
     
     chatUnsubscribe = onSnapshot(q, (snap) => {
         state.chats = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         renderInbox(); 
         
-        // Live update active chat window if open
+        // Live update active chat window
         if (currentChatId && !qs("chatModal").classList.contains("hidden")) {
             const active = state.chats.find(c => c.id === currentChatId);
             if(active) renderChatMessages(active);
@@ -541,10 +543,8 @@ const subscribeToChats = (uid) => {
 };
 
 // ==========================================
-// 5. CHAT LOGIC (GLOBAL LISTENER FIX)
+// 5. CHAT LOGIC (SMART & PRIVATE)
 // ==========================================
-
-// Logic to start/find a chat
 const startChat = async (postId) => {
     if(!requireLogin()) return;
     
@@ -559,7 +559,7 @@ const startChat = async (postId) => {
     if (!targetId) {
         const targetUser = state.users.find(u => u.name === post.user);
         if (targetUser) targetId = targetUser.id;
-        else return alert("Seller info incomplete. Cannot chat.");
+        else return alert("Seller info incomplete (Legacy Post). Cannot chat.");
     }
 
     if(targetId === myId) return alert("You cannot chat with yourself.");
@@ -568,7 +568,7 @@ const startChat = async (postId) => {
     let chat = state.chats.find(c => c.postId === postId && c.participants.includes(myId) && c.participants.includes(targetId));
     
     if(!chat) {
-        // Create new chat document
+        // Create new private chat document
         const ref = await addDoc(collection(db, "chats"), {
             postId: postId,
             postTitle: post.title,
@@ -588,28 +588,18 @@ const startChat = async (postId) => {
     renderChatMessages(chat);
 };
 
-// [CRITICAL FIX] GLOBAL EVENT LISTENER
-// This makes the button work without relying on 'onclick' in HTML
+// Global Listener for Chat Buttons (Fixes onclick issue)
 document.addEventListener("click", (e) => {
-    // 1. Check if clicked element is a Chat Button
-    const chatBtn = e.target.closest(".chat-btn");
-    if(chatBtn) {
+    const btn = e.target.closest(".chat-btn");
+    if(btn) {
         e.preventDefault();
-        const postId = chatBtn.dataset.id; // Reads data-id
-        if(postId) startChat(postId);
-    }
-
-    // 2. Check if clicked element is an Inbox Item
-    const inboxItem = e.target.closest(".inbox-item");
-    if(inboxItem) {
-        e.preventDefault();
-        const chatId = inboxItem.dataset.id;
-        if(chatId) openExistingChat(chatId);
+        const pid = btn.dataset.id;
+        if(pid) startChat(pid);
     }
 });
 
 // Open existing chat (from Inbox)
-const openExistingChat = (chatId) => {
+window.openExistingChat = (chatId) => {
     currentChatId = chatId;
     const chat = state.chats.find(c => c.id === chatId);
     if(!chat) return;
@@ -656,7 +646,6 @@ const renderFeed = () => {
     const container = qs("feedContainer");
     let arr = state.posts.filter(p => p.status !== 'removed');
     
-    // Filters
     const pf = qs("priceFilter")?.value || "none";
     if (pf === "low-high") arr.sort((a,b) => a.price - b.price);
     if (pf === "high-low") arr.sort((a,b) => b.price - a.price);
@@ -677,12 +666,14 @@ const renderFeed = () => {
 const renderInbox = () => {
     const list = qs("inboxList");
     
+    // Check 1: User Logged Out
     if(!auth.currentUser) {
         toggle("inboxIndicator", false);
         if(list) list.innerHTML = `<p class="text-slate-400 text-sm">Please login to see messages.</p>`;
         return;
     }
     
+    // Check 2: User Logged In but Profile Loading
     if(!state.currentUser) {
         if(list) list.innerHTML = `<p class="text-slate-400 text-sm animate-pulse">Loading inbox...</p>`;
         return;
@@ -711,7 +702,7 @@ const renderAdmin = () => {
 };
 
 // ==========================================
-// 7. POST ACTIONS
+// 7. POST ACTIONS (EDIT/DELETE)
 // ==========================================
 window.editPost = (id) => {
     const p = state.posts.find(x => x.id == id);
@@ -720,12 +711,12 @@ window.editPost = (id) => {
     qs("postTitle").value = p.title; qs("postDesc").value = p.desc;
     qs("postPrice").value = p.price; qs("postCredits").value = p.credits;
     qs("uploadFormBtn").textContent = "Update Listing"; 
+    
+    // SHOW DELETE BUTTON
     show("deleteEditBtn"); 
+    
     qs("createListingTab").click();
 };
-
-window.deletePost = async (id) => { if(confirm("Delete post?")) await deleteDoc(doc(db, "posts", id)); };
-window.deleteUser = async (id) => { if(confirm("Delete user?")) await deleteDoc(doc(db, "users", id)); };
 
 on(qs("deleteEditBtn"), "click", async () => {
     if(!editPostId) return;
@@ -738,6 +729,9 @@ on(qs("deleteEditBtn"), "click", async () => {
     }
 });
 
+window.deleteUser = async (id) => { if(confirm("Delete user?")) await deleteDoc(doc(db, "users", id)); };
+window.deletePost = async (id) => { if(confirm("Delete post?")) await deleteDoc(doc(db, "posts", id)); };
+
 on(qs("uploadForm"), "submit", async e => {
   e.preventDefault();
   if(!requireLogin()) return;
@@ -748,7 +742,7 @@ on(qs("uploadForm"), "submit", async e => {
         title: qs("postTitle").value, desc: qs("postDesc").value, 
         price: Number(qs("postPrice").value), credits: Number(qs("postCredits").value),
         user: state.currentUser.name, 
-        ownerId: state.currentUser.id, 
+        ownerId: state.currentUser.id, // ID for chat
         image: img, createdAt: Date.now(), status: "active"
     };
     if(editPostId) { if(!img) delete data.image; await updateDoc(doc(db, "posts", editPostId), data); }
@@ -889,7 +883,7 @@ const htmlInboxItem = (c, myId) => {
     }
     
     // Uses class 'inbox-item' and data-id for global listener
-    return `<div class="inbox-item bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-pointer flex justify-between items-center hover:bg-slate-800 transition-colors" data-id="${c.id}"><div><div class="text-sm font-bold text-emerald-100 flex items-center gap-2">${c.postTitle} <span class="text-xs text-slate-400 font-normal">w/ ${otherName}</span> ${unread>0?`<span class="bg-red-500 text-white text-[9px] px-1.5 rounded-full shadow-sm">${unread}</span>`:''}</div><div class="text-xs text-slate-400 truncate max-w-[200px] mt-0.5">${last.senderName}: ${last.text}</div></div><div class="text-xs text-emerald-500 font-bold">Open</div></div>`;
+    return `<div class="inbox-item bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-pointer flex justify-between items-center hover:bg-slate-800 transition-colors" onclick="window.openExistingChat('${c.id}')"><div><div class="text-sm font-bold text-emerald-100 flex items-center gap-2">${c.postTitle} <span class="text-xs text-slate-400 font-normal">w/ ${otherName}</span> ${unread>0?`<span class="bg-red-500 text-white text-[9px] px-1.5 rounded-full shadow-sm">${unread}</span>`:''}</div><div class="text-xs text-slate-400 truncate max-w-[200px] mt-0.5">${last.senderName}: ${last.text}</div></div><div class="text-xs text-emerald-500 font-bold">Open</div></div>`;
 };
 const htmlAdminUser = (u) => `<tr class="text-xs border-b border-slate-700"><td class="p-2 text-slate-300">${u.name}</td><td class="p-2 text-slate-400">${u.role}</td><td class="p-2 text-right"><button onclick="window.deleteUser('${u.id}')" class="text-red-400 hover:text-red-300 font-bold">Remove</button></td></tr>`;
 const htmlAdminPost = (p) => `<div class="flex justify-between items-center bg-slate-900 p-2 text-xs border border-slate-700 rounded mb-1"><div class="flex flex-col"><span class="font-bold text-slate-200">${p.title}</span><span class="text-[10px] text-slate-400">By ${p.user}</span></div><div class="flex gap-2"><button onclick="window.deletePost('${p.id}')" class="text-red-400 font-bold hover:text-red-300">Delete</button></div></div>`;
@@ -904,8 +898,6 @@ const init = () => {
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
 else init();
-
-
 
 
 
