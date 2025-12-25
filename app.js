@@ -5171,7 +5171,13 @@ const htmlPost = (p) => {
     const isMine = state.currentUser && p.user === state.currentUser.name;
     const badge = isMine ? `<span class="bg-emerald-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded ml-2">CREATED BY YOU</span>` : '';
     // FIXED CHAT BUTTON: ONLY PASS ID
-    const chatBtn = !isMine ? `<button onclick="window.startChat('${p.id}')" class="w-full py-2 bg-slate-800 text-xs rounded border border-slate-600 relative hover:bg-slate-700 font-semibold transition-colors">💬 Chat with Seller</button>` : '';
+   const chatBtn = `
+<button 
+  class="chat-btn w-full py-2 bg-slate-800 text-xs rounded border border-slate-600 hover:bg-slate-700 font-semibold"
+  data-post-id="${p.id}">
+  💬 Chat with Seller
+</button>`;
+
 
     return `<div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-lg flex flex-col hover:border-slate-600 transition-all"><img src="${p.image}" class="w-full h-44 object-cover"><div class="p-3 flex flex-col flex-1"><div class="flex justify-between items-start mb-1"><h3 class="font-bold text-sm truncate flex-1 text-slate-200">${p.title}</h3>${badge}</div><p class="text-[10px] text-slate-500 mb-2">By ${p.user} • ${new Date(p.createdAt).toLocaleDateString()}</p><p class="text-xs text-slate-400 mb-3 truncate">${p.desc}</p><div class="flex justify-between text-[11px] mb-3"><span class="text-emerald-300 bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-500/20">${p.credits} Credits</span><span class="text-white font-bold">₹${p.price}</span></div><div class="mt-auto">${chatBtn}</div></div></div>`;
 };
@@ -5202,6 +5208,7 @@ const init = () => {
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
 else init();
+
 
 
 
