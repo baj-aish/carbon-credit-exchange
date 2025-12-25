@@ -404,7 +404,7 @@
 
 
 // ==========================================
-// 1. IMPORTS & CONFIGURATION
+// 1. IMPORTS & CONFIG
 // ==========================================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
@@ -436,7 +436,7 @@ const show = (input) => getEl(input)?.classList.remove("hidden");
 const hide = (input) => getEl(input)?.classList.add("hidden");
 const toggle = (input, condition) => condition ? show(input) : hide(input);
 
-const LAST_SECTION_KEY = "ccx_FINAL_v101";
+const LAST_SECTION_KEY = "ccx_FINAL_v200";
 let state = { users: [], posts: [], chats: [], currentUser: null };
 let editPostId = null, currentChatId = null, chatUnsubscribe = null;
 
@@ -449,7 +449,6 @@ const showSection = name => {
   show("section-" + target);
   localStorage.setItem(LAST_SECTION_KEY, target);
   
-  // Force inbox refresh when clicked
   if(target === 'inbox') renderInbox();
 
   qsa(".nav-btn").forEach(btn => {
@@ -488,7 +487,7 @@ const updateAuthUI = () => {
 };
 
 const requireLogin = () => {
-  if (!state.currentUser) {
+  if (!auth.currentUser) {
     alert("Please login first.");
     show("loginModal");
     return false;
@@ -500,23 +499,23 @@ const requireLogin = () => {
 // 4. DATA LISTENERS
 // ==========================================
 const startListeners = () => {
-    // 1. Posts Listener
+    // 1. Posts
     onSnapshot(query(collection(db, "posts"), orderBy("createdAt", "desc")), (snap) => {
         state.posts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         renderFeed(); 
     });
 
-    // 2. Users Listener
+    // 2. Users
     onSnapshot(collection(db, "users"), (snap) => {
         state.users = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // If auth exists but state doesn't match, sync it
+        // Sync user state if logged in
         if (auth.currentUser) {
             const me = state.users.find(u => u.id === auth.currentUser.uid);
             if (me) {
                 if (!state.currentUser || state.currentUser.id !== me.id) {
                     state.currentUser = me;
                     updateAuthUI();
-                    subscribeToChats(me.id); // <--- Starts Inbox Listener
+                    subscribeToChats(me.id); // START INBOX LISTENER
                     renderFeed();
                 }
             }
@@ -543,10 +542,10 @@ const subscribeToChats = (uid) => {
 };
 
 // ==========================================
-// 5. CHAT LOGIC (GLOBAL FUNCTIONS)
+// 5. CHAT LOGIC (GLOBAL EXPORTS)
 // ==========================================
 
-// [CRITICAL] Attached to Window so HTML can see it
+// CRITICAL: Attach to window so HTML onclick works
 window.startChat = async (postId) => {
     if(!requireLogin()) return;
     
@@ -557,7 +556,7 @@ window.startChat = async (postId) => {
     let targetId = post.ownerId; 
     let ownerName = post.user;
 
-    // Legacy Fallback (find by name)
+    // Fallback for old posts
     if (!targetId) {
         const targetUser = state.users.find(u => u.name === post.user);
         if (targetUser) targetId = targetUser.id;
@@ -566,11 +565,10 @@ window.startChat = async (postId) => {
 
     if(targetId === myId) return alert("You cannot chat with yourself.");
 
-    // Check existing chat
+    // Check existing
     let chat = state.chats.find(c => c.postId === postId && c.participants.includes(myId) && c.participants.includes(targetId));
     
     if(!chat) {
-        // Create new chat
         const ref = await addDoc(collection(db, "chats"), {
             postId: postId,
             postTitle: post.title,
@@ -610,7 +608,7 @@ const renderChatMessages = (chat) => {
     }).join("");
     box.scrollTop = box.scrollHeight;
 
-    // Mark as seen logic
+    // Mark as seen
     const needsUpdate = (chat.messages||[]).some(m => m.senderId !== myId && !m.seen);
     if(needsUpdate) {
         const updatedMsgs = chat.messages.map(m => (m.senderId !== myId ? {...m, seen: true} : m));
@@ -637,7 +635,6 @@ const renderFeed = () => {
     const container = qs("feedContainer");
     let arr = state.posts.filter(p => p.status !== 'removed');
     
-    // Filters
     const pf = qs("priceFilter")?.value || "none";
     if (pf === "low-high") arr.sort((a,b) => a.price - b.price);
     if (pf === "high-low") arr.sort((a,b) => b.price - a.price);
@@ -658,14 +655,14 @@ const renderFeed = () => {
 const renderInbox = () => {
     const list = qs("inboxList");
     
-    // State Check 1: Auth not initialized or user not logged in
+    // Check 1: User Logged Out
     if(!auth.currentUser) {
         toggle("inboxIndicator", false);
         if(list) list.innerHTML = `<p class="text-slate-400 text-sm">Please login to see messages.</p>`;
         return;
     }
     
-    // State Check 2: Auth exists, but Profile not loaded yet
+    // Check 2: User Logged In but Profile Loading
     if(!state.currentUser) {
         if(list) list.innerHTML = `<p class="text-slate-400 text-sm animate-pulse">Loading inbox...</p>`;
         return;
@@ -686,17 +683,9 @@ const renderInbox = () => {
     list.innerHTML = chats.map(c => htmlInboxItem(c, myId)).join("");
 };
 
-const renderAdmin = () => {
-    if(state.currentUser?.role !== 'admin') return;
-    qs("adminList").innerHTML = `
-      <div class="mb-4"><h3 class="font-bold text-sm mb-2 text-emerald-400">Users</h3><table class="w-full text-left">${state.users.map(htmlAdminUser).join("")}</table></div>
-      <div><h3 class="font-bold text-sm mb-2 text-emerald-400">Posts</h3>${state.posts.map(htmlAdminPost).join("")}</div>`;
-};
-
 // ==========================================
-// 7. POST ACTIONS (EDIT/DELETE)
+// 7. POST & GLOBAL ACTIONS
 // ==========================================
-// Attached to Window for HTML access
 window.editPost = (id) => {
     const p = state.posts.find(x => x.id == id);
     if(!p) return;
@@ -732,7 +721,7 @@ on(qs("uploadForm"), "submit", async e => {
         title: qs("postTitle").value, desc: qs("postDesc").value, 
         price: Number(qs("postPrice").value), credits: Number(qs("postCredits").value),
         user: state.currentUser.name, 
-        ownerId: state.currentUser.id, 
+        ownerId: state.currentUser.id, // ID for chat
         image: img, createdAt: Date.now(), status: "active"
     };
     if(editPostId) { if(!img) delete data.image; await updateDoc(doc(db, "posts", editPostId), data); }
@@ -745,7 +734,7 @@ on(qs("uploadForm"), "submit", async e => {
 });
 
 // ==========================================
-// 8. AUTH & GLOBAL EVENTS
+// 8. AUTH & UI
 // ==========================================
 on(qs("registerForm"), "submit", async e => {
   e.preventDefault();
@@ -783,17 +772,26 @@ on(qs("loginForm"), "submit", async e => {
 });
 
 onAuthStateChanged(auth, async (user) => {
-    if (!user) {
+    if (user) {
+        // Wait for User Listener to sync state
+        const snap = await getDoc(doc(db, "users", user.uid));
+        if (snap.exists()) {
+            state.currentUser = { id: snap.id, ...snap.data() };
+            updateAuthUI();
+            subscribeToChats(state.currentUser.id);
+            renderFeed();
+            renderInbox();
+        }
+    } else {
         state.currentUser = null;
         state.chats = [];
         updateAuthUI();
         renderFeed();
         renderInbox();
     }
-    // Note: If user exists, User Listener handles state update to avoid race conditions
 });
 
-// Tabs & UI
+// UI
 on(qs("tabRegister"), "click", () => {
     qs("tabRegister").className = "flex-1 py-2 text-xs font-bold rounded-md bg-slate-800 text-white transition-all shadow";
     qs("tabLogin").className = "flex-1 py-2 text-xs font-bold rounded-md text-slate-400 hover:text-white transition-all";
@@ -848,7 +846,7 @@ on(qs("calcLandBtn"), "click", () => { const factor = qs("landUnit").value === '
 const htmlPost = (p) => {
     const isMine = state.currentUser && p.user === state.currentUser.name;
     const badge = isMine ? `<span class="bg-emerald-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded ml-2">CREATED BY YOU</span>` : '';
-    // FIXED: Use onclick directly to call window.startChat with just ID
+    // FIXED: Correct ID passing
     const chatBtn = !isMine ? `<button onclick="window.startChat('${p.id}')" class="w-full py-2 bg-slate-800 text-xs rounded border border-slate-600 relative hover:bg-slate-700 font-semibold transition-colors">💬 Chat with Seller</button>` : '';
 
     return `<div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-lg flex flex-col hover:border-slate-600 transition-all"><img src="${p.image}" class="w-full h-44 object-cover"><div class="p-3 flex flex-col flex-1"><div class="flex justify-between items-start mb-1"><h3 class="font-bold text-sm truncate flex-1 text-slate-200">${p.title}</h3>${badge}</div><p class="text-[10px] text-slate-500 mb-2">By ${p.user} • ${new Date(p.createdAt).toLocaleDateString()}</p><p class="text-xs text-slate-400 mb-3 truncate">${p.desc}</p><div class="flex justify-between text-[11px] mb-3"><span class="text-emerald-300 bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-500/20">${p.credits} Credits</span><span class="text-white font-bold">₹${p.price}</span></div><div class="mt-auto">${chatBtn}</div></div></div>`;
@@ -879,4 +877,5 @@ const init = () => {
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
 else init();
+
 
