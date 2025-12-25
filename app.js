@@ -4880,16 +4880,17 @@ const startChat = async (postId) => {
   if (!post) return alert("Post not found");
 
   const myId = state.currentUser.id;
-  let targetId = post.ownerId;
-  const ownerName = post.user;
+  const targetId = post.ownerId;
 
   if (!targetId) {
-    const targetUser = state.users.find(u => u.name === post.user);
-    if (!targetUser) return alert("Seller not found");
-    targetId = targetUser.id;
+    alert("Seller information missing.");
+    return;
   }
 
-  if (targetId === myId) return alert("You cannot chat with yourself.");
+  if (targetId === myId) {
+    alert("You cannot chat with yourself.");
+    return;
+  }
 
   let chat = state.chats.find(
     c => c.postId === postId &&
@@ -4902,11 +4903,16 @@ const startChat = async (postId) => {
       postId,
       postTitle: post.title,
       participants: [myId, targetId],
-      participantNames: [state.currentUser.name, ownerName],
+      participantNames: [state.currentUser.name, post.user],
       messages: [],
       updatedAt: Date.now()
     });
-    chat = { id: ref.id, postTitle: post.title, messages: [] };
+
+    chat = {
+      id: ref.id,
+      postTitle: post.title,
+      messages: []
+    };
   }
 
   currentChatId = chat.id;
@@ -4915,8 +4921,6 @@ const startChat = async (postId) => {
   show("chatForm");
   renderChatMessages(chat);
 };
-
-
 
 window.openExistingChat = (chatId) => {
     currentChatId = chatId;
@@ -5217,6 +5221,7 @@ document.addEventListener("click", (e) => {
 
   startChat(postId);
 });
+
 
 
 
