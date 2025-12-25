@@ -4275,42 +4275,67 @@ const requireLogin = () => {
 // ==========================================
 // 4. DATA LOGIC (FIXED)
 // ==========================================
+// --- REPLACE 'startListeners' FUNCTION ---
 const startListeners = () => {
-    // 1. Posts
+    // 1. Posts Listener
     onSnapshot(query(collection(db, "posts"), orderBy("createdAt", "desc")), (snap) => {
         state.posts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         renderFeed(); 
     });
 
-    // 2. Users (Sync)
+    // 2. Users Listener (Syncs Profile & Starts Inbox)
     onSnapshot(collection(db, "users"), (snap) => {
         state.users = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        // Auto-login logic
         if (auth.currentUser) {
             const me = state.users.find(u => u.id === auth.currentUser.uid);
             if (me) {
+                // If user just loaded or changed
                 if (!state.currentUser || state.currentUser.id !== me.id) {
                     state.currentUser = me;
                     updateAuthUI();
-                    subscribeToChats(me.id); // <--- START CHAT LISTENER
+                    subscribeToChats(me.id); // <--- CRITICAL: Starts the Inbox Listener
                     renderFeed();
                 }
             }
         }
-        if(state.currentUser?.role === 'admin') renderAdmin();
     });
 };
 
+// --- REPLACE 'subscribeToChats' FUNCTION ---
+let unsubscribeChats = null;
 const subscribeToChats = (uid) => {
-    if(chatUnsubscribe) chatUnsubscribe();
-    // Fetch private chats
+    if(unsubscribeChats) unsubscribeChats();
+    
+    // Query: Find all chats where I am a participant
     const q = query(collection(db, "chats"), where("participants", "array-contains", uid));
-    chatUnsubscribe = onSnapshot(q, (snap) => {
+    
+    unsubscribeChats = onSnapshot(q, (snap) => {
         state.chats = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        renderInbox(); 
         
+        // 1. Calculate Unread Count for Red Dot
+        let totalUnread = 0;
+        state.chats.forEach(c => {
+            const msgs = c.messages || [];
+            // Count messages NOT sent by me and NOT seen
+            totalUnread += msgs.filter(m => m.senderId !== uid && !m.seen).length;
+        });
+        
+        // 2. Toggle Red Dot UI
+        const indicator = qs("inboxIndicator");
+        if(indicator) {
+            if(totalUnread > 0) indicator.classList.remove("hidden");
+            else indicator.classList.add("hidden");
+        }
+
+        // 3. Refresh Inbox List
+        renderInbox();
+        
+        // 4. Update Open Chat Window (if active)
         if (currentChatId && !qs("chatModal").classList.contains("hidden")) {
-            const active = state.chats.find(c => c.id === currentChatId);
-            if(active) renderChatMessages(active);
+            const activeChat = state.chats.find(c => c.id === currentChatId);
+            if(activeChat) renderChatMessages(activeChat);
         }
     });
 };
@@ -4378,45 +4403,53 @@ onAuthStateChanged(auth, async (user) => {
 // 6. CHAT LOGIC (SMART START)
 // ==========================================
 // Takes just postId. Finds Owner ID internally. Handles Legacy posts.
-window.startChat = async (postId) => {
+// --- REPLACE 'window.startChat' ---
+window.startChat = async (postId, ownerId) => {
     if(!requireLogin()) return;
     
-    const post = state.posts.find(p => p.id === postId);
-    if(!post) return;
-
     const myId = state.currentUser.id;
-    let targetId = post.ownerId; // NEW posts have this
-    let ownerName = post.user;
+    let targetId = ownerId;
+    let ownerName = "Seller";
 
-    // LEGACY FALLBACK: Find owner by name if ID missing
+    // Handle Legacy Posts (Find owner by name if ID missing)
     if (!targetId) {
+        const post = state.posts.find(p => p.id === postId);
         const targetUser = state.users.find(u => u.name === post.user);
-        if (targetUser) targetId = targetUser.id;
-        else return alert("Seller info incomplete (Legacy Post). Cannot chat.");
+        if (targetUser) {
+            targetId = targetUser.id;
+            ownerName = targetUser.name;
+        } else {
+            return alert("Seller details missing. Cannot chat.");
+        }
+    } else {
+        const u = state.users.find(x => x.id === targetId);
+        if(u) ownerName = u.name;
     }
 
     if(targetId === myId) return alert("You cannot chat with yourself.");
 
-    // Check existing
-    let chat = state.chats.find(c => c.postId === postId && c.participants.includes(myId) && c.participants.includes(targetId));
+    // CHECK FOR EXISTING CHAT (Prevents Duplicates)
+    // We look for a chat where BOTH users are participants
+    let chat = state.chats.find(c => c.participants.includes(myId) && c.participants.includes(targetId));
     
     if(!chat) {
+        // Create New Chat Room
         const ref = await addDoc(collection(db, "chats"), {
-            postId: postId,
-            postTitle: post.title,
             participants: [myId, targetId],
-            participantNames: [state.currentUser.name, ownerName],
+            participantNames: { [myId]: state.currentUser.name, [targetId]: ownerName },
             messages: [],
             updatedAt: Date.now()
         });
         currentChatId = ref.id;
-        chat = { id: ref.id, postTitle: post.title, messages: [] };
+        chat = { id: ref.id, messages: [] };
     } else {
         currentChatId = chat.id;
     }
 
-    qs("chatPostTitle").textContent = chat.postTitle;
-    show("chatModal"); show("chatForm");
+    // Open Modal
+    qs("chatPostTitle").textContent = `Chat with ${ownerName}`;
+    show("chatModal"); 
+    show("chatForm");
     renderChatMessages(chat);
 };
 
@@ -4429,23 +4462,42 @@ window.openExistingChat = (chatId) => {
     renderChatMessages(chat);
 };
 
+// --- REPLACE 'renderChatMessages' ---
 const renderChatMessages = (chat) => {
     const box = qs("chatMessages");
     const myId = state.currentUser.id;
     
+    // Render Messages
     box.innerHTML = (chat.messages||[]).map(m => {
         const isMe = m.senderId === myId;
-        return `<div class="flex ${isMe?'justify-end':'justify-start'}"><div class="px-3 py-1.5 rounded-lg mb-1 text-xs max-w-[80%] ${isMe?'bg-emerald-600 text-white':'bg-slate-700 text-slate-200'}"><div class="font-bold opacity-50 text-[9px] mb-0.5">${m.senderName}</div>${m.text}</div></div>`;
+        const seenLabel = (isMe && m.seen) ? '<span class="text-[8px] text-emerald-300 ml-1">✓✓</span>' : '';
+        
+        return `
+        <div class="flex ${isMe?'justify-end':'justify-start'}">
+            <div class="px-3 py-1.5 rounded-lg mb-1 text-xs max-w-[80%] ${isMe?'bg-emerald-600 text-white':'bg-slate-700 text-slate-200'}">
+                <div class="font-bold opacity-50 text-[9px] mb-0.5">${m.senderName}</div>
+                ${m.text}
+                ${seenLabel}
+            </div>
+        </div>`;
     }).join("");
+    
     box.scrollTop = box.scrollHeight;
 
-    // Mark seen
-    if((chat.messages||[]).some(m => m.senderId !== myId && !m.seen)) {
-        const updatedMsgs = chat.messages.map(m => (m.senderId !== myId ? {...m, seen: true} : m));
+    // MARK AS SEEN LOGIC
+    // If there are messages from the other person that are NOT seen, update them now.
+    const needsUpdate = (chat.messages||[]).some(m => m.senderId !== myId && !m.seen);
+    
+    if(needsUpdate) {
+        const updatedMsgs = chat.messages.map(m => {
+            if(m.senderId !== myId) return {...m, seen: true}; // Mark theirs as seen
+            return m; // Keep mine as is
+        });
+        
+        // Update Database (This will trigger listener again to show checks)
         updateDoc(doc(db, "chats", chat.id), { messages: updatedMsgs });
     }
 };
-
 on(qs("chatForm"), "submit", async e => {
     e.preventDefault();
     const text = qs("chatInput").value.trim();
@@ -4483,26 +4535,57 @@ const renderFeed = () => {
     }
 };
 
+// --- REPLACE 'renderInbox' ---
 const renderInbox = () => {
+    const list = qs("inboxList");
+    if(!list) return;
+
+    // 1. Check Login
     if(!state.currentUser) {
-        toggle("inboxIndicator", false);
-        if(qs("inboxList")) qs("inboxList").innerHTML = `<p class="text-slate-400 text-sm">Login required.</p>`;
+        list.innerHTML = `<p class="text-slate-400 text-sm">Please login to view chats.</p>`;
         return;
     }
     
     const myId = state.currentUser.id;
     const chats = state.chats || [];
-    
-    let totalUnread = 0;
-    chats.forEach(c => totalUnread += (c.messages || []).filter(m => m.senderId !== myId && !m.seen).length);
-    toggle("inboxIndicator", totalUnread > 0);
 
-    const list = qs("inboxList");
-    if(!list) return;
-    if(chats.length === 0) { list.innerHTML = '<p class="text-slate-400 text-sm">No chats yet.</p>'; return; }
+    if(chats.length === 0) {
+        list.innerHTML = '<p class="text-slate-400 text-sm">No conversations yet.</p>';
+        return;
+    }
 
+    // Sort by latest message
     chats.sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-    list.innerHTML = chats.map(c => htmlInboxItem(c, myId)).join("");
+
+    list.innerHTML = chats.map(c => {
+        const msgs = c.messages || [];
+        const last = msgs[msgs.length-1] || { text: 'New conversation', senderName: '' };
+        
+        // Count unread for THIS specific chat
+        const unreadCount = msgs.filter(m => m.senderId !== myId && !m.seen).length;
+        
+        // Find other person's name securely
+        let otherName = "User";
+        if(c.participantNames) {
+            // Get the name that DOESN'T belong to me
+            const otherId = c.participants.find(id => id !== myId);
+            otherName = c.participantNames[otherId] || "User";
+        }
+
+        return `
+        <div onclick="window.openExistingChat('${c.id}')" class="bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-pointer flex justify-between items-center hover:bg-slate-800 transition-colors">
+            <div>
+               <div class="text-sm font-bold text-emerald-100 flex items-center gap-2">
+                 ${otherName} 
+                 ${unreadCount > 0 ? `<span class="bg-red-500 text-white text-[9px] px-1.5 rounded-full shadow-sm">${unreadCount}</span>` : ''}
+               </div>
+               <div class="text-xs text-slate-400 truncate max-w-[200px] mt-0.5">
+                 ${last.senderId === myId ? 'You: ' : ''}${last.text}
+               </div>
+            </div>
+            <div class="text-xs text-emerald-500 font-bold">Open</div>
+        </div>`;
+    }).join("");
 };
 
 const renderAdmin = () => {
@@ -4645,6 +4728,7 @@ const init = () => {
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
 else init();
+
 
 
 
