@@ -4754,7 +4754,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 // ==========================================
-// 2. CORE UTILITIES
+// 2. UTILITIES
 // ==========================================
 const qs = id => document.getElementById(id);
 const qsa = sel => document.querySelectorAll(sel);
@@ -4765,7 +4765,7 @@ const show = (input) => getEl(input)?.classList.remove("hidden");
 const hide = (input) => getEl(input)?.classList.add("hidden");
 const toggle = (input, condition) => condition ? show(input) : hide(input);
 
-const LAST_SECTION_KEY = "ccx_FINAL_v999";
+const LAST_SECTION_KEY = "ccx_FINAL_v9999";
 let state = { users: [], posts: [], chats: [], currentUser: null };
 let editPostId = null, currentChatId = null, chatUnsubscribe = null;
 
@@ -4778,6 +4778,7 @@ const showSection = name => {
   show("section-" + target);
   localStorage.setItem(LAST_SECTION_KEY, target);
   
+  // Force refresh inbox if selected
   if(target === 'inbox') renderInbox();
 
   qsa(".nav-btn").forEach(btn => {
@@ -4825,7 +4826,7 @@ const requireLogin = () => {
 };
 
 // ==========================================
-// 4. DATA LOGIC (CRITICAL FIXES)
+// 4. DATA LOGIC
 // ==========================================
 const startListeners = () => {
     // 1. Posts
@@ -4843,7 +4844,7 @@ const startListeners = () => {
                 if (!state.currentUser || state.currentUser.id !== me.id) {
                     state.currentUser = me;
                     updateAuthUI();
-                    // <--- Starts Inbox Listener
+                    subscribeToChats(me.id); // Start Inbox listener
                     renderFeed();
                 }
             }
@@ -4854,14 +4855,14 @@ const startListeners = () => {
 const subscribeToChats = (uid) => {
     if(chatUnsubscribe) chatUnsubscribe();
     
-    // Find all chats where I am a participant
+    // Find chats for me
     const q = query(collection(db, "chats"), where("participants", "array-contains", uid));
     
     chatUnsubscribe = onSnapshot(q, (snap) => {
         state.chats = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        renderInbox(); // Update UI
+        renderInbox(); 
         
-        // Update Active Chat Window
+        // Live update active chat
         if (currentChatId && !qs("chatModal").classList.contains("hidden")) {
             const active = state.chats.find(c => c.id === currentChatId);
             if(active) renderChatMessages(active);
@@ -4870,56 +4871,49 @@ const subscribeToChats = (uid) => {
 };
 
 // ==========================================
-// 5. CHAT LOGIC (SMART & ROBUST)
+// 5. CHAT LOGIC (FIXED)
 // ==========================================
-// Takes just ONE argument: Post ID. Finds the rest securely.
-const startChat = async (postId) => {
-  if (!requireLogin()) return;
+window.startChat = async (postId) => {
+    if(!requireLogin()) return;
+    
+    const post = state.posts.find(p => p.id === postId);
+    if(!post) return alert("Post not found");
 
-  const post = state.posts.find(p => p.id === postId);
-  if (!post) return alert("Post not found");
+    const myId = state.currentUser.id;
+    let targetId = post.ownerId; 
+    let ownerName = post.user;
 
-  const myId = state.currentUser.id;
-  const targetId = post.ownerId;
+    // Legacy Fallback
+    if (!targetId) {
+        const targetUser = state.users.find(u => u.name === post.user);
+        if (targetUser) targetId = targetUser.id;
+        else return alert("Seller details missing. Cannot chat.");
+    }
 
-  if (!targetId) {
-    alert("Seller information missing.");
-    return;
-  }
+    if(targetId === myId) return alert("You cannot chat with yourself.");
 
-  if (targetId === myId) {
-    alert("You cannot chat with yourself.");
-    return;
-  }
+    // Check existing chat
+    let chat = state.chats.find(c => c.postId === postId && c.participants.includes(myId) && c.participants.includes(targetId));
+    
+    if(!chat) {
+        // New Chat
+        const ref = await addDoc(collection(db, "chats"), {
+            postId: postId,
+            postTitle: post.title,
+            participants: [myId, targetId],
+            participantNames: [state.currentUser.name, ownerName],
+            messages: [],
+            updatedAt: Date.now()
+        });
+        currentChatId = ref.id;
+        chat = { id: ref.id, postTitle: post.title, messages: [] };
+    } else {
+        currentChatId = chat.id;
+    }
 
-  let chat = state.chats.find(
-    c => c.postId === postId &&
-         c.participants.includes(myId) &&
-         c.participants.includes(targetId)
-  );
-
-  if (!chat) {
-    const ref = await addDoc(collection(db, "chats"), {
-      postId,
-      postTitle: post.title,
-      participants: [myId, targetId],
-      participantNames: [state.currentUser.name, post.user],
-      messages: [],
-      updatedAt: Date.now()
-    });
-
-    chat = {
-      id: ref.id,
-      postTitle: post.title,
-      messages: []
-    };
-  }
-
-  currentChatId = chat.id;
-  qs("chatPostTitle").textContent = chat.postTitle;
-  show("chatModal");
-  show("chatForm");
-  renderChatMessages(chat);
+    qs("chatPostTitle").textContent = chat.postTitle;
+    show("chatModal"); show("chatForm");
+    renderChatMessages(chat);
 };
 
 window.openExistingChat = (chatId) => {
@@ -4941,7 +4935,7 @@ const renderChatMessages = (chat) => {
     }).join("");
     box.scrollTop = box.scrollHeight;
 
-    // Mark as seen
+    // Mark seen
     const needsUpdate = (chat.messages||[]).some(m => m.senderId !== myId && !m.seen);
     if(needsUpdate) {
         const updatedMsgs = chat.messages.map(m => (m.senderId !== myId ? {...m, seen: true} : m));
@@ -4962,7 +4956,7 @@ on(qs("chatForm"), "submit", async e => {
 });
 
 // ==========================================
-// 6. RENDERERS (FEED & INBOX)
+// 6. RENDERERS
 // ==========================================
 const renderFeed = () => {
     const container = qs("feedContainer");
@@ -4998,7 +4992,7 @@ const renderInbox = () => {
     const myId = state.currentUser.id;
     const chats = state.chats || [];
     
-    // Count Unread
+    // Unread Count
     let totalUnread = 0;
     chats.forEach(c => totalUnread += (c.messages || []).filter(m => m.senderId !== myId && !m.seen).length);
     toggle("inboxIndicator", totalUnread > 0);
@@ -5008,6 +5002,13 @@ const renderInbox = () => {
 
     chats.sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     list.innerHTML = chats.map(c => htmlInboxItem(c, myId)).join("");
+};
+
+const renderAdmin = () => {
+    if(state.currentUser?.role !== 'admin') return;
+    qs("adminList").innerHTML = `
+      <div class="mb-4"><h3 class="font-bold text-sm mb-2 text-emerald-400">Users</h3><table class="w-full text-left">${state.users.map(htmlAdminUser).join("")}</table></div>
+      <div><h3 class="font-bold text-sm mb-2 text-emerald-400">Posts</h3>${state.posts.map(htmlAdminPost).join("")}</div>`;
 };
 
 // ==========================================
@@ -5035,6 +5036,9 @@ on(qs("deleteEditBtn"), "click", async () => {
     }
 });
 
+window.deleteUser = async (id) => { if(confirm("Delete user?")) await deleteDoc(doc(db, "users", id)); };
+window.deletePost = async (id) => { if(confirm("Delete post?")) await deleteDoc(doc(db, "posts", id)); };
+
 on(qs("uploadForm"), "submit", async e => {
   e.preventDefault();
   if(!requireLogin()) return;
@@ -5045,7 +5049,7 @@ on(qs("uploadForm"), "submit", async e => {
         title: qs("postTitle").value, desc: qs("postDesc").value, 
         price: Number(qs("postPrice").value), credits: Number(qs("postCredits").value),
         user: state.currentUser.name, 
-        ownerId: state.currentUser.id, // Stores ID for Chat
+        ownerId: state.currentUser.id, // Store Owner ID
         image: img, createdAt: Date.now(), status: "active"
     };
     if(editPostId) { if(!img) delete data.image; await updateDoc(doc(db, "posts", editPostId), data); }
@@ -5094,27 +5098,25 @@ on(qs("loginForm"), "submit", async e => {
     showSection("feed");
   } catch (err) { alert(err.message); }
 });
- 
+
 onAuthStateChanged(auth, async (user) => {
-  if (user) {
-    const snap = await getDoc(doc(db, "users", user.uid));
-    if (!snap.exists()) return;
-
-    state.currentUser = { id: snap.id, ...snap.data() };
-    updateAuthUI();
-
-    // 🔥 GUARANTEED CHAT LISTENER
-    subscribeToChats(state.currentUser.id);
-
-    renderFeed();
-    renderInbox();
-  } else {
-    state.currentUser = null;
-    state.chats = [];
-    updateAuthUI();
-    renderFeed();
-    renderInbox();
-  }
+    if (user) {
+        if (!state.currentUser) {
+            const snap = await getDoc(doc(db, "users", user.uid));
+            if (snap.exists()) {
+                state.currentUser = { id: snap.id, ...snap.data() };
+                updateAuthUI();
+                subscribeToChats(state.currentUser.id);
+                renderFeed();
+            }
+        }
+    } else {
+        state.currentUser = null;
+        state.chats = [];
+        updateAuthUI();
+        renderFeed();
+        renderInbox();
+    }
 });
 
 // Tabs
@@ -5149,7 +5151,7 @@ qsa(".nav-btn").forEach(b => on(b, "click", () => {
     if(b.dataset.section === 'upload') qs("yourListingsTab").click();
 }));
 
-// Other
+// Other UI
 on(qs("loginBtn"), "click", () => show("loginModal"));
 on(qs("heroLoginBtn"), "click", () => show("loginModal"));
 on(qs("closeLogin"), "click", () => hide("loginModal"));
@@ -5174,14 +5176,9 @@ on(qs("calcLandBtn"), "click", () => { const factor = qs("landUnit").value === '
 const htmlPost = (p) => {
     const isMine = state.currentUser && p.user === state.currentUser.name;
     const badge = isMine ? `<span class="bg-emerald-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded ml-2">CREATED BY YOU</span>` : '';
-    // FIXED CHAT BUTTON: ONLY PASS ID
-   const chatBtn = `
-<button 
-  class="chat-btn w-full py-2 bg-slate-800 text-xs rounded border border-slate-600 hover:bg-slate-700 font-semibold"
-  data-post-id="${p.id}">
-  💬 Chat with Seller
-</button>`;
-
+    
+    // FIX: Only show button if NOT mine. Button passes ONLY the ID.
+    const chatBtn = !isMine ? `<button onclick="window.startChat('${p.id}')" class="w-full py-2 bg-slate-800 text-xs rounded border border-slate-600 relative hover:bg-slate-700 font-semibold transition-colors">💬 Chat with Seller</button>` : '';
 
     return `<div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-lg flex flex-col hover:border-slate-600 transition-all"><img src="${p.image}" class="w-full h-44 object-cover"><div class="p-3 flex flex-col flex-1"><div class="flex justify-between items-start mb-1"><h3 class="font-bold text-sm truncate flex-1 text-slate-200">${p.title}</h3>${badge}</div><p class="text-[10px] text-slate-500 mb-2">By ${p.user} • ${new Date(p.createdAt).toLocaleDateString()}</p><p class="text-xs text-slate-400 mb-3 truncate">${p.desc}</p><div class="flex justify-between text-[11px] mb-3"><span class="text-emerald-300 bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-500/20">${p.credits} Credits</span><span class="text-white font-bold">₹${p.price}</span></div><div class="mt-auto">${chatBtn}</div></div></div>`;
 };
@@ -5212,15 +5209,7 @@ const init = () => {
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
 else init();
-document.addEventListener("click", (e) => {
-  const btn = e.target.closest(".chat-btn");
-  if (!btn) return;
 
-  const postId = btn.dataset.postId;
-  if (!postId) return;
-
-  startChat(postId);
-});
 
 
 
